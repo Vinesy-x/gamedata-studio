@@ -63,7 +63,14 @@ export class LineSyncer {
     roadsToName: Map<string, string>
   ): Promise<void> {
     await Excel.run(async (context) => {
-      const sheet = context.workbook.worksheets.getItem(sheetName);
+      const sheetObj = context.workbook.worksheets.getItemOrNullObject(sheetName);
+      sheetObj.load('isNullObject');
+      await context.sync();
+      if (sheetObj.isNullObject) {
+        logger.warn(`工作表「${sheetName}」不存在，跳过同步`);
+        return;
+      }
+      const sheet = sheetObj;
 
       // ════════════════════════════════════════════════════
       // 第一阶段：version_r 列同步（整列增删）

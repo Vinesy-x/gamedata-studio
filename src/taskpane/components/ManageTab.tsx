@@ -420,7 +420,7 @@ function ConfigSubPage({ config, onReload, styles }: {
       const tableNames = Array.from(config.tablesToProcess.keys());
       const result = await lineSyncer.syncAllTables(config.versionTemplates, tableNames);
       const msg = `线路同步完成: ${result.synced} 张表已同步` +
-        (result.errors.length > 0 ? `, ${result.errors.length} 张失败` : '');
+        (result.errors.length > 0 ? `, ${result.errors.length} 张失败: ${result.errors.join('、')}` : '');
       setStatusMsg({ text: msg, type: result.errors.length > 0 ? 'error' : 'success' });
     } catch (err) {
       setStatusMsg({ text: `同步失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });

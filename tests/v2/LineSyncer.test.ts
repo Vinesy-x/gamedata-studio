@@ -59,7 +59,10 @@ function makeMockSheet() {
 (globalThis as Record<string, unknown>).Excel = {
   run: jest.fn().mockImplementation(async (cb: (ctx: unknown) => Promise<unknown>) =>
     cb({
-      workbook: { worksheets: { getItem() { return makeMockSheet(); } } },
+      workbook: { worksheets: {
+        getItem() { return makeMockSheet(); },
+        getItemOrNullObject() { return { ...makeMockSheet(), isNullObject: false, load: jest.fn() }; },
+      } },
       sync: jest.fn().mockResolvedValue(undefined),
     })
   ),
