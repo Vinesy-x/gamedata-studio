@@ -114,12 +114,16 @@ jest.mock('../../src/utils/Logger', () => ({
 
 const mockStudioLoad = jest.fn();
 const mockStudioUpdate = jest.fn().mockResolvedValue(true);
-jest.mock('../../src/v2/StudioConfigStore', () => ({
-  StudioConfigStore: {
-    load: (...args: unknown[]) => mockStudioLoad(...args),
-    update: (...args: unknown[]) => mockStudioUpdate(...args),
-  },
-}));
+jest.mock('../../src/v2/StudioConfigStore', () => {
+  const actual = jest.requireActual('../../src/v2/StudioConfigStore');
+  return {
+    ...actual,
+    StudioConfigStore: {
+      load: (...args: unknown[]) => mockStudioLoad(...args),
+      update: (...args: unknown[]) => mockStudioUpdate(...args),
+    },
+  };
+});
 
 import { TableCreator, FieldDefinition, TableCreationConfig } from '../../src/v2/TableCreator';
 

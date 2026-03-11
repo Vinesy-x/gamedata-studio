@@ -1,10 +1,9 @@
 /* global Excel */
 
 import { TableInfo } from '../types/config';
-import { excelHelper } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
-import { StudioConfigStore } from './StudioConfigStore';
-import { SHEET_CONFIG } from './TemplateFactory';
+import { StudioConfigStore, buildRoadsFromConfig } from './StudioConfigStore';
+import { tableRegistry } from './TableRegistry';
 
 // ─── 接口定义 ───────────────────────────────────────────────
 
@@ -24,8 +23,6 @@ export interface TableCreationConfig {
   includeVersionCol: boolean;
   autoRegister: boolean;
 }
-
-const LEGACY_MAPPING = '表名对照';
 
 // ─── TableCreator ────────────────────────────────────────────
 
@@ -143,37 +140,13 @@ export class TableCreator {
 
   // ─── 私有方法 ───────────────────────────────────────────────
 
-  /** 从 StudioConfig 版本配置构建 roads 列表：roads_0(默认) + 各版本对应的 roads，按编号排序 */
+  /** 从 StudioConfig 版本配置构建 roads 列表 */
   private async loadVersionRoads(
     context: Excel.RequestContext
   ): Promise<Array<{ field: string; name: string }>> {
-    const roads: Array<{ field: string; name: string }> = [
-      { field: 'roads_0', name: '默认' },
-    ];
-
     const data = await StudioConfigStore.load(context);
-    if (data) {
-      for (const v of data.versions) {
-        // 跳过 roads_0（已默认添加）和无效的 lineField
-        let field = v.lineField;
-        if (!field || !field.startsWith('roads_')) {
-          // lineField 为空时从 lines 中查找
-          const line = data.lines?.find(l => l.id === v.lineId);
-          if (line?.field) field = line.field;
-        }
-        if (field && field !== 'roads_0' && field.startsWith('roads_')) {
-          roads.push({ field, name: v.name });
-        }
-      }
-    }
-
-    roads.sort((a, b) => {
-      const na = parseInt(a.field.replace('roads_', ''));
-      const nb = parseInt(b.field.replace('roads_', ''));
-      return na - nb;
-    });
-
-    return roads;
+    if (!data) return [{ field: 'roads_0', name: '默认' }];
+    return buildRoadsFromConfig(data);
   }
 
   private buildFieldString(f: FieldDefinition): string {
@@ -187,70 +160,10 @@ export class TableCreator {
   }
 
   private async registerTable(info: TableInfo): Promise<void> {
-    await Excel.run(async (context) => {
-      // 优先 JSON
-      const ok = await StudioConfigStore.update(context, (data) => {
-        data.tables.push(info);
-      });
-      if (ok) return;
-
-      // 旧格式回退
-      let snap = await excelHelper.loadSheetSnapshot(context, SHEET_CONFIG);
-      let mappingSheet = SHEET_CONFIG;
-      if (!snap || !excelHelper.findMarkerInData(snap.values, '#输出控制#')) {
-        snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
-        mappingSheet = LEGACY_MAPPING;
-      }
-      if (!snap || snap.values.length === 0) {
-        throw new Error('找不到包含 #输出控制# 的工作表');
-      }
-
-      const pos = excelHelper.findMarkerInData(snap.values, '#输出控制#');
-      if (!pos) throw new Error('未找到 #输出控制# 标记');
-
-      const rows = excelHelper.readBlockBelow(snap.values, pos.row, pos.col, 4);
-      const insertRowOffset = pos.row + 1 + rows.length;
-      const absRow = insertRowOffset + snap.startRow;
-      const absCol = pos.col + snap.startCol;
-
-      const sheet = context.workbook.worksheets.getItem(mappingSheet);
-      sheet.getRangeByIndexes(absRow, absCol, 1, 4).values = [[
-        info.versionRange, info.chineseName, info.englishName, info.shouldOutput,
-      ]];
-      await context.sync();
-    });
+    await tableRegistry.registerTable(info);
   }
 
   private async unregisterTable(chineseName: string): Promise<void> {
-    await Excel.run(async (context) => {
-      // 优先 JSON
-      const ok = await StudioConfigStore.update(context, (data) => {
-        data.tables = data.tables.filter(t => t.chineseName !== chineseName);
-      });
-      if (ok) return;
-
-      // 旧格式回退
-      let snap = await excelHelper.loadSheetSnapshot(context, SHEET_CONFIG);
-      let mappingSheet = SHEET_CONFIG;
-      if (!snap || !excelHelper.findMarkerInData(snap.values, '#输出控制#')) {
-        snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
-        mappingSheet = LEGACY_MAPPING;
-      }
-      if (!snap || snap.values.length === 0) return;
-
-      const pos = excelHelper.findMarkerInData(snap.values, '#输出控制#');
-      if (!pos) return;
-
-      const data = snap.values;
-      for (let r = pos.row + 1; r < data.length; r++) {
-        const cellValue = String(data[r]?.[pos.col + 1] ?? '').trim();
-        if (cellValue === chineseName) {
-          const sheet = context.workbook.worksheets.getItem(mappingSheet);
-          sheet.getRangeByIndexes(r + snap.startRow, pos.col + snap.startCol, 1, 4).values = [['', '', '', '']];
-          await context.sync();
-          return;
-        }
-      }
-    });
+    await tableRegistry.unregisterTable(chineseName);
   }
 }

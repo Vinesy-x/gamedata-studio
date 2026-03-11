@@ -280,6 +280,40 @@ export function createTableSchema(): TableSchemaDoc {
   };
 }
 
+// ─── 工具方法 ──────────────────────────────────────────
+
+/**
+ * 从 StudioConfigData 构建完整的 roads 列表（含 lineId→lineField 映射）
+ * 统一入口，所有需要 roads 列表的地方都应调用此方法，避免重复逻辑。
+ */
+export function buildRoadsFromConfig(
+  data: StudioConfigData
+): Array<{ field: string; name: string }> {
+  // 构建 lineId → field 映射（lines 是真实来源）
+  const lineFieldMap = new Map<number, string>();
+  for (const l of data.lines) {
+    lineFieldMap.set(l.id, l.field);
+  }
+
+  const roads: Array<{ field: string; name: string }> = [
+    { field: 'roads_0', name: '默认' },
+  ];
+
+  for (const v of data.versions) {
+    // 优先用 lines 中的 field（可靠），其次用 version 自带的 lineField
+    const field = lineFieldMap.get(v.lineId) || v.lineField || '';
+    if (field && field !== 'roads_0' && field.startsWith('roads_')) {
+      roads.push({ field, name: v.name });
+    }
+  }
+
+  roads.sort((a, b) =>
+    parseInt(a.field.replace('roads_', '')) - parseInt(b.field.replace('roads_', ''))
+  );
+
+  return roads;
+}
+
 // ─── 读写核心 ──────────────────────────────────────────
 
 /**
