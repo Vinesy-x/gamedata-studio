@@ -7,40 +7,34 @@ import { logger } from '../utils/Logger';
 /**
  * LineSyncer — 线路同步器
  *
- * 当版本模板变更（新增/删除版本）时，
- * 批量为所有拥有 version_r 的数据表补充或清理线路列。
- * 新线路列的配置值默认复制 roads_0（默认线路）。
- * 同时同步版本名到 version_r 下方的描述行。
+ * 三阶段同步：
+ * 1. version_r 列同步：整列增删，使 roads 列与配置一致
+ * 2. version_c 行同步：整行增删，使 roads 行与配置一致（仅 R+C 模式）
+ * 3. 版本名同步：更新 version_r 描述行 + version_c 标签列
+ *
+ * 每个阶段完成后 reload 快照，确保位置信息准确。
  */
 export class LineSyncer {
-  /**
-   * 同步所有数据表的线路列
-   * @param versionTemplates 当前所有版本模板
-   * @param tableSheetNames 所有需要同步的数据表中文名
-   * @returns 同步结果: { synced: 成功数, skipped: 跳过数, errors: 失败表名[] }
-   */
   async syncAllTables(
     versionTemplates: Map<string, VersionTemplate>,
     tableSheetNames: string[]
   ): Promise<{ synced: number; skipped: number; errors: string[] }> {
-    // 收集所有需要的 roads 字段
+    // 收集所有需要的 roads（含 roads_0）
     const requiredRoads = new Set<string>();
-    requiredRoads.add('roads_0'); // 默认线路始终存在
+    requiredRoads.add('roads_0');
     for (const vt of versionTemplates.values()) {
       requiredRoads.add(vt.lineField);
     }
     const sortedRoads = Array.from(requiredRoads).sort((a, b) => {
-      const na = parseInt(a.replace('roads_', ''));
-      const nb = parseInt(b.replace('roads_', ''));
-      return na - nb;
+      return parseInt(a.replace('roads_', '')) - parseInt(b.replace('roads_', ''));
     });
 
-    // 构建 roads → 版本名 映射
-    const roadsToVersionName = new Map<string, string>();
-    roadsToVersionName.set('roads_0', '默认'); // roads_0 固定描述为"默认"
+    // roads → 版本名 映射
+    const roadsToName = new Map<string, string>();
+    roadsToName.set('roads_0', '默认');
     for (const vt of versionTemplates.values()) {
       if (vt.lineField !== 'roads_0') {
-        roadsToVersionName.set(vt.lineField, vt.name);
+        roadsToName.set(vt.lineField, vt.name);
       }
     }
 
@@ -49,7 +43,7 @@ export class LineSyncer {
 
     for (const sheetName of tableSheetNames) {
       try {
-        await this.syncSingleTable(sheetName, sortedRoads, roadsToVersionName);
+        await this.syncSingleTable(sheetName, sortedRoads, roadsToName);
         synced++;
       } catch (err) {
         errors.push(sheetName);
@@ -61,301 +55,302 @@ export class LineSyncer {
     return { synced, skipped: 0, errors };
   }
 
-  /**
-   * 同步单张表的线路列
-   * @returns true=有变更, false=无需变更(跳过)
-   */
   private async syncSingleTable(
     sheetName: string,
     requiredRoads: string[],
-    roadsToVersionName: Map<string, string>
+    roadsToName: Map<string, string>
   ): Promise<void> {
     await Excel.run(async (context) => {
-      let snap = await excelHelper.loadSheetSnapshot(context, sheetName);
-      if (!snap || snap.values.length === 0) {
-        logger.info(`表「${sheetName}」快照为空`);
-        return;
-      }
-
-      let vrPos = this.findVersionR(snap.values);
-      if (!vrPos) {
-        logger.info(`表「${sheetName}」无 version_r`);
-        return;
-      }
-
-      const vrRow = vrPos.row;
-      const vrCol = vrPos.col;
-
-      // 收集现有线路列: { fieldName → colIndex }
-      const existingRoads = new Map<string, number>();
-      for (let c = vrCol + 1; c < (snap.values[vrRow]?.length || 0); c++) {
-        const cellVal = String(snap.values[vrRow][c] ?? '').trim();
-        if (cellVal.startsWith('roads_')) {
-          existingRoads.set(cellVal, c);
-        } else if (cellVal === '' || cellVal === '#配置区域#') {
-          break;
-        }
-      }
-
-      // 找出缺失的线路和多余的线路
-      const missingRoads = requiredRoads.filter(r => !existingRoads.has(r));
-      const extraRoads = Array.from(existingRoads.keys()).filter(r => !requiredRoads.includes(r));
-
-      const hasColumnChanges = missingRoads.length > 0 || extraRoads.length > 0;
       const sheet = context.workbook.worksheets.getItem(sheetName);
 
-      // ── 第一步：删除多余的线路列（从右往左删，避免索引偏移）──
-      if (extraRoads.length > 0) {
-        const extraCols = extraRoads
-          .map(r => existingRoads.get(r)!)
-          .sort((a, b) => b - a); // 从右往左
+      // ════════════════════════════════════════════════════
+      // 第一阶段：version_r 列同步（整列增删）
+      // ════════════════════════════════════════════════════
+      let snap = await excelHelper.loadSheetSnapshot(context, sheetName);
+      if (!snap || snap.values.length === 0) return;
 
-        for (const col of extraCols) {
-          const absCol = col + snap.startCol;
-          const colRange = sheet.getRangeByIndexes(0, absCol, 1, 1).getEntireColumn();
-          colRange.delete(Excel.DeleteShiftDirection.left);
+      let vrPos = this.findMarker(snap.values, 'version_r');
+      if (!vrPos) return;
+
+      // 1a. 收集 version_r 行现有的 roads 列
+      const existingCols = this.collectRoadsCols(snap.values, vrPos);
+
+      // 1b. 删除多余的列（从右往左，整列删除）
+      const extraFields = Array.from(existingCols.keys()).filter(f => !requiredRoads.includes(f));
+      if (extraFields.length > 0) {
+        const cols = extraFields.map(f => existingCols.get(f)!).sort((a, b) => b - a);
+        for (const c of cols) {
+          sheet.getRangeByIndexes(0, c + snap.startCol, 1, 1).getEntireColumn().delete(Excel.DeleteShiftDirection.left);
         }
-
         await context.sync();
-        logger.info(`表「${sheetName}」已删除 ${extraRoads.length} 条多余线路: ${extraRoads.join(', ')}`);
+        logger.info(`表「${sheetName}」删除 ${extraFields.length} 列: ${extraFields.join(', ')}`);
       }
 
-      // ── 第二步：添加缺失的线路列 ──
-      if (missingRoads.length > 0) {
-        // 删除列后需要重新加载快照
-        const snap2 = await excelHelper.loadSheetSnapshot(context, sheetName);
-        if (!snap2 || snap2.values.length === 0) return;
-
-        const vrPos2 = this.findVersionR(snap2.values);
-        if (!vrPos2) return;
-
-        // 获取 roads_0 的列索引，用于复制默认值
-        let roads0Col: number | undefined;
-        let lastRoadCol = vrPos2.col;
-        for (let c = vrPos2.col + 1; c < (snap2.values[vrPos2.row]?.length || 0); c++) {
-          const cellVal = String(snap2.values[vrPos2.row][c] ?? '').trim();
-          if (cellVal.startsWith('roads_')) {
-            if (cellVal === 'roads_0') roads0Col = c;
-            lastRoadCol = c;
-          } else if (cellVal === '' || cellVal === '#配置区域#') {
-            break;
-          }
-        }
-
-        if (roads0Col === undefined) {
-          logger.warn(`表「${sheetName}」缺少 roads_0 列，跳过添加`);
-          return;
-        }
-
-        // 获取 roads_0 的所有行值
-        const roads0Values: (string | number | boolean | null)[] = [];
-        for (let r = 0; r < snap2.values.length; r++) {
-          roads0Values.push(snap2.values[r]?.[roads0Col] ?? null);
-        }
-
-        const insertStartCol = lastRoadCol + 1;
-
-        // 插入新列
-        for (let i = 0; i < missingRoads.length; i++) {
-          const absCol = insertStartCol + i + snap2.startCol;
-          const insertRange = sheet.getRangeByIndexes(0, absCol, 1, 1).getEntireColumn();
-          insertRange.insert(Excel.InsertShiftDirection.right);
-        }
-        await context.sync();
-
-        // 重新加载快照写入数据
-        const snap3 = await excelHelper.loadSheetSnapshot(context, sheetName);
-        if (!snap3) return;
-
-        const vrPos3 = this.findVersionR(snap3.values);
-        if (!vrPos3) return;
-
-        const descRow3 = vrPos3.row + 1;
-
-        for (let i = 0; i < missingRoads.length; i++) {
-          const roadField = missingRoads[i];
-          const absCol = (insertStartCol + i) + snap3.startCol;
-
-          // 写入线路字段名
-          sheet.getRangeByIndexes(vrPos3.row + snap3.startRow, absCol, 1, 1).values = [[roadField]];
-
-          // 写入描述行（版本名）
-          if (descRow3 < snap3.values.length) {
-            const versionName = roadsToVersionName.get(roadField) || roads0Values[descRow3] || '';
-            sheet.getRangeByIndexes(descRow3 + snap3.startRow, absCol, 1, 1).values = [[versionName]];
-          }
-
-          // 复制 roads_0 的数据行值
-          for (let r = descRow3 + 1; r < roads0Values.length; r++) {
-            const val = roads0Values[r];
-            if (val == null || String(val).trim() === '') continue;
-            sheet.getRangeByIndexes(r + snap3.startRow, absCol, 1, 1).values = [[val]];
-          }
-        }
-
-        await context.sync();
-        logger.info(`表「${sheetName}」已添加 ${missingRoads.length} 条线路: ${missingRoads.join(', ')}`);
-      }
-
-      // ── 第三步：同步所有线路列的版本名到描述行 ──
-      // 无论是否有列变更，都更新版本名
-      if (hasColumnChanges) {
-        // 列结构变了，需要重新加载
+      // 1c. 添加缺失的列（整列插入）
+      // 先 reload 拿到删除后的最新位置
+      if (extraFields.length > 0) {
         snap = await excelHelper.loadSheetSnapshot(context, sheetName);
         if (!snap) return;
-        vrPos = this.findVersionR(snap.values);
+        vrPos = this.findMarker(snap.values, 'version_r');
         if (!vrPos) return;
       }
 
-      const descRow = vrPos.row + 1;
-      let namesSynced = false;
+      const currentCols = this.collectRoadsCols(snap.values, vrPos);
+      const missingFields = requiredRoads.filter(f => !currentCols.has(f));
 
-      // 3a. 同步 version_r 描述行的版本名
-      if (descRow < snap.values.length) {
-        for (let c = vrPos.col + 1; c < (snap.values[vrPos.row]?.length || 0); c++) {
-          const cellVal = String(snap.values[vrPos.row][c] ?? '').trim();
-          if (!cellVal.startsWith('roads_')) {
-            if (cellVal === '' || cellVal === '#配置区域#') break;
-            continue;
-          }
-          const expectedName = roadsToVersionName.get(cellVal);
-          if (!expectedName) continue;
-          const currentVal = String(snap.values[descRow]?.[c] ?? '').trim();
-          if (currentVal !== expectedName) {
-            sheet.getRangeByIndexes(descRow + snap.startRow, c + snap.startCol, 1, 1).values = [[expectedName]];
-            namesSynced = true;
+      if (missingFields.length > 0) {
+        // 找 roads_0 列用于复制默认值
+        const roads0Col = currentCols.get('roads_0');
+        // 找最后一个 roads 列的位置
+        let lastRoadCol = vrPos.col;
+        for (const c of currentCols.values()) {
+          if (c > lastRoadCol) lastRoadCol = c;
+        }
+        const insertCol = lastRoadCol + 1;
+        const N = missingFields.length;
+
+        // 批量插入 N 个整列（与行处理方式一致）
+        sheet.getRangeByIndexes(0, insertCol + snap.startCol, 1, N)
+          .getEntireColumn().insert(Excel.InsertShiftDirection.right);
+
+        // 插入后，新列位于 insertCol ~ insertCol+N-1（绝对位置）
+        // 直接写入字段名和数据，无需 reload 扫描空列
+        const descRow = vrPos.row + 1;
+        for (let i = 0; i < N; i++) {
+          const field = missingFields[i];
+          const absCol = insertCol + i + snap.startCol;
+
+          // 写入字段名到 version_r 行
+          sheet.getRangeByIndexes(vrPos.row + snap.startRow, absCol, 1, 1).values = [[field]];
+
+          // 写入版本名到描述行
+          if (descRow < snap.values.length) {
+            const name = roadsToName.get(field) || '';
+            sheet.getRangeByIndexes(descRow + snap.startRow, absCol, 1, 1).values = [[name]];
           }
         }
+
+        // 批量复制 roads_0 数据列到所有新列
+        if (roads0Col !== undefined) {
+          const dataStartRow = descRow + 1;
+          if (dataStartRow < snap.values.length) {
+            for (let i = 0; i < N; i++) {
+              const absCol = insertCol + i + snap.startCol;
+              const colData: unknown[][] = [];
+              for (let r = dataStartRow; r < snap.values.length; r++) {
+                colData.push([snap.values[r]?.[roads0Col] ?? null]);
+              }
+              sheet.getRangeByIndexes(dataStartRow + snap.startRow, absCol, colData.length, 1).values = colData;
+            }
+          }
+        }
+
+        await context.sync();
+        logger.info(`表「${sheetName}」添加 ${N} 列: ${missingFields.join(', ')}`);
       }
 
-      // 3b. 同步 version_c 区域
-      let vcPos = this.findVersionC(snap.values);
-      if (vcPos) {
-        const labelCol = vcPos.col - 1; // 版本名写在 version_c 列的左边一列
-
+      // ════════════════════════════════════════════════════
+      // 第二阶段：version_c 行同步（整行增删）
+      // ════════════════════════════════════════════════════
+      // 全新 reload
+      snap = await excelHelper.loadSheetSnapshot(context, sheetName);
+      if (!snap) return;
+      vrPos = this.findMarker(snap.values, 'version_r');
+      if (!vrPos) return;
+      let vcPos = this.findMarker(snap.values, 'version_c');
+      if (!vcPos) {
+        // 没有 version_c，跳过第二阶段
+      } else {
         // 收集 version_c 区域中现有的 roads 行
-        const existingVCRoads = new Map<string, number>(); // roadField → row
-        for (let r = vcPos.row + 1; r < vrPos.row; r++) {
-          const roadField = String(snap.values[r]?.[vcPos.col] ?? '').trim();
-          if (roadField.startsWith('roads_')) {
-            existingVCRoads.set(roadField, r);
-          }
-        }
-        const hasRoadsRows = existingVCRoads.size > 0;
+        const existingRows = this.collectRoadsRows(snap.values, vcPos, vrPos);
 
-        if (hasRoadsRows) {
-          // R+C 模式：同步 roads 行（增删 + 更新版本名标签）
+        if (existingRows.size > 0) {
+          // 有 roads 行 → R+C 模式，需要同步
 
-          // 删除多余的 roads 行（从下往上删）
-          const extraVCRoads = Array.from(existingVCRoads.keys()).filter(r => !requiredRoads.includes(r));
-          if (extraVCRoads.length > 0) {
-            const extraRows = extraVCRoads
-              .map(r => existingVCRoads.get(r)!)
-              .sort((a, b) => b - a);
-            for (const row of extraRows) {
-              sheet.getRangeByIndexes(row + snap.startRow, 0, 1, 1).getEntireRow().delete(Excel.DeleteShiftDirection.up);
+          // 2a. 删除多余的 roads 行（从下往上，整行删除）
+          const extraRowFields = Array.from(existingRows.keys()).filter(f => !requiredRoads.includes(f));
+          if (extraRowFields.length > 0) {
+            const rows = extraRowFields.map(f => existingRows.get(f)!).sort((a, b) => b - a);
+            for (const r of rows) {
+              sheet.getRangeByIndexes(r + snap.startRow, 0, 1, 1).getEntireRow().delete(Excel.DeleteShiftDirection.up);
             }
             await context.sync();
+            logger.info(`表「${sheetName}」删除 ${extraRowFields.length} 行: ${extraRowFields.join(', ')}`);
           }
 
-          // 添加缺失的 roads 行
-          const missingVCRoads = requiredRoads.filter(r => r !== 'roads_0' || existingVCRoads.has(r))
-            .filter(r => !existingVCRoads.has(r));
-          if (missingVCRoads.length > 0) {
-            // 重新加载快照
+          // 2b. 添加缺失的 roads 行
+          // reload 拿最新位置
+          snap = await excelHelper.loadSheetSnapshot(context, sheetName);
+          if (!snap) return;
+          vrPos = this.findMarker(snap.values, 'version_r');
+          vcPos = this.findMarker(snap.values, 'version_c');
+          if (!vrPos || !vcPos) return;
+
+          const currentRows = this.collectRoadsRows(snap.values, vcPos, vrPos);
+          const missingRowFields = requiredRoads.filter(f => !currentRows.has(f));
+
+          if (missingRowFields.length > 0) {
+            // 找最后一个 roads 行
+            let lastRoadRow = vcPos.row;
+            for (const r of currentRows.values()) {
+              if (r > lastRoadRow) lastRoadRow = r;
+            }
+            const insertRow = lastRoadRow + 1;
+
+            // 整行插入
+            sheet.getRangeByIndexes(insertRow + snap.startRow, 0, missingRowFields.length, 1)
+              .getEntireRow().insert(Excel.InsertShiftDirection.down);
+            await context.sync();
+
+            // reload 后写入数据
             snap = await excelHelper.loadSheetSnapshot(context, sheetName);
             if (!snap) return;
-            vrPos = this.findVersionR(snap.values);
-            vcPos = this.findVersionC(snap.values);
+            vrPos = this.findMarker(snap.values, 'version_r');
+            vcPos = this.findMarker(snap.values, 'version_c');
             if (!vrPos || !vcPos) return;
 
-            // 找到 #配置区域# 列以确定数据列范围
+            // 从 version_r 行的 #配置区域# 后统计实际数据字段数（可靠源，不受 vc 表头污染）
             let cfgCol = -1;
             for (let c = 0; c < (snap.values[vrPos.row]?.length || 0); c++) {
               if (String(snap.values[vrPos.row][c] ?? '').trim() === '#配置区域#') { cfgCol = c; break; }
             }
-            const dataStart = cfgCol >= 0 ? cfgCol + 1 : -1;
-            const dataCols = dataStart >= 0 ? Math.max(0, (snap.values[vrPos.row]?.length || 0) - dataStart) : 0;
-
-            // 在最后一个 roads 行的下方插入
-            let lastRoadRow = vcPos.row; // 至少从 version_c 行开始
-            for (let r = vcPos.row + 1; r < vrPos.row; r++) {
-              const v = String(snap.values[r]?.[vcPos.col] ?? '').trim();
-              if (v.startsWith('roads_')) lastRoadRow = r;
+            let vcDataCols = 0;
+            if (cfgCol >= 0) {
+              for (let c = cfgCol + 1; c < (snap.values[vrPos.row]?.length || 0); c++) {
+                const v = snap.values[vrPos.row]?.[c];
+                if (v == null || String(v).trim() === '') break;
+                vcDataCols++;
+              }
             }
-            const insertAbsRow = lastRoadRow + 1 + snap.startRow;
-            sheet.getRangeByIndexes(insertAbsRow, 0, missingVCRoads.length, 1).getEntireRow().insert(Excel.InsertShiftDirection.down);
+            const vcDataStart = vcPos.col + 1;
+            const labelCol = vcPos.col - 1;
+
+            // 写入新行数据
+            for (let i = 0; i < missingRowFields.length; i++) {
+              const field = missingRowFields[i];
+              const absRow = (insertRow + i) + snap.startRow;
+
+              // 写入 roads 字段名（version_c 同列）
+              sheet.getRangeByIndexes(absRow, vcPos.col + snap.startCol, 1, 1).values = [[field]];
+
+              // 写入版本名标签（version_c 左一列）
+              if (labelCol >= 0) {
+                const name = roadsToName.get(field) || '';
+                if (name) {
+                  sheet.getRangeByIndexes(absRow, labelCol + snap.startCol, 1, 1).values = [[name]];
+                }
+              }
+
+              // 数据列默认值 1（从 version_c 字段列后一列开始，列数与表头行一致）
+              if (vcDataCols > 0) {
+                const defaults = Array.from({ length: vcDataCols }, () => 1);
+                sheet.getRangeByIndexes(absRow, vcDataStart + snap.startCol, 1, vcDataCols).values = [defaults];
+              }
+            }
             await context.sync();
-            for (let i = 0; i < missingVCRoads.length; i++) {
-              const roadField = missingVCRoads[i];
-              const rowAbs = insertAbsRow + i;
-              sheet.getRangeByIndexes(rowAbs, vcPos.col + snap.startCol, 1, 1).values = [[roadField]];
-              const vName = roadsToVersionName.get(roadField) || '';
-              if (vName && labelCol >= 0) {
-                sheet.getRangeByIndexes(rowAbs, labelCol + snap.startCol, 1, 1).values = [[vName]];
-              }
-              // 数据列默认值 1
-              if (dataCols > 0) {
-                const defaults = Array.from({ length: dataCols }, () => 1);
-                sheet.getRangeByIndexes(rowAbs, dataStart + snap.startCol, 1, dataCols).values = [defaults];
-              }
-            }
-            await context.sync();
-          }
-
-          // 重新加载后更新所有 roads 行的版本名标签
-          snap = await excelHelper.loadSheetSnapshot(context, sheetName);
-          if (!snap) return true;
-          vrPos = this.findVersionR(snap.values);
-          vcPos = this.findVersionC(snap.values);
-          if (!vrPos || !vcPos) return true;
-
-          if (labelCol >= 0) {
-            for (let r = vcPos.row + 1; r < vrPos.row; r++) {
-              const roadField = String(snap.values[r]?.[vcPos.col] ?? '').trim();
-              if (!roadField.startsWith('roads_')) continue;
-              const expectedName = roadsToVersionName.get(roadField);
-              if (!expectedName) continue;
-              const currentLabel = String(snap.values[r]?.[vcPos.col - 1] ?? '').trim();
-              if (currentLabel !== expectedName) {
-                sheet.getRangeByIndexes(r + snap.startRow, (vcPos.col - 1) + snap.startCol, 1, 1).values = [[expectedName]];
-                namesSynced = true;
-              }
-            }
+            logger.info(`表「${sheetName}」添加 ${missingRowFields.length} 行: ${missingRowFields.join(', ')}`);
           }
         }
       }
 
-      if (namesSynced) {
+      // ════════════════════════════════════════════════════
+      // 第三阶段：同步版本名（全新 reload）
+      // ════════════════════════════════════════════════════
+      snap = await excelHelper.loadSheetSnapshot(context, sheetName);
+      if (!snap) return;
+      vrPos = this.findMarker(snap.values, 'version_r');
+      if (!vrPos) return;
+
+      let changed = false;
+
+      // 3a. version_r 描述行版本名
+      const descRow = vrPos.row + 1;
+      if (descRow < snap.values.length) {
+        for (let c = vrPos.col + 1; c < (snap.values[vrPos.row]?.length || 0); c++) {
+          const field = String(snap.values[vrPos.row][c] ?? '').trim();
+          if (!field.startsWith('roads_')) {
+            if (field === '' || field === '#配置区域#') break;
+            continue;
+          }
+          const expected = roadsToName.get(field);
+          if (!expected) continue;
+          const current = String(snap.values[descRow]?.[c] ?? '').trim();
+          if (current !== expected) {
+            sheet.getRangeByIndexes(descRow + snap.startRow, c + snap.startCol, 1, 1).values = [[expected]];
+            changed = true;
+          }
+        }
+      }
+
+      // 3b. version_c 标签列版本名
+      vcPos = this.findMarker(snap.values, 'version_c');
+      if (vcPos && vcPos.col > 0) {
+        const labelCol = vcPos.col - 1;
+        for (let r = vcPos.row + 1; r < vrPos.row; r++) {
+          const field = String(snap.values[r]?.[vcPos.col] ?? '').trim();
+          if (!field.startsWith('roads_')) continue;
+          const expected = roadsToName.get(field);
+          if (!expected) continue;
+          const current = String(snap.values[r]?.[labelCol] ?? '').trim();
+          if (current !== expected) {
+            sheet.getRangeByIndexes(r + snap.startRow, labelCol + snap.startCol, 1, 1).values = [[expected]];
+            changed = true;
+          }
+        }
+      }
+
+      if (changed) {
         await context.sync();
         logger.info(`表「${sheetName}」已同步版本名`);
       }
-
     });
   }
 
-  /**
-   * 在数据中查找 version_r 位置
-   */
-  private findVersionR(data: (string | number | boolean | null)[][]): { row: number; col: number } | null {
-    for (let r = 0; r < Math.min(data.length, 30); r++) {
-      for (let c = 0; c < Math.min(data[r]?.length || 0, 5); c++) {
-        if (String(data[r][c] ?? '').trim() === 'version_r') {
-          return { row: r, col: c };
-        }
+  // ─── 工具方法 ───────────────────────────────────────────
+
+  /** 在 version_r 行中收集 roads 列：field → colIndex */
+  private collectRoadsCols(
+    data: (string | number | boolean | null)[][],
+    vrPos: { row: number; col: number }
+  ): Map<string, number> {
+    const map = new Map<string, number>();
+    for (let c = vrPos.col + 1; c < (data[vrPos.row]?.length || 0); c++) {
+      const v = String(data[vrPos.row][c] ?? '').trim();
+      if (v.startsWith('roads_')) {
+        map.set(v, c);
+      } else if (v === '' || v === '#配置区域#') {
+        break;
       }
     }
-    return null;
+    return map;
   }
 
-  /**
-   * 在数据中查找 version_c 位置
-   */
-  private findVersionC(data: (string | number | boolean | null)[][]): { row: number; col: number } | null {
+  /** 在 version_c 和 version_r 之间收集 roads 行：field → rowIndex */
+  private collectRoadsRows(
+    data: (string | number | boolean | null)[][],
+    vcPos: { row: number; col: number },
+    vrPos: { row: number; col: number }
+  ): Map<string, number> {
+    const map = new Map<string, number>();
+    for (let r = vcPos.row + 1; r < vrPos.row; r++) {
+      const v = String(data[r]?.[vcPos.col] ?? '').trim();
+      if (v.startsWith('roads_')) {
+        map.set(v, r);
+      }
+    }
+    return map;
+  }
+
+  /** 查找标记文字位置（前30行） */
+  private findMarker(
+    data: (string | number | boolean | null)[][],
+    marker: string
+  ): { row: number; col: number } | null {
+    const colLimit = marker === 'version_r' ? 5 : undefined; // version_r 在前几列，version_c 可能在较远列
     for (let r = 0; r < Math.min(data.length, 30); r++) {
-      const colLimit = data[r]?.length || 0;
-      for (let c = 0; c < colLimit; c++) {
-        if (String(data[r][c] ?? '').trim() === 'version_c') {
+      const limit = colLimit ?? (data[r]?.length || 0);
+      for (let c = 0; c < limit; c++) {
+        if (String(data[r]?.[c] ?? '').trim() === marker) {
           return { row: r, col: c };
         }
       }

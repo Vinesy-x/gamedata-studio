@@ -1,6 +1,6 @@
 /* global Excel */
 
-import { TableInfo, LineTemplate } from '../types/config';
+import { TableInfo, LineTemplate, VersionTemplate } from '../types/config';
 import { excelHelper } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
 import { StudioConfigStore } from './StudioConfigStore';
@@ -36,8 +36,9 @@ export class TableCreator {
 
   async createTable(config: TableCreationConfig): Promise<void> {
     await Excel.run(async (context) => {
-      const sortedLines = await this.loadLineTemplates(context);
-      const roadsCount = sortedLines.length;
+      // 从版本配置构建 roads 列表（仅包含当前配置的版本，非全部线路）
+      const roads = await this.loadVersionRoads(context);
+      const roadsCount = roads.length;
 
       const gapCols = 2;
       const configMarkerCol = 1 + roadsCount + gapCols;
@@ -58,8 +59,8 @@ export class TableCreator {
       }
 
       sheet.getRangeByIndexes(vrRow, 0, 1, 1).values = [['version_r']];
-      for (let i = 0; i < sortedLines.length; i++) {
-        sheet.getRangeByIndexes(vrRow, 1 + i, 1, 1).values = [[sortedLines[i].field]];
+      for (let i = 0; i < roads.length; i++) {
+        sheet.getRangeByIndexes(vrRow, 1 + i, 1, 1).values = [[roads[i].field]];
       }
 
       sheet.getRangeByIndexes(vrRow, configMarkerCol, 1, 1).values = [['#配置区域#']];
@@ -72,18 +73,15 @@ export class TableCreator {
 
       const descRow = vrRow + 1;
       sheet.getRangeByIndexes(descRow, 0, 1, 1).values = [['版本行属']];
-      for (let i = 0; i < sortedLines.length; i++) {
-        sheet.getRangeByIndexes(descRow, 1 + i, 1, 1).values = [[sortedLines[i].remark]];
+      for (let i = 0; i < roads.length; i++) {
+        sheet.getRangeByIndexes(descRow, 1 + i, 1, 1).values = [[roads[i].name]];
       }
       for (let i = 0; i < config.fields.length; i++) {
         sheet.getRangeByIndexes(descRow, dataStartCol + i, 1, 1).values = [[config.fields[i].description]];
       }
 
-      const freezeRow = descRow + 1;
-      const freezeCol = dataStartCol;
-      sheet.freezePanes.freezeAt(
-        sheet.getRangeByIndexes(freezeRow, freezeCol, 1, 1)
-      );
+      // 激活新建的工作表，确保用户能直接看到内容
+      sheet.activate();
 
       await context.sync();
 
@@ -136,6 +134,32 @@ export class TableCreator {
   }
 
   // ─── 私有方法 ───────────────────────────────────────────────
+
+  /** 从 StudioConfig 版本配置构建 roads 列表：roads_0(默认) + 各版本对应的 roads，按编号排序 */
+  private async loadVersionRoads(
+    context: Excel.RequestContext
+  ): Promise<Array<{ field: string; name: string }>> {
+    const roads: Array<{ field: string; name: string }> = [
+      { field: 'roads_0', name: '默认' },
+    ];
+
+    const data = await StudioConfigStore.load(context);
+    if (data) {
+      for (const v of data.versions) {
+        if (v.lineField !== 'roads_0') {
+          roads.push({ field: v.lineField, name: v.name });
+        }
+      }
+    }
+
+    roads.sort((a, b) => {
+      const na = parseInt(a.field.replace('roads_', ''));
+      const nb = parseInt(b.field.replace('roads_', ''));
+      return na - nb;
+    });
+
+    return roads;
+  }
 
   private async loadLineTemplates(
     context: Excel.RequestContext

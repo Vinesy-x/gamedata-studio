@@ -86,10 +86,15 @@ export class ConfigManager {
   async deleteVersion(name: string): Promise<void> {
     await Excel.run(async (context) => {
       const ok = await StudioConfigStore.update(context, (data) => {
+        const ver = data.versions.find(v => v.name === name);
         data.versions = data.versions.filter(v => v.name !== name);
+        // 同时删除对应的线路记录
+        if (ver) {
+          data.lines = data.lines.filter(l => l.id !== ver.lineId);
+        }
       });
       if (ok) {
-        logger.info(`deleteVersion: 已删除「${name}」`);
+        logger.info(`deleteVersion: 已删除「${name}」及对应线路`);
         return;
       }
 

@@ -935,7 +935,13 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
           }
         }
         const dataStartCol = configMarkerCol >= 0 ? configMarkerCol + 1 : vrCol + existingRoads.length + 3;
-        const dataColCount = Math.max(0, (snap.values[vrRow]?.length || 0) - dataStartCol);
+        // 计算实际数据列数（遇到空列停止，不用 snapshot 尾部空列）
+        let dataColCount = 0;
+        for (let c = dataStartCol; c < (snap.values[vrRow]?.length || 0); c++) {
+          const v = snap.values[vrRow]?.[c];
+          if (v == null || String(v).trim() === '') break;
+          dataColCount++;
+        }
 
         if (currentState === 'R') {
           // R → R+c: 在 version_r 上方插入3行（version_c行 + 2空行间隔）

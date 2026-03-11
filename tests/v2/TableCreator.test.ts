@@ -55,6 +55,7 @@ function makeMockSheet(name?: string) {
         freezeCalls.push(rangeCalls[rangeCalls.length - 1]);
       },
     },
+    activate() { /* mock */ },
   };
 }
 
@@ -108,6 +109,15 @@ jest.mock('../../src/utils/Logger', () => ({
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
+  },
+}));
+
+const mockStudioLoad = jest.fn();
+const mockStudioUpdate = jest.fn().mockResolvedValue(true);
+jest.mock('../../src/v2/StudioConfigStore', () => ({
+  StudioConfigStore: {
+    load: (...args: unknown[]) => mockStudioLoad(...args),
+    update: (...args: unknown[]) => mockStudioUpdate(...args),
   },
 }));
 
@@ -179,6 +189,23 @@ describe('TableCreator', () => {
     deletedSheetNames = [];
     freezeCalls = [];
     jest.clearAllMocks();
+
+    // 默认 StudioConfigStore 返回版本配置（roads_0 固定 + roads_1 对应"支线"版本）
+    mockStudioLoad.mockResolvedValue({
+      versions: [
+        { name: '支线', lineId: 2, lineField: 'roads_1', gitDirectory: '' },
+      ],
+      lines: [
+        { id: 1, field: 'roads_0', remark: '主线' },
+        { id: 2, field: 'roads_1', remark: '支线' },
+      ],
+      tables: [],
+      staff: [],
+      switches: {},
+      gitCommitTemplate: '',
+      outputVersion: '',
+      outputVersionNumber: 0,
+    });
 
     // 默认 mock 设置
     mockLoadSheetSnapshot.mockImplementation(async (_ctx, sheetName) => {
@@ -279,15 +306,15 @@ describe('TableCreator', () => {
       );
       expect(verRowAttr).toBeDefined();
 
-      // road remarks at descRow
-      const roadRemark0 = rangeCalls.find(
-        (c) => c.row === 1 && c.col === 1 && c.values?.[0]?.[0] === '主线'
+      // road version names at descRow (roads_0=默认, roads_1=支线)
+      const roadName0 = rangeCalls.find(
+        (c) => c.row === 1 && c.col === 1 && c.values?.[0]?.[0] === '默认'
       );
-      const roadRemark1 = rangeCalls.find(
+      const roadName1 = rangeCalls.find(
         (c) => c.row === 1 && c.col === 2 && c.values?.[0]?.[0] === '支线'
       );
-      expect(roadRemark0).toBeDefined();
-      expect(roadRemark1).toBeDefined();
+      expect(roadName0).toBeDefined();
+      expect(roadName1).toBeDefined();
 
       // field descriptions
       const descId = rangeCalls.find(
@@ -430,22 +457,11 @@ describe('TableCreator', () => {
   // ─── autoRegister ──────────────────────────────────────
 
   describe('autoRegister', () => {
-    it('should register table to 表名对照 when autoRegister=true', async () => {
-      mockWriteValues.mockResolvedValue(undefined);
-
+    it('should register table via StudioConfigStore when autoRegister=true', async () => {
       await creator.createTable(makeConfig({ autoRegister: true }));
 
-      // createTable 第二次 Excel.run 内调用 registerTable
-      // 它使用 getRangeByIndexes 写入 [versionRange, chineseName, englishName, shouldOutput]
-      const registerCall = rangeCalls.find(
-        (c) =>
-          c.values &&
-          c.values[0]?.[1] === '怪物表' &&
-          c.values[0]?.[2] === 'monster'
-      );
-      expect(registerCall).toBeDefined();
-      expect(registerCall!.values![0][0]).toBe('1.0');
-      expect(registerCall!.values![0][3]).toBe(true);
+      // StudioConfigStore.update 被调用以注册表
+      expect(mockStudioUpdate).toHaveBeenCalled();
     });
 
     it('should not register when autoRegister=false', async () => {
@@ -510,24 +526,31 @@ describe('TableCreator', () => {
   // ─── 错误处理 ──────────────────────────────────────────
 
   describe('error handling', () => {
-    it('should throw when 配置设置表 snapshot is null', async () => {
-      mockLoadSheetSnapshot.mockResolvedValue(null);
+    it('StudioConfig 为 null 时只有 roads_0', async () => {
+      mockStudioLoad.mockResolvedValue(null);
 
-      await expect(creator.createTable(makeConfig())).rejects.toThrow();
+      await creator.createTable(makeConfig());
+
+      const vrCalls = rangeCalls.filter(c => c.values?.[0]?.[0]?.toString().startsWith('roads_'));
+      expect(vrCalls.length).toBe(1);
+      expect(vrCalls[0].values![0][0]).toBe('roads_0');
     });
 
-    it('should throw when #线路列表# marker not found', async () => {
-      mockLoadSheetSnapshot.mockResolvedValue({
-        name: '配置设置表',
-        values: [['no marker here']],
-        rowCount: 1,
-        colCount: 1,
-        startRow: 0,
-        startCol: 0,
+    it('StudioConfig 存在时只包含 roads_0，无额外版本', async () => {
+      mockStudioLoad.mockResolvedValue({
+        versions: [],
+        lines: [],
+        tables: [],
+        staff: [],
+        switches: {},
       });
-      mockFindMarkerInData.mockReturnValue(null);
 
-      await expect(creator.createTable(makeConfig())).rejects.toThrow();
+      await creator.createTable(makeConfig());
+
+      // 只有 roads_0
+      const vrCalls = rangeCalls.filter(c => c.values?.[0]?.[0]?.toString().startsWith('roads_'));
+      expect(vrCalls.length).toBe(1);
+      expect(vrCalls[0].values![0][0]).toBe('roads_0');
     });
   });
 });
