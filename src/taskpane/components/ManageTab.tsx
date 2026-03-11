@@ -812,6 +812,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
   const [unregistered, setUnregistered] = useState<UnregisteredTable[]>([]);
   const [registering, setRegistering] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   // version_c 三态检测: 'R' = 仅行控制, 'R+c' = 行+简单列(仅版本区间), 'R+C' = 行+完整列(含roads)
   type VCState = 'R' | 'R+c' | 'R+C';
@@ -1051,13 +1052,14 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
   }, [onReload]);
 
   const handleUnregister = useCallback(async (chineseName: string) => {
-    if (!window.confirm(`确定要删除表「${chineseName}」吗？\n\n此操作将同时删除工作表和注册信息，不可撤销。`)) return;
     try {
       await tableRegistry.unregisterTable(chineseName, true);
       setStatusMsg({ text: `已删除「${chineseName}」`, type: 'success' });
+      setConfirmDelete(null);
       onReload();
     } catch (err) {
       setStatusMsg({ text: `删除失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
+      setConfirmDelete(null);
     }
   }, [onReload]);
 
@@ -1175,13 +1177,34 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
                     </span>
                   </td>
                   <td className={styles.td}>
-                    <Button
-                      icon={<DeleteRegular />}
-                      appearance="subtle"
-                      size="small"
-                      onClick={() => handleUnregister(t.chineseName)}
-                      style={{ minWidth: 'auto', padding: '0 2px' }}
-                    />
+                    {confirmDelete === t.chineseName ? (
+                      <span style={{ display: 'flex', gap: '2px' }}>
+                        <Button
+                          icon={<CheckmarkRegular />}
+                          appearance="subtle"
+                          size="small"
+                          onClick={() => handleUnregister(t.chineseName)}
+                          style={{ minWidth: 'auto', padding: '0 2px', color: tokens.colorPaletteRedForeground1 }}
+                          title="确认删除"
+                        />
+                        <Button
+                          icon={<DismissRegular />}
+                          appearance="subtle"
+                          size="small"
+                          onClick={() => setConfirmDelete(null)}
+                          style={{ minWidth: 'auto', padding: '0 2px' }}
+                          title="取消"
+                        />
+                      </span>
+                    ) : (
+                      <Button
+                        icon={<DeleteRegular />}
+                        appearance="subtle"
+                        size="small"
+                        onClick={() => setConfirmDelete(t.chineseName)}
+                        style={{ minWidth: 'auto', padding: '0 2px' }}
+                      />
+                    )}
                   </td>
                 </tr>
               );
