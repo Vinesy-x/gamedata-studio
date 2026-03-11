@@ -1,6 +1,5 @@
 /* global Excel */
 
-import ExcelJS from 'exceljs';
 import { Config } from '../types/config';
 import { ExportResult, ExportProgress, InMemoryTableData } from '../types/table';
 import { ErrorCode } from '../types/errors';
@@ -8,10 +7,13 @@ import { ConfigLoader } from './ConfigLoader';
 import { VersionFilter } from './VersionFilter';
 import { DataLoader } from './DataLoader';
 import { DataFilter } from './DataFilter';
-import { ExportWriter } from './ExportWriter';
+import { ExportWriter, HashManifest } from './ExportWriter';
 import { ErrorHandler } from '../utils/ErrorHandler';
 import { excelHelper } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
+import { StudioConfigStore } from '../v2/StudioConfigStore';
+
+const MANIFEST_FILE = '_manifest.json';
 
 export type ProgressCallback = (progress: ExportProgress) => void;
 
@@ -87,22 +89,19 @@ export class ExportJob {
       this.emitProgress(4, 10, '正在执行校验...');
       this.runValidation(inMemoryData, versionFilter);
 
-      // 步骤5: 加载已有的全部表.xlsx（用于差异对比）
+      // 步骤5: 加载哈希清单（用于差异对比）
       this.emitProgress(5, 10, '正在准备输出...');
-      let allTablesWb: ExcelJS.Workbook;
+      let manifest: HashManifest = {};
 
       try {
-        const existing = await this.readFileFromServer(outputDir, '全部表.xlsx');
+        const existing = await this.readFileFromServer(outputDir, MANIFEST_FILE);
         if (existing) {
-          allTablesWb = await this.exportWriter.loadAllTablesWorkbook(existing);
-          logger.info('已加载现有「全部表.xlsx」');
-        } else {
-          allTablesWb = this.exportWriter.createEmptyAllTablesWorkbook();
-          logger.info('创建新的「全部表.xlsx」');
+          const text = new TextDecoder().decode(existing);
+          manifest = JSON.parse(text);
+          logger.info(`已加载哈希清单，包含 ${Object.keys(manifest).length} 张表`);
         }
       } catch {
-        allTablesWb = this.exportWriter.createEmptyAllTablesWorkbook();
-        logger.info('创建新的「全部表.xlsx」');
+        logger.info('创建新的哈希清单');
       }
 
       // 步骤6-8: 逐表处理
@@ -126,10 +125,10 @@ export class ExportJob {
             continue;
           }
 
-          // 差异对比
-          const hasChanged = this.exportWriter.compareWithOldData(
+          // 哈希对比
+          const hasChanged = this.exportWriter.hasDataChanged(
             filtered.data,
-            allTablesWb,
+            manifest,
             englishName
           );
 
@@ -147,10 +146,8 @@ export class ExportJob {
           const fileName = `${englishName}.xlsx`;
           await this.writeFileToServer(outputDir, fileName, fileBuffer);
 
-          // 更新全部表
-          this.exportWriter.updateAllTablesSheet(
-            filtered.data, allTablesWb, englishName, config
-          );
+          // 更新哈希清单
+          manifest[englishName] = this.exportWriter.computeDataHash(filtered.data);
 
           modifiedFiles.push(fileName);
           changedTables++;
@@ -166,21 +163,21 @@ export class ExportJob {
         }
       }
 
-      // 步骤9: 保存全部表
-      this.emitProgress(9, 10, '正在保存全部表...');
+      // 步骤9: 保存哈希清单
+      this.emitProgress(9, 10, '正在保存清单...');
       if (changedTables > 0) {
         try {
-          const allTablesBuffer = await this.exportWriter.saveAllTablesWorkbook(allTablesWb);
-          await this.writeFileToServer(outputDir, '全部表.xlsx', allTablesBuffer);
-          modifiedFiles.push('全部表.xlsx');
-          logger.info('全部表.xlsx 已保存');
+          const manifestJson = JSON.stringify(manifest, null, 2);
+          const manifestBuffer = new TextEncoder().encode(manifestJson).buffer;
+          await this.writeFileToServer(outputDir, MANIFEST_FILE, manifestBuffer);
+          logger.info(`哈希清单已保存，共 ${Object.keys(manifest).length} 张表`);
         } catch (err) {
           this.errorHandler.logError({
             code: ErrorCode.ALL_TABLES_SAVE_FAILED,
             severity: 'error',
             tableName: '',
-            message: `保存全部表失败: ${err instanceof Error ? err.message : String(err)}`,
-            procedure: 'ExportJob.saveAllTables',
+            message: `保存哈希清单失败: ${err instanceof Error ? err.message : String(err)}`,
+            procedure: 'ExportJob.saveManifest',
           });
         }
       }
@@ -393,6 +390,14 @@ export class ExportJob {
   private async updateExportResults(modifiedFiles: string[]): Promise<void> {
     try {
       await Excel.run(async (context) => {
+        // 优先 JSON
+        const ok = await StudioConfigStore.update(context, (data) => {
+          data.workStatus = '导出完成';
+          data.resultCount = modifiedFiles.length;
+        });
+        if (ok) return;
+
+        // 旧格式回退
         const snap = await excelHelper.loadSheetSnapshot(context, '表格输出');
         if (!snap) return;
 
@@ -404,13 +409,11 @@ export class ExportJob {
         const countPos = excelHelper.findMarkerInData(snap.values, '#输出表格结果#');
 
         if (statusPos) {
-          const statusCell = sheet.getRangeByIndexes(statusPos.row + oR, statusPos.col + oC + 1, 1, 1);
-          statusCell.values = [['导出完成']];
+          sheet.getRangeByIndexes(statusPos.row + oR, statusPos.col + oC + 1, 1, 1).values = [['导出完成']];
         }
 
         if (countPos) {
-          const countCell = sheet.getRangeByIndexes(countPos.row + oR + 1, countPos.col + oC + 1, 1, 1);
-          countCell.values = [[modifiedFiles.length]];
+          sheet.getRangeByIndexes(countPos.row + oR + 1, countPos.col + oC + 1, 1, 1).values = [[modifiedFiles.length]];
         }
 
         await context.sync();

@@ -3,6 +3,11 @@ import { CellValue } from '../types/table';
 import { Config } from '../types/config';
 import { logger } from '../utils/Logger';
 
+/** 哈希清单：记录每张表的数据哈希 */
+export interface HashManifest {
+  [englishName: string]: string;
+}
+
 export interface WriteResult {
   changed: boolean;
   fileName: string;
@@ -11,39 +16,41 @@ export interface WriteResult {
 
 export class ExportWriter {
   /**
-   * 与旧数据对比，判断是否有变更
+   * 计算表数据的哈希值（简单高效的 djb2 字符串哈希）
+   * 将二维数组序列化后计算哈希，用于快速判断数据是否变更
    */
-  compareWithOldData(
+  computeDataHash(filteredData: CellValue[][]): string {
+    let hash = 5381;
+    for (let r = 0; r < filteredData.length; r++) {
+      for (let c = 0; c < filteredData[r].length; c++) {
+        const str = String(filteredData[r][c] ?? '');
+        for (let i = 0; i < str.length; i++) {
+          hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+        }
+        hash = ((hash << 5) + hash + 0x1f) | 0; // cell separator
+      }
+      hash = ((hash << 5) + hash + 0x1e) | 0; // row separator
+    }
+    // 转为16进制无符号字符串
+    return (hash >>> 0).toString(16).padStart(8, '0');
+  }
+
+  /**
+   * 基于哈希清单判断数据是否有变更
+   */
+  hasDataChanged(
     filteredData: CellValue[][],
-    oldWorkbook: ExcelJS.Workbook | null,
+    manifest: HashManifest,
     englishName: string
   ): boolean {
-    // GameConfig 总是判定为变更
+    // GameConfig 总是判定为变更（含动态版本号注入）
     if (englishName === 'GameConfig') return true;
 
-    if (!oldWorkbook) return true;
+    const oldHash = manifest[englishName];
+    if (!oldHash) return true;
 
-    const oldSheet = oldWorkbook.getWorksheet(englishName);
-    if (!oldSheet) return true;
-
-    // 读取旧数据
-    const oldRowCount = oldSheet.rowCount;
-    const oldColCount = oldSheet.columnCount;
-
-    if (oldRowCount !== filteredData.length) return true;
-    if (filteredData.length > 0 && oldColCount !== filteredData[0].length) return true;
-
-    // 逐单元格对比
-    for (let r = 0; r < filteredData.length; r++) {
-      const oldRow = oldSheet.getRow(r + 1);
-      for (let c = 0; c < filteredData[r].length; c++) {
-        const newVal = String(filteredData[r][c] ?? '');
-        const oldVal = String(oldRow.getCell(c + 1).value ?? '');
-        if (newVal !== oldVal) return true;
-      }
-    }
-
-    return false;
+    const newHash = this.computeDataHash(filteredData);
+    return newHash !== oldHash;
   }
 
   /**
@@ -79,73 +86,6 @@ export class ExportWriter {
 
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as ArrayBuffer;
-  }
-
-  /**
-   * 更新全部表工作簿中的指定工作表
-   */
-  updateAllTablesSheet(
-    filteredData: CellValue[][],
-    allTablesWb: ExcelJS.Workbook,
-    englishName: string,
-    config: Config
-  ): void {
-    // 查找或创建工作表
-    let sheet = allTablesWb.getWorksheet(englishName);
-    if (sheet) {
-      // 清空旧数据
-      const rowCount = sheet.rowCount;
-      for (let r = rowCount; r >= 1; r--) {
-        sheet.spliceRows(r, 1);
-      }
-    } else {
-      sheet = allTablesWb.addWorksheet(englishName);
-    }
-
-    // 写入新数据
-    for (let r = 0; r < filteredData.length; r++) {
-      const row = sheet.getRow(r + 1);
-      for (let c = 0; c < filteredData[r].length; c++) {
-        const cell = row.getCell(c + 1);
-        let value = filteredData[r][c];
-
-        // GameConfig 版本号注入
-        if (
-          englishName === 'GameConfig' &&
-          r === 2 && c === 2
-        ) {
-          value = `${config.outputSettings.versionNumber}.${config.outputSettings.versionSequence}`;
-        }
-
-        cell.value = value as ExcelJS.CellValue;
-        cell.numFmt = '@';
-      }
-      row.commit();
-    }
-  }
-
-  /**
-   * 将全部表工作簿导出为 ArrayBuffer
-   */
-  async saveAllTablesWorkbook(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {
-    const buffer = await workbook.xlsx.writeBuffer();
-    return buffer as ArrayBuffer;
-  }
-
-  /**
-   * 从 ArrayBuffer 加载全部表工作簿
-   */
-  async loadAllTablesWorkbook(buffer: ArrayBuffer): Promise<ExcelJS.Workbook> {
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
-    return workbook;
-  }
-
-  /**
-   * 创建空的全部表工作簿
-   */
-  createEmptyAllTablesWorkbook(): ExcelJS.Workbook {
-    return new ExcelJS.Workbook();
   }
 }
 

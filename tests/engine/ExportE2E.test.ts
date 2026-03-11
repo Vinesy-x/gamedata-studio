@@ -12,8 +12,14 @@ import { CellValue, InMemoryTableData } from '../../src/types/table';
 
 const TEMPLATE_PATH = path.resolve(__dirname, '../../docs/DM数据表.xlsm');
 
-// 将 ExcelJS Worksheet 转为内存数组
+// 缓存 sheetToArray 结果，避免重复读取（每次约0.5s，32张表285次调用太慢）
+const sheetArrayCache = new Map<string, SheetData>();
+
+// 将 ExcelJS Worksheet 转为内存数组（带缓存）
 function sheetToArray(sheet: ExcelJS.Worksheet): SheetData {
+  const cached = sheetArrayCache.get(sheet.name);
+  if (cached) return cached;
+
   const data: SheetData = [];
   for (let r = 1; r <= sheet.rowCount; r++) {
     const row: (string | number | boolean | null)[] = [];
@@ -27,6 +33,7 @@ function sheetToArray(sheet: ExcelJS.Worksheet): SheetData {
     }
     data.push(row);
   }
+  sheetArrayCache.set(sheet.name, data);
   return data;
 }
 
@@ -191,8 +198,8 @@ const TABLES_WITHOUT_VERSION_R = ['技能buff表'];
 describe('端到端导出测试 - DM数据表', () => {
   let workbook: ExcelJS.Workbook;
 
-  // DM数据表较大，整个 describe 设置 120s 超时
-  jest.setTimeout(120000);
+  // DM数据表较大，整个 describe 设置 300s 超时
+  jest.setTimeout(300000);
 
   beforeAll(async () => {
     workbook = new ExcelJS.Workbook();
@@ -283,13 +290,13 @@ describe('端到端导出测试 - DM数据表', () => {
     });
   });
 
-  describe('差异对比', () => {
+  describe('哈希差异对比', () => {
     const writer = new ExportWriter();
     const vf = new VersionFilter(1.09, 'roads_1');
     const df = new DataFilter(vf);
 
-    it('对空工作簿，所有表都检测为变更', () => {
-      const emptyWb = writer.createEmptyAllTablesWorkbook();
+    it('对空清单，所有表都检测为变更', () => {
+      const emptyManifest = {};
 
       for (const { chinese, english } of TABLE_LIST) {
         if (TABLES_WITHOUT_VERSION_R.includes(chinese)) continue;
@@ -299,24 +306,15 @@ describe('端到端导出测试 - DM数据表', () => {
         const tableData = parseTableData(data, chinese)!;
         const filtered = df.applyFilters(tableData);
 
-        const changed = writer.compareWithOldData(filtered.data, emptyWb, english);
+        const changed = writer.hasDataChanged(filtered.data, emptyManifest, english);
         expect(changed).toBe(true);
       }
     });
 
-    it('写入后再对比，非GameConfig应检测为无变更', () => {
-      const allTablesWb = writer.createEmptyAllTablesWorkbook();
-      const config = {
-        outputSettings: { versionNumber: 1.09, versionSequence: 1746, versionName: '国内', outputDirectory: '' },
-        versionTemplates: new Map(),
-        lineTemplates: new Map(),
-        tablesToProcess: new Map(),
-        gitCommitTemplate: '',
-        staffCodes: new Map(),
-        showResourcePopup: false,
-      };
+    it('写入哈希后再对比，非GameConfig应检测为无变更', () => {
+      const manifest: Record<string, string> = {};
 
-      // 先写入所有表
+      // 先计算所有表的哈希
       for (const { chinese, english } of TABLE_LIST) {
         if (TABLES_WITHOUT_VERSION_R.includes(chinese)) continue;
 
@@ -324,7 +322,7 @@ describe('端到端导出测试 - DM数据表', () => {
         const data = sheetToArray(sheet);
         const tableData = parseTableData(data, chinese)!;
         const filtered = df.applyFilters(tableData);
-        writer.updateAllTablesSheet(filtered.data, allTablesWb, english, config);
+        manifest[english] = writer.computeDataHash(filtered.data);
       }
 
       // 再次对比
@@ -336,13 +334,25 @@ describe('端到端导出测试 - DM数据表', () => {
         const tableData = parseTableData(data, chinese)!;
         const filtered = df.applyFilters(tableData);
 
-        const changed = writer.compareWithOldData(filtered.data, allTablesWb, english);
+        const changed = writer.hasDataChanged(filtered.data, manifest, english);
         if (english === 'GameConfig') {
           expect(changed).toBe(true); // GameConfig always changed
         } else {
           expect(changed).toBe(false);
         }
       }
+    });
+
+    it('哈希值稳定可复现', () => {
+      const sheet = workbook.getWorksheet(TABLE_LIST[0].chinese)!;
+      const data = sheetToArray(sheet);
+      const tableData = parseTableData(data, TABLE_LIST[0].chinese)!;
+      const filtered = df.applyFilters(tableData);
+
+      const hash1 = writer.computeDataHash(filtered.data);
+      const hash2 = writer.computeDataHash(filtered.data);
+      expect(hash1).toBe(hash2);
+      expect(hash1).toMatch(/^[0-9a-f]{8}$/);
     });
   });
 
@@ -396,8 +406,8 @@ describe('端到端导出测试 - DM数据表', () => {
       expect(String(versionCell)).toBe('1.09.1746');
     });
 
-    it('能生成全部表工作簿', async () => {
-      const allTablesWb = writer.createEmptyAllTablesWorkbook();
+    it('能为所有表生成哈希清单', () => {
+      const manifest: Record<string, string> = {};
 
       for (const { chinese, english } of TABLE_LIST) {
         if (TABLES_WITHOUT_VERSION_R.includes(chinese)) continue;
@@ -406,18 +416,13 @@ describe('端到端导出测试 - DM数据表', () => {
         const data = sheetToArray(sheet);
         const tableData = parseTableData(data, chinese)!;
         const filtered = df.applyFilters(tableData);
-        writer.updateAllTablesSheet(filtered.data, allTablesWb, english, config);
+        manifest[english] = writer.computeDataHash(filtered.data);
       }
 
-      const buffer = await writer.saveAllTablesWorkbook(allTablesWb);
-      expect(buffer.byteLength).toBeGreaterThan(0);
-
-      // 验证包含所有有version_r的工作表
-      const checkWb = new ExcelJS.Workbook();
-      await checkWb.xlsx.load(buffer);
-      for (const { chinese, english } of TABLE_LIST) {
-        if (TABLES_WITHOUT_VERSION_R.includes(chinese)) continue;
-        expect(checkWb.getWorksheet(english)).toBeDefined();
+      const keys = Object.keys(manifest);
+      expect(keys.length).toBeGreaterThan(0);
+      for (const key of keys) {
+        expect(manifest[key]).toMatch(/^[0-9a-f]{8}$/);
       }
     });
   });
