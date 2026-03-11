@@ -1,144 +1,122 @@
 /* global Excel */
 
+export type SheetData = (string | number | boolean | null)[][];
+
+export interface SheetSnapshot {
+  name: string;
+  values: SheetData;
+  rowCount: number;
+  colCount: number;
+  startRow: number;  // usedRange 起始行（0-based，用于 getRangeByIndexes 偏移修正）
+  startCol: number;  // usedRange 起始列（0-based）
+}
+
 export class ExcelHelper {
   /**
-   * 在工作表中查找包含指定文本的单元格
+   * 读取工作表的 UsedRange 到内存
    */
-  async findMarker(
-    sheet: Excel.Worksheet,
-    markerText: string
-  ): Promise<Excel.Range | null> {
+  async loadSheetSnapshot(
+    context: Excel.RequestContext,
+    sheetName: string
+  ): Promise<SheetSnapshot | null> {
+    const sheet = context.workbook.worksheets.getItemOrNullObject(sheetName);
+    sheet.load('isNullObject');
+    await context.sync();
+
+    if (sheet.isNullObject) return null;
+
     const usedRange = sheet.getUsedRangeOrNullObject(true);
-    const found = usedRange.find(markerText, {
-      completeMatch: true,
-      matchCase: false,
-    });
-    found.load('address,rowIndex,columnIndex');
-
-    try {
-      await sheet.context.sync();
-      if (found.isNullObject) return null;
-      return found;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * 安全获取工作表
-   */
-  getSheet(
-    workbook: Excel.Workbook,
-    name: string
-  ): Excel.Worksheet | null {
-    try {
-      const sheet = workbook.worksheets.getItemOrNullObject(name);
-      return sheet;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * 读取从指定单元格开始的区域数据（使用 getSurroundingRegion）
-   */
-  async getRegionValues(
-    range: Excel.Range
-  ): Promise<(string | number | boolean)[][]> {
-    const region = range.getSurroundingRegion();
-    region.load('values');
-    await range.context.sync();
-    return region.values;
-  }
-
-  /**
-   * 读取从标记位置向下到空行的数据块
-   */
-  async readBlockBelow(
-    sheet: Excel.Worksheet,
-    markerRange: Excel.Range,
-    maxColumns: number
-  ): Promise<(string | number | boolean)[][]> {
-    markerRange.load('rowIndex,columnIndex');
-    await sheet.context.sync();
-
-    const startRow = markerRange.rowIndex + 1;
-    const startCol = markerRange.columnIndex;
-
-    const rows: (string | number | boolean)[][] = [];
-    let emptyCount = 0;
-    let currentRow = startRow;
-
-    while (emptyCount < 2) {
-      const rowRange = sheet.getRangeByIndexes(currentRow, startCol, 1, maxColumns);
-      rowRange.load('values');
-      await sheet.context.sync();
-
-      const rowValues = rowRange.values[0];
-      const firstCell = rowValues[0];
-
-      if (firstCell == null || String(firstCell).trim() === '') {
-        emptyCount++;
-        currentRow++;
-        continue;
-      }
-
-      emptyCount = 0;
-      rows.push(rowValues);
-      currentRow++;
-    }
-
-    return rows;
-  }
-
-  /**
-   * 读取工作表的 UsedRange 数据
-   */
-  async getUsedRangeValues(
-    sheet: Excel.Worksheet
-  ): Promise<{ values: (string | number | boolean)[][]; rowCount: number; columnCount: number }> {
-    const usedRange = sheet.getUsedRangeOrNullObject(true);
-    usedRange.load('values,rowCount,columnCount');
-    await sheet.context.sync();
+    usedRange.load('values,rowCount,columnCount,rowIndex,columnIndex');
+    await context.sync();
 
     if (usedRange.isNullObject) {
-      return { values: [], rowCount: 0, columnCount: 0 };
+      return { name: sheetName, values: [], rowCount: 0, colCount: 0, startRow: 0, startCol: 0 };
     }
 
     return {
+      name: sheetName,
       values: usedRange.values,
       rowCount: usedRange.rowCount,
-      columnCount: usedRange.columnCount,
+      colCount: usedRange.columnCount,
+      startRow: usedRange.rowIndex,
+      startCol: usedRange.columnIndex,
     };
   }
 
   /**
-   * 暂停/恢复 Excel 计算
+   * 在内存数据中查找标记文字，返回 {row, col} (0-indexed)
    */
-  async suspendCalculation(
-    context: Excel.RequestContext,
-    suspend: boolean
-  ): Promise<void> {
-    const app = context.workbook.application;
-    app.calculationMode = suspend ? Excel.CalculationMode.manual : Excel.CalculationMode.automatic;
-    await context.sync();
+  findMarkerInData(
+    data: SheetData,
+    markerText: string
+  ): { row: number; col: number } | null {
+    const target = markerText.toLowerCase();
+    for (let r = 0; r < data.length; r++) {
+      for (let c = 0; c < data[r].length; c++) {
+        const val = data[r][c];
+        if (val != null && String(val).trim().toLowerCase() === target) {
+          return { row: r, col: c };
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 从标记位置向下读取数据块（到空行为止）
+   */
+  readBlockBelow(
+    data: SheetData,
+    markerRow: number,
+    markerCol: number,
+    numColumns: number
+  ): SheetData {
+    const rows: SheetData = [];
+    for (let r = markerRow + 1; r < data.length; r++) {
+      const firstCell = data[r]?.[markerCol];
+      if (firstCell == null || String(firstCell).trim() === '') {
+        break;
+      }
+      const row: (string | number | boolean | null)[] = [];
+      for (let c = markerCol; c < markerCol + numColumns && c < (data[r]?.length || 0); c++) {
+        row.push(data[r][c] ?? null);
+      }
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  /**
+   * 读取标记右侧一格的值
+   */
+  getValueRight(
+    data: SheetData,
+    markerRow: number,
+    markerCol: number
+  ): string | number | boolean | null {
+    if (markerRow < data.length && markerCol + 1 < data[markerRow].length) {
+      return data[markerRow][markerCol + 1];
+    }
+    return null;
   }
 
   /**
    * 写入值到指定范围
    */
   async writeValues(
-    sheet: Excel.Worksheet,
+    context: Excel.RequestContext,
+    sheetName: string,
     startRow: number,
     startCol: number,
     values: (string | number | boolean | null)[][]
   ): Promise<void> {
     if (values.length === 0) return;
+    const sheet = context.workbook.worksheets.getItem(sheetName);
     const rowCount = values.length;
     const colCount = values[0].length;
     const range = sheet.getRangeByIndexes(startRow, startCol, rowCount, colCount);
     range.values = values as (string | number | boolean)[][];
-    await sheet.context.sync();
+    await context.sync();
   }
 
   /**

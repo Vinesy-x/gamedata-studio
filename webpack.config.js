@@ -1,4 +1,6 @@
 const path = require("path");
+const fs = require("fs");
+const webpack = require("webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 
@@ -23,6 +25,15 @@ module.exports = async (env, options) => {
         "@utils": path.resolve(__dirname, "src/utils"),
         "@types": path.resolve(__dirname, "src/types"),
         "@git": path.resolve(__dirname, "src/git"),
+      },
+      fallback: {
+        stream: require.resolve("stream-browserify"),
+        buffer: require.resolve("buffer/"),
+        process: require.resolve("process/browser"),
+        crypto: false,
+        fs: false,
+        path: false,
+        os: false,
       },
     },
     module: {
@@ -52,6 +63,10 @@ module.exports = async (env, options) => {
       ],
     },
     plugins: [
+      new webpack.ProvidePlugin({
+        Buffer: ["buffer", "Buffer"],
+        process: "process/browser",
+      }),
       new HtmlWebpackPlugin({
         template: "./src/taskpane/index.html",
         filename: "taskpane.html",
@@ -64,6 +79,53 @@ module.exports = async (env, options) => {
         ],
       }),
     ],
+  };
+
+  // 文件写入中间件：接收 POST /api/write-file，写入本地磁盘
+  const fileWriteMiddleware = (middlewares, devServer) => {
+    devServer.app.get("/api/read-file", (req, res) => {
+      const dir = req.query.directory;
+      const fileName = req.query.fileName;
+      if (!dir || !fileName) {
+        res.status(400).json({ error: "missing directory or fileName" });
+        return;
+      }
+      const filePath = path.join(dir, fileName);
+      if (!fs.existsSync(filePath)) {
+        res.status(404).json({ error: "file not found" });
+        return;
+      }
+      res.sendFile(filePath);
+    });
+
+    devServer.app.post("/api/write-file", (req, res) => {
+      const chunks = [];
+      req.on("data", (chunk) => chunks.push(chunk));
+      req.on("end", () => {
+        try {
+          const body = JSON.parse(Buffer.concat(chunks).toString());
+          const dir = body.directory;
+          const fileName = body.fileName;
+          const data = Buffer.from(body.data, "base64");
+
+          if (!dir || !fileName) {
+            res.status(400).json({ error: "missing directory or fileName" });
+            return;
+          }
+
+          // 创建目录（递归）
+          fs.mkdirSync(dir, { recursive: true });
+          const filePath = path.join(dir, fileName);
+          fs.writeFileSync(filePath, data);
+          console.log(`[FileWriter] ${filePath} (${data.length} bytes)`);
+          res.json({ ok: true, path: filePath });
+        } catch (err) {
+          console.error("[FileWriter] Error:", err.message);
+          res.status(500).json({ error: err.message });
+        }
+      });
+    });
+    return middlewares;
   };
 
   if (dev) {
@@ -83,6 +145,7 @@ module.exports = async (env, options) => {
           "Access-Control-Allow-Origin": "*",
         },
         allowedHosts: "all",
+        setupMiddlewares: fileWriteMiddleware,
       };
     } catch {
       config.devServer = {
@@ -92,6 +155,7 @@ module.exports = async (env, options) => {
           "Access-Control-Allow-Origin": "*",
         },
         allowedHosts: "all",
+        setupMiddlewares: fileWriteMiddleware,
       };
     }
   }

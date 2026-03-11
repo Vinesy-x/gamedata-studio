@@ -1,10 +1,10 @@
 /* global Excel */
 
-import { Config, TableInfo } from '../types/config';
+import { Config } from '../types/config';
 import { InMemoryTableData, CellValue } from '../types/table';
 import { ErrorCode } from '../types/errors';
 import { VersionFilter } from './VersionFilter';
-import { excelHelper } from '../utils/ExcelHelper';
+import { excelHelper, SheetData } from '../utils/ExcelHelper';
 import { ErrorHandler } from '../utils/ErrorHandler';
 import { logger } from '../utils/Logger';
 
@@ -24,77 +24,56 @@ export class DataLoader {
   ): Promise<Map<string, InMemoryTableData>> {
     const result = new Map<string, InMemoryTableData>();
 
-    return await Excel.run(async (context) => {
+    await Excel.run(async (context) => {
       for (const [chineseName, tableInfo] of config.tablesToProcess) {
-        // 检查是否应该输出
         if (!tableInfo.shouldOutput) {
           logger.info(`跳过表 ${chineseName}: 输出开关关闭`);
           continue;
         }
 
-        // 检查版本区间
         if (tableInfo.versionRange && !versionFilter.isVersionInRange(tableInfo.versionRange)) {
-          logger.info(`跳过表 ${chineseName}: 版本 ${config.outputSettings.versionNumber} 不在区间 ${tableInfo.versionRange} 内`);
+          logger.info(`跳过表 ${chineseName}: 版本不在区间 ${tableInfo.versionRange} 内`);
           continue;
         }
 
         try {
-          const tableData = await this.loadTableData(context, chineseName, tableInfo);
+          const snap = await excelHelper.loadSheetSnapshot(context, chineseName);
+          if (!snap || snap.values.length === 0) {
+            this.errorHandler.log(
+              ErrorCode.SOURCE_SHEET_NOT_FOUND, 'warning', chineseName,
+              `找不到工作表「${chineseName}」`, 'DataLoader.loadAll'
+            );
+            continue;
+          }
+
+          const tableData = this.parseTableData(snap.values, chineseName);
           if (tableData) {
             result.set(chineseName, tableData);
-            logger.info(`已加载表 ${chineseName} (${tableInfo.englishName}), 数据行数: ${tableData.mainData.length}`);
+            logger.info(`已加载表 ${chineseName}, 数据行数: ${tableData.mainData.length}`);
           }
         } catch (err) {
-          await this.errorHandler.log(
+          this.errorHandler.log(
             ErrorCode.SOURCE_SHEET_NOT_FOUND, 'warning', chineseName,
             `加载工作表「${chineseName}」失败: ${err instanceof Error ? err.message : String(err)}`,
             'DataLoader.loadAll'
           );
         }
       }
-
-      logger.info(`共加载 ${result.size} 张表到内存`);
-      return result;
     });
+
+    logger.info(`共加载 ${result.size} 张表到内存`);
+    return result;
   }
 
   /**
-   * 加载单张数据表到内存
+   * 从内存数据中解析表结构
    */
-  private async loadTableData(
-    context: Excel.RequestContext,
-    chineseName: string,
-    tableInfo: TableInfo
-  ): Promise<InMemoryTableData | null> {
-    // 获取工作表
-    const sheet = context.workbook.worksheets.getItemOrNullObject(chineseName);
-    sheet.load('isNullObject');
-    await context.sync();
-
-    if (sheet.isNullObject) {
-      await this.errorHandler.log(
-        ErrorCode.SOURCE_SHEET_NOT_FOUND, 'warning', chineseName,
-        `找不到工作表「${chineseName}」`, 'DataLoader.loadTableData'
-      );
-      return null;
-    }
-
-    // 读取整个 UsedRange
-    const usedRange = sheet.getUsedRangeOrNullObject(true);
-    usedRange.load('values,rowCount,columnCount');
-    await context.sync();
-
-    if (usedRange.isNullObject || usedRange.rowCount === 0) {
-      await this.errorHandler.log(
-        ErrorCode.DATA_AREA_EMPTY, 'warning', chineseName,
-        `工作表「${chineseName}」数据区域为空`, 'DataLoader.loadTableData'
-      );
-      return null;
-    }
-
-    const allValues = usedRange.values as CellValue[][];
-    const totalRows = usedRange.rowCount;
-    const totalCols = usedRange.columnCount;
+  private parseTableData(
+    allValues: SheetData,
+    chineseName: string
+  ): InMemoryTableData | null {
+    const totalRows = allValues.length;
+    const totalCols = allValues[0]?.length || 0;
 
     // 定位关键标记
     let versionRRow = -1;
@@ -102,45 +81,47 @@ export class DataLoader {
     let versionCRow = -1;
     let versionCCol = -1;
 
-    // 查找 version_r（在A列）
+    // 查找 version_r（在任意列，但通常在A列）
     for (let r = 0; r < totalRows; r++) {
-      const cellVal = String(allValues[r][0] || '').trim();
-      if (cellVal === 'version_r') {
-        versionRRow = r;
-        break;
+      for (let c = 0; c < totalCols; c++) {
+        const val = String(allValues[r][c] ?? '').trim();
+        if (val === 'version_r') {
+          versionRRow = r;
+          break;
+        }
       }
+      if (versionRRow >= 0) break;
     }
 
     if (versionRRow === -1) {
-      await this.errorHandler.log(
+      this.errorHandler.log(
         ErrorCode.VERSION_R_MARKER_NOT_FOUND, 'warning', chineseName,
-        `工作表「${chineseName}」找不到 version_r 标记`, 'DataLoader.loadTableData'
+        `工作表「${chineseName}」找不到 version_r 标记`, 'DataLoader.parseTableData'
       );
       return null;
     }
 
     // 查找 #配置区域#（在 version_r 所在行扫描）
     for (let c = 0; c < totalCols; c++) {
-      const cellVal = String(allValues[versionRRow][c] || '').trim();
-      if (cellVal === '#配置区域#') {
+      const val = String(allValues[versionRRow][c] ?? '').trim();
+      if (val === '#配置区域#') {
         configAreaCol = c;
         break;
       }
     }
 
     if (configAreaCol === -1) {
-      await this.errorHandler.log(
+      this.errorHandler.log(
         ErrorCode.CONFIG_AREA_MARKER_NOT_FOUND, 'warning', chineseName,
-        `工作表「${chineseName}」找不到 #配置区域# 标记`, 'DataLoader.loadTableData'
+        `工作表「${chineseName}」找不到 #配置区域# 标记`, 'DataLoader.parseTableData'
       );
       return null;
     }
 
-    // 检查数据区是否有列
     if (configAreaCol + 1 >= totalCols) {
-      await this.errorHandler.log(
+      this.errorHandler.log(
         ErrorCode.DATA_AREA_EMPTY, 'warning', chineseName,
-        `工作表「${chineseName}」#配置区域# 右侧无数据列`, 'DataLoader.loadTableData'
+        `工作表「${chineseName}」#配置区域# 右侧无数据列`, 'DataLoader.parseTableData'
       );
       return null;
     }
@@ -149,8 +130,8 @@ export class DataLoader {
     let hasVersionCol = false;
     for (let r = 0; r < versionRRow; r++) {
       for (let c = 0; c < totalCols; c++) {
-        const cellVal = String(allValues[r][c] || '').trim();
-        if (cellVal === 'version_c') {
+        const val = String(allValues[r][c] ?? '').trim();
+        if (val === 'version_c') {
           versionCRow = r;
           versionCCol = c;
           hasVersionCol = true;
@@ -166,7 +147,7 @@ export class DataLoader {
     for (let r = versionRRow; r < totalRows; r++) {
       const row: CellValue[] = [];
       for (let c = dataStartCol; c < totalCols; c++) {
-        row.push(allValues[r][c]);
+        row.push(allValues[r][c] ?? null);
       }
       mainData.push(row);
     }
@@ -176,21 +157,24 @@ export class DataLoader {
     for (let r = versionRRow; r < totalRows; r++) {
       const row: CellValue[] = [];
       for (let c = 0; c < configAreaCol; c++) {
-        row.push(allValues[r][c]);
+        row.push(allValues[r][c] ?? null);
       }
       versionRowData.push(row);
     }
 
     // 提取列版本控制数据（version_c 区域）
     let versionColData: CellValue[][] | null = null;
+    let versionColLabels: CellValue[] | null = null;
     if (hasVersionCol) {
       versionColData = [];
-      // version_c 行到 version_r 行之前的所有行
+      // 提取各行左侧标签（version_c 所在列的值，用于识别 roads_0/roads_X）
+      versionColLabels = [];
       for (let r = versionCRow; r < versionRRow; r++) {
+        // 标签在 version_c 所在列（第一行是 "version_c" 本身，后续行可能有 roads_0 等）
+        versionColLabels.push(allValues[r][versionCCol] ?? null);
         const row: CellValue[] = [];
-        // 从 version_c 右侧开始，对应每个数据列
         for (let c = versionCCol + 1; c < versionCCol + 1 + (totalCols - dataStartCol); c++) {
-          row.push(c < totalCols ? allValues[r][c] : null);
+          row.push(c < totalCols ? (allValues[r][c] ?? null) : null);
         }
         versionColData.push(row);
       }
@@ -201,6 +185,7 @@ export class DataLoader {
       mainData,
       versionRowData,
       versionColData,
+      versionColLabels,
       hasVersionRowFlag: true,
       hasVersionColFlag: hasVersionCol,
     };

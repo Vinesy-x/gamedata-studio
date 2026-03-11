@@ -110,6 +110,41 @@ export class VersionFilter {
   }
 
   /**
+   * 校验单个版本字符串的格式（与 VBA IsValidVersion 一致）
+   * 合法格式: 数字 + 可选小数点+数字 + 可选末尾单个字母
+   * 例: "3.5a", "12", "2.0", "1" → valid
+   *     "abc", "3.5.6", "a3", ".5", "" → invalid
+   */
+  isValidVersion(versionStr: string): boolean {
+    if (!versionStr || versionStr.length === 0) return false;
+
+    let hasDecimal = false;
+    let hasLetter = false;
+    let digitEncountered = false;
+
+    for (let i = 0; i < versionStr.length; i++) {
+      const ch = versionStr[i];
+
+      if (ch >= '0' && ch <= '9') {
+        digitEncountered = true;
+        if (hasLetter) return false; // 数字不能出现在字母之后
+      } else if (ch === '.') {
+        if (hasDecimal || hasLetter) return false; // 不能有多个小数点，小数点不能在字母后
+        if (!digitEncountered) return false; // 小数点前必须有数字
+        hasDecimal = true;
+      } else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
+        if (hasLetter) return false; // 只允许末尾一个字母
+        if (!digitEncountered) return false; // 字母前必须有数字
+        hasLetter = true;
+      } else {
+        return false; // 不允许其他字符
+      }
+    }
+
+    return digitEncountered;
+  }
+
+  /**
    * 校验版本区间格式，返回错误信息（用于导出前校验）
    */
   validateRangeFormat(rangeStr: string): { valid: boolean; errorCode?: number; message?: string } {
@@ -119,10 +154,14 @@ export class VersionFilter {
 
     const s = String(rangeStr).trim();
 
+    // "0" 和 "1" 是线路开关值，不是版本区间，跳过校验
+    if (s === '0' || s === '1') {
+      return { valid: true };
+    }
+
     // 检查是否使用了横线而非波浪号
     if (s.includes('-') && !s.includes('~')) {
-      const dashCount = (s.match(/-/g) || []).length;
-      if (dashCount > 0 && /\d-\d/.test(s)) {
+      if (/\d-\d/.test(s)) {
         return {
           valid: false,
           errorCode: 2101,
@@ -131,15 +170,52 @@ export class VersionFilter {
       }
     }
 
-    const range = this.parseRange(s);
-    if (!range) {
-      if (s === '~') {
+    // 解析并校验各部分的格式
+    const tildeIndex = s.indexOf('~');
+    if (tildeIndex === -1) {
+      // 没有波浪号，单个版本号
+      if (!this.isValidVersion(s)) {
+        return {
+          valid: false,
+          errorCode: 1003,
+          message: `版本号格式无效: "${s}"`,
+        };
+      }
+    } else {
+      const leftPart = s.substring(0, tildeIndex).trim();
+      const rightPart = s.substring(tildeIndex + 1).trim();
+
+      // 波浪号两侧同时为空
+      if (leftPart === '' && rightPart === '') {
         return {
           valid: false,
           errorCode: 2104,
           message: `版本区间 "${s}" 波浪号两侧同时为空`,
         };
       }
+
+      // 校验左侧版本号格式
+      if (leftPart !== '' && !this.isValidVersion(leftPart)) {
+        return {
+          valid: false,
+          errorCode: 1003,
+          message: `版本区间左侧格式无效: "${leftPart}"`,
+        };
+      }
+
+      // 校验右侧版本号格式
+      if (rightPart !== '' && !this.isValidVersion(rightPart)) {
+        return {
+          valid: false,
+          errorCode: 1003,
+          message: `版本区间右侧格式无效: "${rightPart}"`,
+        };
+      }
+    }
+
+    // 解析后检查 min <= max
+    const range = this.parseRange(s);
+    if (!range) {
       return {
         valid: false,
         errorCode: 2103,

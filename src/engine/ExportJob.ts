@@ -15,33 +15,19 @@ import { logger } from '../utils/Logger';
 
 export type ProgressCallback = (progress: ExportProgress) => void;
 
-export interface FileHandle {
-  getFile(): Promise<File>;
-  createWritable(): Promise<WritableStream & { write(data: unknown): Promise<void>; close(): Promise<void> }>;
-}
-
-export interface DirectoryHandle {
-  getFileHandle(name: string, options?: { create?: boolean }): Promise<FileHandle>;
-}
-
 export class ExportJob {
   private errorHandler: ErrorHandler;
   private configLoader: ConfigLoader;
   private dataLoader: DataLoader;
   private exportWriter: ExportWriter;
   private onProgress: ProgressCallback;
-  private directoryHandle: DirectoryHandle | null;
 
-  constructor(
-    onProgress: ProgressCallback,
-    directoryHandle: DirectoryHandle | null = null
-  ) {
+  constructor(onProgress: ProgressCallback) {
     this.errorHandler = new ErrorHandler();
     this.configLoader = new ConfigLoader(this.errorHandler);
     this.dataLoader = new DataLoader(this.errorHandler);
     this.exportWriter = new ExportWriter();
     this.onProgress = onProgress;
-    this.directoryHandle = directoryHandle;
   }
 
   /**
@@ -50,7 +36,6 @@ export class ExportJob {
   async runExport(): Promise<ExportResult> {
     const startTime = Date.now();
     this.errorHandler.clear();
-    await this.errorHandler.clearSheetErrors();
 
     const modifiedFiles: string[] = [];
     let totalTables = 0;
@@ -64,6 +49,18 @@ export class ExportJob {
         return this.buildResult(false, modifiedFiles, startTime, 0, 0);
       }
 
+      const outputDir = config.outputSettings.outputDirectory;
+      if (!outputDir) {
+        this.errorHandler.logError({
+          code: ErrorCode.OUTPUT_DIR_EMPTY,
+          severity: 'error',
+          tableName: '',
+          message: '输出目录为空，无法导出。请检查配置设置表中的版本模板目录。',
+          procedure: 'ExportJob.runExport',
+        });
+        return this.buildResult(false, modifiedFiles, startTime, 0, 0);
+      }
+
       // 步骤2: 创建版本筛选器
       this.emitProgress(2, 10, '正在初始化筛选器...');
       const lineField = this.configLoader.determineOutputLineField(config);
@@ -73,6 +70,7 @@ export class ExportJob {
       );
 
       logger.info(`筛选参数: 版本=${config.outputSettings.versionNumber}, 线路=${lineField}`);
+      logger.info(`输出目录: ${outputDir}`);
 
       // 步骤3: 加载所有源数据到内存
       this.emitProgress(3, 10, '正在加载数据表...');
@@ -87,25 +85,24 @@ export class ExportJob {
 
       // 步骤4: 导出前校验
       this.emitProgress(4, 10, '正在执行校验...');
-      await this.runValidation(inMemoryData, versionFilter, config);
+      this.runValidation(inMemoryData, versionFilter);
 
-      // 步骤5: 准备输出目录（打开全部表.xlsx）
+      // 步骤5: 加载已有的全部表.xlsx（用于差异对比）
       this.emitProgress(5, 10, '正在准备输出...');
       let allTablesWb: ExcelJS.Workbook;
 
-      if (this.directoryHandle) {
-        try {
-          const fileHandle = await this.directoryHandle.getFileHandle('全部表.xlsx');
-          const file = await fileHandle.getFile();
-          const buffer = await file.arrayBuffer();
-          allTablesWb = await this.exportWriter.loadAllTablesWorkbook(buffer);
+      try {
+        const existing = await this.readFileFromServer(outputDir, '全部表.xlsx');
+        if (existing) {
+          allTablesWb = await this.exportWriter.loadAllTablesWorkbook(existing);
           logger.info('已加载现有「全部表.xlsx」');
-        } catch {
+        } else {
           allTablesWb = this.exportWriter.createEmptyAllTablesWorkbook();
           logger.info('创建新的「全部表.xlsx」');
         }
-      } else {
+      } catch {
         allTablesWb = this.exportWriter.createEmptyAllTablesWorkbook();
+        logger.info('创建新的「全部表.xlsx」');
       }
 
       // 步骤6-8: 逐表处理
@@ -141,30 +138,31 @@ export class ExportJob {
             continue;
           }
 
-          // 写入独立文件
+          // 生成独立 xlsx
           const fileBuffer = await this.exportWriter.writeIndividualFile(
             filtered.data, englishName, config
           );
 
           // 写入输出目录
-          if (this.directoryHandle) {
-            await this.writeFile(this.directoryHandle, `${englishName}.xlsx`, fileBuffer);
-          }
+          const fileName = `${englishName}.xlsx`;
+          await this.writeFileToServer(outputDir, fileName, fileBuffer);
 
           // 更新全部表
           this.exportWriter.updateAllTablesSheet(
             filtered.data, allTablesWb, englishName, config
           );
 
-          modifiedFiles.push(`${englishName}.xlsx`);
+          modifiedFiles.push(fileName);
           changedTables++;
-          logger.info(`表 ${chineseName} → ${englishName}.xlsx 已导出`);
+          logger.info(`表 ${chineseName} → ${fileName} 已导出`);
         } catch (err) {
-          await this.errorHandler.log(
-            ErrorCode.FILE_WRITE_FAILED, 'warning', chineseName,
-            `处理表「${chineseName}」失败: ${err instanceof Error ? err.message : String(err)}`,
-            'ExportJob.processTable'
-          );
+          this.errorHandler.logError({
+            code: ErrorCode.FILE_WRITE_FAILED,
+            severity: 'warning',
+            tableName: chineseName,
+            message: `处理表「${chineseName}」失败: ${err instanceof Error ? err.message : String(err)}`,
+            procedure: 'ExportJob.processTable',
+          });
         }
       }
 
@@ -173,17 +171,17 @@ export class ExportJob {
       if (changedTables > 0) {
         try {
           const allTablesBuffer = await this.exportWriter.saveAllTablesWorkbook(allTablesWb);
-          if (this.directoryHandle) {
-            await this.writeFile(this.directoryHandle, '全部表.xlsx', allTablesBuffer);
-          }
+          await this.writeFileToServer(outputDir, '全部表.xlsx', allTablesBuffer);
           modifiedFiles.push('全部表.xlsx');
           logger.info('全部表.xlsx 已保存');
         } catch (err) {
-          await this.errorHandler.log(
-            ErrorCode.ALL_TABLES_SAVE_FAILED, 'error', '',
-            `保存全部表失败: ${err instanceof Error ? err.message : String(err)}`,
-            'ExportJob.saveAllTables'
-          );
+          this.errorHandler.logError({
+            code: ErrorCode.ALL_TABLES_SAVE_FAILED,
+            severity: 'error',
+            tableName: '',
+            message: `保存全部表失败: ${err instanceof Error ? err.message : String(err)}`,
+            procedure: 'ExportJob.saveAllTables',
+          });
         }
       }
 
@@ -192,7 +190,7 @@ export class ExportJob {
       if (changedTables > 0) {
         await this.configLoader.incrementSequence(config);
       }
-      await this.updateExportResults(config, modifiedFiles);
+      await this.updateExportResults(modifiedFiles);
 
       return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables);
     } catch (err) {
@@ -202,44 +200,183 @@ export class ExportJob {
   }
 
   /**
+   * 通过本地服务写入文件到磁盘
+   */
+  private async writeFileToServer(
+    directory: string,
+    fileName: string,
+    buffer: ArrayBuffer
+  ): Promise<void> {
+    const base64 = this.arrayBufferToBase64(buffer);
+    const resp = await fetch('/api/write-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ directory, fileName, data: base64 }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      throw new Error(`写入文件失败: ${err.error}`);
+    }
+  }
+
+  /**
+   * 通过本地服务读取已有文件（用于差异对比）
+   */
+  private async readFileFromServer(
+    directory: string,
+    fileName: string
+  ): Promise<ArrayBuffer | null> {
+    try {
+      const resp = await fetch(`/api/read-file?directory=${encodeURIComponent(directory)}&fileName=${encodeURIComponent(fileName)}`);
+      if (!resp.ok) return null;
+      return await resp.arrayBuffer();
+    } catch {
+      return null;
+    }
+  }
+
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  /**
    * 导出前校验
    */
-  private async runValidation(
+  /** 检测单元格值是否为 Excel 错误值 */
+  private isExcelError(val: unknown): boolean {
+    if (val == null) return false;
+    const s = String(val).trim();
+    return s === '#N/A' || s === '#REF!' || s === '#VALUE!'
+      || s === '#DIV/0!' || s === '#NAME?' || s === '#NULL!'
+      || s === '#NUM!' || s === '#GETTING_DATA' || s === '#SPILL!';
+  }
+
+  private runValidation(
     inMemoryData: Map<string, InMemoryTableData>,
     versionFilter: VersionFilter,
-    config: Config
-  ): Promise<void> {
+  ): void {
     for (const [chineseName, tableData] of inMemoryData) {
-      // 校验行版本区间格式
+      // ── 1. 校验配置区域（versionRowData）── 空值允许（代表0/不筛选），只检测错误值和格式
       if (tableData.versionRowData) {
         for (let r = 2; r < tableData.versionRowData.length; r++) {
-          const rangeStr = String(tableData.versionRowData[r][0] || '').trim();
-          if (!rangeStr) continue;
+          const row = tableData.versionRowData[r];
+          for (let c = 0; c < row.length; c++) {
+            const raw = row[c];
+            const loc = { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') };
 
-          const validation = versionFilter.validateRangeFormat(rangeStr);
-          if (!validation.valid && validation.errorCode) {
-            await this.errorHandler.log(
-              validation.errorCode, 'warning', chineseName,
-              validation.message || '版本区间格式错误',
-              'ExportJob.runValidation',
-              { sheetName: chineseName, row: r + 1, column: 1, cellValue: rangeStr }
-            );
+            if (this.isExcelError(raw)) {
+              this.errorHandler.logError({
+                code: ErrorCode.CELL_EXCEL_ERROR,
+                severity: 'warning',
+                tableName: chineseName,
+                message: `配置区域单元格包含错误值「${raw}」`,
+                procedure: 'ExportJob.runValidation',
+                location: loc,
+              });
+              continue;
+            }
+
+            const cellVal = String(raw ?? '').trim();
+            if (!cellVal) continue; // 空值在配置区域是合法的（等同于0）
+
+            const validation = versionFilter.validateRangeFormat(cellVal);
+            if (!validation.valid && validation.errorCode) {
+              this.errorHandler.logError({
+                code: validation.errorCode,
+                severity: 'warning',
+                tableName: chineseName,
+                message: validation.message || '版本区间格式错误',
+                procedure: 'ExportJob.runValidation',
+                location: loc,
+              });
+            }
           }
         }
       }
 
-      // 校验数据区空值
-      if (tableData.mainData && tableData.mainData.length > 2) {
+      // ── 2. 校验列版本区间（version_c 区域）── 同上，空值允许
+      if (tableData.versionColData) {
+        for (let r = 0; r < tableData.versionColData.length; r++) {
+          for (let c = 0; c < tableData.versionColData[r].length; c++) {
+            const raw = tableData.versionColData[r][c];
+            const loc = { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') };
+
+            if (this.isExcelError(raw)) {
+              this.errorHandler.logError({
+                code: ErrorCode.CELL_EXCEL_ERROR,
+                severity: 'warning',
+                tableName: chineseName,
+                message: `列版本区域单元格包含错误值「${raw}」`,
+                procedure: 'ExportJob.runValidation',
+                location: loc,
+              });
+              continue;
+            }
+
+            const cellVal = String(raw ?? '').trim();
+            if (!cellVal) continue;
+
+            const validation = versionFilter.validateRangeFormat(cellVal);
+            if (!validation.valid && validation.errorCode) {
+              this.errorHandler.logError({
+                code: validation.errorCode,
+                severity: 'warning',
+                tableName: chineseName,
+                message: validation.message || '版本区间格式错误',
+                procedure: 'ExportJob.runValidation',
+                location: loc,
+              });
+            }
+          }
+        }
+      }
+
+      // ── 3. 校验主数据区（mainData）── 只检测有字段定义的列 + 有Key的行（Ctrl+A 有效区域）
+      if (tableData.mainData.length > 2) {
+        // 确定有效列数：字段定义行（row 0）中非空的列
+        const fieldRow = tableData.mainData[0];
+        let validColCount = 0;
+        for (let c = 0; c < fieldRow.length; c++) {
+          const val = String(fieldRow[c] ?? '').trim();
+          if (!val) break; // 遇到空字段定义即为数据区右边界
+          validColCount = c + 1;
+        }
+
+        // 从第3行（索引2）开始检测数据行，遇到首列为空即停止（数据区下边界）
         for (let r = 2; r < tableData.mainData.length; r++) {
-          for (let c = 0; c < tableData.mainData[r].length; c++) {
-            const val = tableData.mainData[r][c];
-            if (val == null || String(val).trim() === '') {
-              await this.errorHandler.log(
-                ErrorCode.DATA_CELL_EMPTY, 'warning', chineseName,
-                `数据区单元格为空`,
-                'ExportJob.runValidation',
-                { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: '' }
-              );
+          const firstCell = tableData.mainData[r][0];
+          if (firstCell == null || String(firstCell).trim() === '') break;
+
+          for (let c = 0; c < validColCount; c++) {
+            const raw = tableData.mainData[r][c];
+            const loc = { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') };
+
+            if (this.isExcelError(raw)) {
+              this.errorHandler.logError({
+                code: ErrorCode.CELL_EXCEL_ERROR,
+                severity: 'warning',
+                tableName: chineseName,
+                message: `数据区域单元格包含错误值「${raw}」`,
+                procedure: 'ExportJob.runValidation',
+                location: loc,
+              });
+              continue;
+            }
+
+            if (raw != null && typeof raw === 'string' && raw.length > 0 && raw.trim() === '') {
+              this.errorHandler.logError({
+                code: ErrorCode.CELL_WHITESPACE_ONLY,
+                severity: 'warning',
+                tableName: chineseName,
+                message: '数据区域单元格仅包含空格',
+                procedure: 'ExportJob.runValidation',
+                location: loc,
+              });
             }
           }
         }
@@ -250,56 +387,30 @@ export class ExportJob {
   /**
    * 更新导出结果到「表格输出」工作表
    */
-  private async updateExportResults(
-    config: Config,
-    modifiedFiles: string[]
-  ): Promise<void> {
+  /**
+   * 更新导出状态到「表格输出」工作表（仅更新工作状态和结果计数，列表和报错已在UI中展示）
+   */
+  private async updateExportResults(modifiedFiles: string[]): Promise<void> {
     try {
       await Excel.run(async (context) => {
-        const sheet = context.workbook.worksheets.getItem('表格输出');
+        const snap = await excelHelper.loadSheetSnapshot(context, '表格输出');
+        if (!snap) return;
 
-        // 更新工作状态
-        const statusMarker = await excelHelper.findMarker(sheet, '#工作状态#');
-        if (statusMarker) {
-          statusMarker.load('rowIndex,columnIndex');
-          await context.sync();
-          const statusCell = sheet.getRangeByIndexes(
-            statusMarker.rowIndex, statusMarker.columnIndex + 1, 1, 1
-          );
+        const sheet = context.workbook.worksheets.getItem('表格输出');
+        const oR = snap.startRow;
+        const oC = snap.startCol;
+
+        const statusPos = excelHelper.findMarkerInData(snap.values, '#工作状态#');
+        const countPos = excelHelper.findMarkerInData(snap.values, '#输出表格结果#');
+
+        if (statusPos) {
+          const statusCell = sheet.getRangeByIndexes(statusPos.row + oR, statusPos.col + oC + 1, 1, 1);
           statusCell.values = [['导出完成']];
         }
 
-        // 更新输出表格数
-        const countMarker = await excelHelper.findMarker(sheet, '#输出表格结果#');
-        if (countMarker) {
-          countMarker.load('rowIndex,columnIndex');
-          await context.sync();
-          const countCell = sheet.getRangeByIndexes(
-            countMarker.rowIndex + 1, countMarker.columnIndex + 1, 1, 1
-          );
+        if (countPos) {
+          const countCell = sheet.getRangeByIndexes(countPos.row + oR + 1, countPos.col + oC + 1, 1, 1);
           countCell.values = [[modifiedFiles.length]];
-        }
-
-        // 更新输出表格列表
-        const listMarker = await excelHelper.findMarker(sheet, '#输出表格列表#');
-        if (listMarker) {
-          listMarker.load('rowIndex,columnIndex');
-          await context.sync();
-
-          // 先清空旧列表
-          const clearRange = sheet.getRangeByIndexes(
-            listMarker.rowIndex + 1, listMarker.columnIndex, 100, 1
-          );
-          clearRange.clear(Excel.ClearApplyTo.contents);
-
-          // 写入新列表
-          for (let i = 0; i < modifiedFiles.length; i++) {
-            const cell = sheet.getRangeByIndexes(
-              listMarker.rowIndex + 1 + i, listMarker.columnIndex, 1, 1
-            );
-            cell.values = [[modifiedFiles[i]]];
-            cell.format.font.color = '#FF0000';
-          }
         }
 
         await context.sync();
@@ -307,20 +418,6 @@ export class ExportJob {
     } catch (err) {
       logger.error('更新导出结果失败', err);
     }
-  }
-
-  /**
-   * 写入文件到输出目录
-   */
-  private async writeFile(
-    dirHandle: DirectoryHandle,
-    fileName: string,
-    buffer: ArrayBuffer
-  ): Promise<void> {
-    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(buffer);
-    await writable.close();
   }
 
   private emitProgress(step: number, totalSteps: number, message: string, tableName?: string): void {

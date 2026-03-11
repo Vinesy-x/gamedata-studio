@@ -7,6 +7,8 @@ export interface InMemoryTableData {
   mainData: CellValue[][];
   versionRowData: CellValue[][] | null;
   versionColData: CellValue[][] | null;
+  /** version_c 各行的左侧标签（用于识别 roads_0/roads_X） */
+  versionColLabels: CellValue[] | null;
   hasVersionRowFlag: boolean;
   hasVersionColFlag: boolean;
 }

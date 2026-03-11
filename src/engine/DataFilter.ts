@@ -13,7 +13,7 @@ export class DataFilter {
    * 对加载到内存的表数据执行行列筛选和重复Key处理
    */
   applyFilters(tableData: InMemoryTableData): FilteredResult {
-    const { mainData, versionRowData, versionColData } = tableData;
+    const { mainData, versionRowData, versionColData, versionColLabels } = tableData;
 
     if (!mainData || mainData.length < 2) {
       return { data: [], rowCount: 0, colCount: 0, shouldOutput: false };
@@ -23,7 +23,7 @@ export class DataFilter {
     const rowMask = this.filterRows(mainData, versionRowData);
 
     // 第2步：列版本筛选
-    const colMask = this.filterColumns(mainData, versionColData);
+    const colMask = this.filterColumns(mainData, versionColData, versionColLabels ?? undefined);
 
     // 第3步：应用筛选掩码
     const filteredData = this.applyMasks(mainData, rowMask, colMask);
@@ -108,10 +108,14 @@ export class DataFilter {
   /**
    * 列版本筛选
    * 仅当存在 version_c 数据时执行
+   * version_c 区域结构：
+   *   row 0: 版本区间值（与 version_r 行的结构类似）
+   *   row 1+: 可能有线路控制值，行标识在 colLabels 中
    */
   private filterColumns(
     mainData: CellValue[][],
-    versionColData: CellValue[][] | null
+    versionColData: CellValue[][] | null,
+    colLabels?: CellValue[]
   ): boolean[] {
     if (!mainData[0]) return [];
     const colCount = mainData[0].length;
@@ -124,22 +128,17 @@ export class DataFilter {
     const targetLineField = this.versionFilter.getTargetLineField();
 
     // version_c 第1行是版本区间值
-    // 后续行可能是线路控制值
     const versionRow = versionColData[0];
 
-    // 查找线路行的索引（如果有多行）
+    // 通过 colLabels 识别线路行（colLabels 来自 version_c 左侧列）
     let roads0RowIdx = -1;
     let targetRoadRowIdx = -1;
 
-    if (versionColData.length > 1) {
-      // version_c 下方的行头部可能包含线路标识
-      // 这里需要从 versionRowData 的同列读取线路名，但 version_c 的行结构可能不同
-      // 简化处理：假设 version_c 的第2行起与行版本控制的线路列对称
-      for (let r = 1; r < versionColData.length; r++) {
-        // 需要额外的上下文来确定线路行，暂用位置推断
-        // 实际实现中，线路行的标识在 version_c 左侧列
-        if (r === 1) roads0RowIdx = r;
-        if (r === 2) targetRoadRowIdx = r;
+    if (colLabels && colLabels.length > 0) {
+      for (let r = 0; r < colLabels.length; r++) {
+        const label = String(colLabels[r] || '').trim();
+        if (label === 'roads_0') roads0RowIdx = r;
+        if (label === targetLineField) targetRoadRowIdx = r;
       }
     }
 
@@ -153,7 +152,7 @@ export class DataFilter {
         continue;
       }
 
-      // 条件2：roads_0 检查
+      // 条件2：roads_0 检查（仅当确认存在 roads_0 行时）
       if (roads0RowIdx >= 0 && roads0RowIdx < versionColData.length) {
         const roads0Val = versionColData[roads0RowIdx][c];
         if (!this.versionFilter.isLineValuePassed(roads0Val)) {
@@ -162,7 +161,7 @@ export class DataFilter {
         }
       }
 
-      // 条件3：目标线路检查 (修正VBA bug: 使用 includeCol 而非 includeRow)
+      // 条件3：目标线路检查
       if (targetLineField !== 'roads_0' && targetRoadRowIdx >= 0 && targetRoadRowIdx < versionColData.length) {
         const targetRoadVal = versionColData[targetRoadRowIdx][c];
         if (!this.versionFilter.isLineValuePassed(targetRoadVal)) {

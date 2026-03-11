@@ -9,7 +9,7 @@ import {
   StaffInfo,
 } from '../types/config';
 import { ErrorCode } from '../types/errors';
-import { excelHelper } from '../utils/ExcelHelper';
+import { excelHelper, SheetData, SheetSnapshot } from '../utils/ExcelHelper';
 import { ErrorHandler } from '../utils/ErrorHandler';
 import { logger } from '../utils/Logger';
 
@@ -25,44 +25,46 @@ export class ConfigLoader {
     this.errorHandler = errorHandler;
   }
 
+  /**
+   * 加载全部配置（一次性读取所有工作表到内存再解析）
+   */
   async loadConfig(): Promise<Config | null> {
     return await Excel.run(async (context) => {
-      // 验证三张元数据表存在
-      const controlSheet = this.getRequiredSheet(context.workbook, SHEET_CONTROL, ErrorCode.CONTROL_SHEET_NOT_FOUND);
-      const settingsSheet = this.getRequiredSheet(context.workbook, SHEET_SETTINGS, ErrorCode.CONFIG_SETTINGS_NOT_FOUND);
-      const mappingSheet = this.getRequiredSheet(context.workbook, SHEET_MAPPING, ErrorCode.MAPPING_SHEET_NOT_FOUND);
+      // 一次性加载三张元数据表
+      const controlSnap = await excelHelper.loadSheetSnapshot(context, SHEET_CONTROL);
+      const settingsSnap = await excelHelper.loadSheetSnapshot(context, SHEET_SETTINGS);
+      const mappingSnap = await excelHelper.loadSheetSnapshot(context, SHEET_MAPPING);
 
-      if (!controlSheet || !settingsSheet || !mappingSheet) {
+      if (!controlSnap || controlSnap.values.length === 0) {
+        await this.errorHandler.log(
+          ErrorCode.CONTROL_SHEET_NOT_FOUND, 'error', '',
+          `找不到工作表「${SHEET_CONTROL}」或为空`, 'ConfigLoader.loadConfig'
+        );
+        return null;
+      }
+      if (!settingsSnap || settingsSnap.values.length === 0) {
+        await this.errorHandler.log(
+          ErrorCode.CONFIG_SETTINGS_NOT_FOUND, 'error', '',
+          `找不到工作表「${SHEET_SETTINGS}」或为空`, 'ConfigLoader.loadConfig'
+        );
+        return null;
+      }
+      if (!mappingSnap || mappingSnap.values.length === 0) {
+        await this.errorHandler.log(
+          ErrorCode.MAPPING_SHEET_NOT_FOUND, 'error', '',
+          `找不到工作表「${SHEET_MAPPING}」或为空`, 'ConfigLoader.loadConfig'
+        );
         return null;
       }
 
-      // 并行加载各配置区
-      const [
-        versionTemplatesResult,
-        lineTemplatesResult,
-        staffCodesResult,
-        outputSettingsResult,
-        tableListResult,
-        gitCommitResult,
-        switchResult,
-      ] = await Promise.allSettled([
-        this.loadVersionTemplates(settingsSheet),
-        this.loadLineTemplates(settingsSheet),
-        this.loadStaffCodes(settingsSheet),
-        this.loadOutputSettings(controlSheet),
-        this.loadTableList(mappingSheet),
-        this.loadGitCommitTemplate(settingsSheet),
-        this.loadConfigSwitch(settingsSheet),
-      ]);
-
-      // 检查关键配置是否成功加载
-      const versionTemplates = this.unwrapResult(versionTemplatesResult);
-      const lineTemplates = this.unwrapResult(lineTemplatesResult);
-      const staffCodes = this.unwrapResult(staffCodesResult);
-      const outputSettings = this.unwrapResult(outputSettingsResult);
-      const tablesToProcess = this.unwrapResult(tableListResult);
-      const gitCommitTemplate = this.unwrapResult(gitCommitResult);
-      const showResourcePopup = this.unwrapResult(switchResult);
+      // 在内存中解析各配置区
+      const versionTemplates = this.parseVersionTemplates(settingsSnap.values);
+      const lineTemplates = this.parseLineTemplates(settingsSnap.values);
+      const staffCodes = this.parseStaffCodes(settingsSnap.values);
+      const outputSettings = this.parseOutputSettings(controlSnap.values);
+      const tablesToProcess = this.parseTableList(mappingSnap.values);
+      const gitCommitTemplate = this.parseGitCommitTemplate(settingsSnap.values);
+      const showResourcePopup = this.parseConfigSwitch(settingsSnap.values);
 
       if (!versionTemplates || !lineTemplates || !outputSettings || !tablesToProcess) {
         return null;
@@ -76,11 +78,16 @@ export class ConfigLoader {
         }
       }
 
-      // 计算输出目录
+      // 计算输出目录（与 VBA CalculateOutputDirectory 一致）
       const currentVT = versionTemplates.get(outputSettings.versionName);
       if (currentVT && currentVT.gitDirectory) {
+        // VBA: 版本号不含小数点时补 .0（如 3 → "3.0"）
+        let versionStr = String(outputSettings.versionNumber);
+        if (!versionStr.includes('.')) {
+          versionStr += '.0';
+        }
         outputSettings.outputDirectory = currentVT.gitDirectory
-          .replace('{0}', String(outputSettings.versionNumber))
+          .replace('{0}', versionStr)
           .replace('{1}', '');
       }
 
@@ -91,58 +98,39 @@ export class ConfigLoader {
         outputSettings,
         gitCommitTemplate: gitCommitTemplate || '',
         staffCodes: staffCodes || new Map(),
-        showResourcePopup: showResourcePopup ?? false,
+        showResourcePopup: showResourcePopup,
       };
 
-      logger.info('配置加载完成', config);
+      logger.info('配置加载完成');
       return config;
     });
   }
 
-  private getRequiredSheet(
-    workbook: Excel.Workbook,
-    name: string,
-    errorCode: number
-  ): Excel.Worksheet | null {
-    try {
-      return workbook.worksheets.getItem(name);
-    } catch {
+  /**
+   * 解析版本模板（#版本列表#）
+   */
+  private parseVersionTemplates(data: SheetData): Map<string, VersionTemplate> | null {
+    const pos = excelHelper.findMarkerInData(data, '#版本列表#');
+    if (!pos) {
       this.errorHandler.logError({
-        code: errorCode,
-        severity: 'error',
-        tableName: '',
-        message: `找不到工作表「${name}」`,
-        procedure: 'ConfigLoader.loadConfig',
+        code: ErrorCode.VERSION_LIST_MARKER_NOT_FOUND, severity: 'error', tableName: '',
+        message: '找不到 #版本列表# 标记', procedure: 'ConfigLoader.parseVersionTemplates',
       });
       return null;
     }
-  }
 
-  /**
-   * 加载版本模板（#版本列表#）
-   */
-  async loadVersionTemplates(sheet: Excel.Worksheet): Promise<Map<string, VersionTemplate>> {
-    const marker = await excelHelper.findMarker(sheet, '#版本列表#');
-    if (!marker) {
-      await this.errorHandler.log(
-        ErrorCode.VERSION_LIST_MARKER_NOT_FOUND, 'error', '',
-        '找不到 #版本列表# 标记', 'ConfigLoader.loadVersionTemplates'
-      );
-      throw new Error('VERSION_LIST_MARKER_NOT_FOUND');
-    }
-
-    const rows = await excelHelper.readBlockBelow(sheet, marker, 4);
+    const rows = excelHelper.readBlockBelow(data, pos.row, pos.col, 4);
     const templates = new Map<string, VersionTemplate>();
 
     for (const row of rows) {
-      const name = String(row[0]).trim();
+      const name = String(row[0] ?? '').trim();
       if (!name) continue;
 
       if (templates.has(name)) {
-        await this.errorHandler.log(
-          ErrorCode.DUPLICATE_VERSION_NAME, 'warning', '',
-          `版本列表中发现重复版本名: ${name}`, 'ConfigLoader.loadVersionTemplates'
-        );
+        this.errorHandler.logError({
+          code: ErrorCode.DUPLICATE_VERSION_NAME, severity: 'warning', tableName: '',
+          message: `版本列表中发现重复版本名: ${name}`, procedure: 'ConfigLoader.parseVersionTemplates',
+        });
         continue;
       }
 
@@ -150,7 +138,7 @@ export class ConfigLoader {
         name,
         lineId: Number(row[1]) || 0,
         lineField: '',
-        gitDirectory: String(row[2] || '').trim(),
+        gitDirectory: String(row[2] ?? '').trim(),
       });
     }
 
@@ -159,37 +147,29 @@ export class ConfigLoader {
   }
 
   /**
-   * 加载线路模板（#线路列表#）
+   * 解析线路模板（#线路列表#）
    */
-  async loadLineTemplates(sheet: Excel.Worksheet): Promise<Map<number, LineTemplate>> {
-    const marker = await excelHelper.findMarker(sheet, '#线路列表#');
-    if (!marker) {
-      await this.errorHandler.log(
-        ErrorCode.LINE_LIST_MARKER_NOT_FOUND, 'error', '',
-        '找不到 #线路列表# 标记', 'ConfigLoader.loadLineTemplates'
-      );
-      throw new Error('LINE_LIST_MARKER_NOT_FOUND');
+  private parseLineTemplates(data: SheetData): Map<number, LineTemplate> | null {
+    const pos = excelHelper.findMarkerInData(data, '#线路列表#');
+    if (!pos) {
+      this.errorHandler.logError({
+        code: ErrorCode.LINE_LIST_MARKER_NOT_FOUND, severity: 'error', tableName: '',
+        message: '找不到 #线路列表# 标记', procedure: 'ConfigLoader.parseLineTemplates',
+      });
+      return null;
     }
 
-    const rows = await excelHelper.readBlockBelow(sheet, marker, 3);
+    const rows = excelHelper.readBlockBelow(data, pos.row, pos.col, 3);
     const templates = new Map<number, LineTemplate>();
 
     for (const row of rows) {
       const id = Number(row[0]);
       if (isNaN(id) || id === 0) continue;
 
-      if (templates.has(id)) {
-        await this.errorHandler.log(
-          ErrorCode.DUPLICATE_LINE_ID, 'warning', '',
-          `线路列表中发现重复线路ID: ${id}`, 'ConfigLoader.loadLineTemplates'
-        );
-        continue;
-      }
-
       templates.set(id, {
         id,
-        field: String(row[1] || '').trim(),
-        remark: String(row[2] || '').trim(),
+        field: String(row[1] ?? '').trim(),
+        remark: String(row[2] ?? '').trim(),
       });
     }
 
@@ -198,29 +178,29 @@ export class ConfigLoader {
   }
 
   /**
-   * 加载人员代码（#人员代码#）
+   * 解析人员代码（#人员代码#）
    */
-  async loadStaffCodes(sheet: Excel.Worksheet): Promise<Map<string, StaffInfo>> {
-    const marker = await excelHelper.findMarker(sheet, '#人员代码#');
-    if (!marker) {
-      await this.errorHandler.log(
-        ErrorCode.STAFF_CODE_MARKER_NOT_FOUND, 'warning', '',
-        '找不到 #人员代码# 标记', 'ConfigLoader.loadStaffCodes'
-      );
+  private parseStaffCodes(data: SheetData): Map<string, StaffInfo> {
+    const pos = excelHelper.findMarkerInData(data, '#人员代码#');
+    if (!pos) {
+      this.errorHandler.logError({
+        code: ErrorCode.STAFF_CODE_MARKER_NOT_FOUND, severity: 'warning', tableName: '',
+        message: '找不到 #人员代码# 标记', procedure: 'ConfigLoader.parseStaffCodes',
+      });
       return new Map();
     }
 
-    const rows = await excelHelper.readBlockBelow(sheet, marker, 4);
+    const rows = excelHelper.readBlockBelow(data, pos.row, pos.col, 4);
     const staffMap = new Map<string, StaffInfo>();
 
     for (const row of rows) {
-      const name = String(row[1] || '').trim();
+      const name = String(row[1] ?? '').trim();
       if (!name) continue;
       staffMap.set(name, {
         id: Number(row[0]) || 0,
         name,
-        code: String(row[2] || '').trim(),
-        machineCode: String(row[3] || '').trim(),
+        code: String(row[2] ?? '').trim(),
+        machineCode: String(row[3] ?? '').trim(),
       });
     }
 
@@ -228,85 +208,61 @@ export class ConfigLoader {
   }
 
   /**
-   * 加载输出设置（从表格输出表读取）
+   * 解析输出设置（从表格输出表读取）
+   * 实际布局:
+   *   R6:C5=1152 (序列号，在 #数据表版本# 上一行的右一列)
+   *   R7:C4=#数据表版本#
+   *   R8:C4=#输出版本# | C5=国内
+   *   R9:C4=#输出版本号# | C5=7.5
    */
-  async loadOutputSettings(sheet: Excel.Worksheet): Promise<OutputSettings> {
-    // 查找输出版本名
-    const versionNameMarker = await excelHelper.findMarker(sheet, '#输出版本#');
-    if (!versionNameMarker) {
-      await this.errorHandler.log(
-        ErrorCode.OUTPUT_VERSION_MARKER_NOT_FOUND, 'error', '',
-        '找不到 #输出版本# 标记', 'ConfigLoader.loadOutputSettings'
-      );
-      throw new Error('OUTPUT_VERSION_MARKER_NOT_FOUND');
+  private parseOutputSettings(data: SheetData): OutputSettings | null {
+    // 查找 #输出版本#
+    const versionNamePos = excelHelper.findMarkerInData(data, '#输出版本#');
+    if (!versionNamePos) {
+      this.errorHandler.logError({
+        code: ErrorCode.OUTPUT_VERSION_MARKER_NOT_FOUND, severity: 'error', tableName: '',
+        message: '找不到 #输出版本# 标记', procedure: 'ConfigLoader.parseOutputSettings',
+      });
+      return null;
     }
-
-    versionNameMarker.load('rowIndex,columnIndex');
-    await sheet.context.sync();
-
-    // 版本名在标记右侧一列
-    const versionNameCell = sheet.getRangeByIndexes(
-      versionNameMarker.rowIndex, versionNameMarker.columnIndex + 1, 1, 1
-    );
-    versionNameCell.load('values');
-    await sheet.context.sync();
-    const versionName = String(versionNameCell.values[0][0] || '').trim();
+    const versionName = String(excelHelper.getValueRight(data, versionNamePos.row, versionNamePos.col) ?? '').trim();
 
     if (!versionName) {
-      await this.errorHandler.log(
-        ErrorCode.OUTPUT_VERSION_EMPTY, 'error', '',
-        '输出版本名称为空', 'ConfigLoader.loadOutputSettings'
-      );
-      throw new Error('OUTPUT_VERSION_EMPTY');
+      this.errorHandler.logError({
+        code: ErrorCode.OUTPUT_VERSION_EMPTY, severity: 'error', tableName: '',
+        message: '输出版本名称为空', procedure: 'ConfigLoader.parseOutputSettings',
+      });
+      return null;
     }
 
-    // 查找输出版本号
-    const versionNumMarker = await excelHelper.findMarker(sheet, '#输出版本号#');
-    if (!versionNumMarker) {
-      await this.errorHandler.log(
-        ErrorCode.OUTPUT_VERSION_NUM_MARKER_NOT_FOUND, 'error', '',
-        '找不到 #输出版本号# 标记', 'ConfigLoader.loadOutputSettings'
-      );
-      throw new Error('OUTPUT_VERSION_NUM_MARKER_NOT_FOUND');
+    // 查找 #输出版本号#
+    const versionNumPos = excelHelper.findMarkerInData(data, '#输出版本号#');
+    if (!versionNumPos) {
+      this.errorHandler.logError({
+        code: ErrorCode.OUTPUT_VERSION_NUM_MARKER_NOT_FOUND, severity: 'error', tableName: '',
+        message: '找不到 #输出版本号# 标记', procedure: 'ConfigLoader.parseOutputSettings',
+      });
+      return null;
     }
-
-    versionNumMarker.load('rowIndex,columnIndex');
-    await sheet.context.sync();
-
-    const versionNumCell = sheet.getRangeByIndexes(
-      versionNumMarker.rowIndex, versionNumMarker.columnIndex + 1, 1, 1
-    );
-    versionNumCell.load('values');
-    await sheet.context.sync();
-    const versionNumber = Number(versionNumCell.values[0][0]);
+    const versionNumber = Number(excelHelper.getValueRight(data, versionNumPos.row, versionNumPos.col));
 
     if (isNaN(versionNumber)) {
-      await this.errorHandler.log(
-        ErrorCode.OUTPUT_VERSION_NUM_NOT_NUMBER, 'error', '',
-        '输出版本号非数字', 'ConfigLoader.loadOutputSettings'
-      );
-      throw new Error('OUTPUT_VERSION_NUM_NOT_NUMBER');
+      this.errorHandler.logError({
+        code: ErrorCode.OUTPUT_VERSION_NUM_NOT_NUMBER, severity: 'error', tableName: '',
+        message: '输出版本号非数字', procedure: 'ConfigLoader.parseOutputSettings',
+      });
+      return null;
     }
 
-    // 查找版本序列号
-    const seqMarker = await excelHelper.findMarker(sheet, '#数据表版本#');
+    // 查找版本序列号: #数据表版本# 标记上一行右一列
     let versionSequence = 0;
-    if (seqMarker) {
-      seqMarker.load('rowIndex,columnIndex');
-      await sheet.context.sync();
-
-      // 序列号存储在标记的偏移位置
-      const seqCell = sheet.getRangeByIndexes(
-        seqMarker.rowIndex + 1, seqMarker.columnIndex + 1, 1, 1
-      );
-      seqCell.load('values');
-      await sheet.context.sync();
-
-      const seqValue = seqCell.values[0][0];
-      const seqStr = String(seqValue || '');
-      // 版本号格式可能是 "7.5.1152"，取最后一段
-      const parts = seqStr.split('.');
-      versionSequence = Number(parts[parts.length - 1]) || 0;
+    const seqPos = excelHelper.findMarkerInData(data, '#数据表版本#');
+    if (seqPos && seqPos.row > 0) {
+      // 序列号在标记上一行的右一列 (offset -1, +1)
+      const seqVal = data[seqPos.row - 1]?.[seqPos.col + 1];
+      if (seqVal != null) {
+        versionSequence = Number(seqVal) || 0;
+      }
     }
 
     logger.info(`输出设置: 版本=${versionName}, 版本号=${versionNumber}, 序列号=${versionSequence}`);
@@ -320,42 +276,31 @@ export class ConfigLoader {
   }
 
   /**
-   * 加载表名对照（#输出控制#）
+   * 解析表名对照（#输出控制#）
+   * 实际布局: R1:C1=#输出控制# | C2=功能表名 | C3=输出表名 | C4=是否输出表
+   *           R2起: 数据行
    */
-  async loadTableList(sheet: Excel.Worksheet): Promise<Map<string, TableInfo>> {
-    const marker = await excelHelper.findMarker(sheet, '#输出控制#');
-    if (!marker) {
-      await this.errorHandler.log(
-        ErrorCode.OUTPUT_CONTROL_MARKER_NOT_FOUND, 'error', '',
-        '找不到 #输出控制# 标记', 'ConfigLoader.loadTableList'
-      );
-      throw new Error('OUTPUT_CONTROL_MARKER_NOT_FOUND');
+  private parseTableList(data: SheetData): Map<string, TableInfo> | null {
+    const pos = excelHelper.findMarkerInData(data, '#输出控制#');
+    if (!pos) {
+      this.errorHandler.logError({
+        code: ErrorCode.OUTPUT_CONTROL_MARKER_NOT_FOUND, severity: 'error', tableName: '',
+        message: '找不到 #输出控制# 标记', procedure: 'ConfigLoader.parseTableList',
+      });
+      return null;
     }
 
-    const rows = await excelHelper.readBlockBelow(sheet, marker, 4);
+    const rows = excelHelper.readBlockBelow(data, pos.row, pos.col, 4);
     const tables = new Map<string, TableInfo>();
 
     for (const row of rows) {
-      const versionRange = String(row[0] || '').trim();
-      const chineseName = String(row[1] || '').trim();
-      const englishName = String(row[2] || '').trim();
-      const shouldOutput = String(row[3] || '').trim().toLowerCase() === 'true';
+      const versionRange = String(row[0] ?? '').trim();
+      const chineseName = String(row[1] ?? '').trim();
+      const englishName = String(row[2] ?? '').trim();
+      const shouldOutput = String(row[3] ?? '').trim().toLowerCase() === 'true';
 
-      if (!chineseName) {
-        await this.errorHandler.log(
-          ErrorCode.TABLE_CHINESE_NAME_EMPTY, 'warning', '',
-          '表名对照中某行中文表名为空', 'ConfigLoader.loadTableList'
-        );
-        continue;
-      }
-
-      if (!englishName) {
-        await this.errorHandler.log(
-          ErrorCode.TABLE_ENGLISH_NAME_EMPTY, 'warning', '',
-          `表名对照中 ${chineseName} 的英文表名为空`, 'ConfigLoader.loadTableList'
-        );
-        continue;
-      }
+      if (!chineseName) continue;
+      if (!englishName) continue;
 
       tables.set(chineseName, {
         chineseName,
@@ -370,33 +315,33 @@ export class ConfigLoader {
   }
 
   /**
-   * 加载Git提交日志模板
+   * 解析Git提交日志模板
    */
-  async loadGitCommitTemplate(sheet: Excel.Worksheet): Promise<string> {
-    const marker = await excelHelper.findMarker(sheet, '#Git通用提交日志#');
-    if (!marker) {
-      await this.errorHandler.log(
-        ErrorCode.GIT_COMMIT_LOG_MARKER_NOT_FOUND, 'warning', '',
-        '找不到 #Git通用提交日志# 标记', 'ConfigLoader.loadGitCommitTemplate'
-      );
+  private parseGitCommitTemplate(data: SheetData): string {
+    const pos = excelHelper.findMarkerInData(data, '#Git通用提交日志#');
+    if (!pos) {
+      this.errorHandler.logError({
+        code: ErrorCode.GIT_COMMIT_LOG_MARKER_NOT_FOUND, severity: 'warning', tableName: '',
+        message: '找不到 #Git通用提交日志# 标记', procedure: 'ConfigLoader.parseGitCommitTemplate',
+      });
       return '';
     }
 
-    const rows = await excelHelper.readBlockBelow(sheet, marker, 1);
-    return rows.length > 0 ? String(rows[0][0] || '').trim() : '';
+    const rows = excelHelper.readBlockBelow(data, pos.row, pos.col, 1);
+    return rows.length > 0 ? String(rows[0][0] ?? '').trim() : '';
   }
 
   /**
-   * 加载配置开关
+   * 解析配置开关
    */
-  async loadConfigSwitch(sheet: Excel.Worksheet): Promise<boolean> {
-    const marker = await excelHelper.findMarker(sheet, '#配置开关#');
-    if (!marker) return false;
+  private parseConfigSwitch(data: SheetData): boolean {
+    const pos = excelHelper.findMarkerInData(data, '#配置开关#');
+    if (!pos) return false;
 
-    const rows = await excelHelper.readBlockBelow(sheet, marker, 2);
+    const rows = excelHelper.readBlockBelow(data, pos.row, pos.col, 2);
     for (const row of rows) {
-      if (String(row[0]).includes('自动弹出路径')) {
-        return String(row[1]).trim().toLowerCase() === 'true';
+      if (String(row[0] ?? '').includes('自动弹出路径')) {
+        return String(row[1] ?? '').trim().toLowerCase() === 'true';
       }
     }
     return false;
@@ -417,33 +362,36 @@ export class ConfigLoader {
   async incrementSequence(config: Config): Promise<void> {
     try {
       await Excel.run(async (context) => {
-        const sheet = context.workbook.worksheets.getItem(SHEET_CONTROL);
-        const marker = await excelHelper.findMarker(sheet, '#数据表版本#');
-        if (!marker) return;
+        const snap = await excelHelper.loadSheetSnapshot(context, SHEET_CONTROL);
+        if (!snap) return;
 
-        marker.load('rowIndex,columnIndex');
-        await context.sync();
-
-        const seqCell = sheet.getRangeByIndexes(
-          marker.rowIndex + 1, marker.columnIndex + 1, 1, 1
-        );
+        const seqPos = excelHelper.findMarkerInData(snap.values, '#数据表版本#');
+        if (!seqPos || seqPos.row === 0) return;
 
         const newSeq = config.outputSettings.versionSequence + 1;
-        const newValue = `${config.outputSettings.versionNumber}.${newSeq}`;
-        seqCell.values = [[newValue]];
+        const sheet = context.workbook.worksheets.getItem(SHEET_CONTROL);
+
+        // 将 usedRange 内的相对索引转换为 sheet 上的绝对索引
+        const absRow = seqPos.row + snap.startRow;
+        const absCol = seqPos.col + snap.startCol;
+
+        // VBA: versionSeqCell.Offset(-1, 1).Value = newSeq
+        // 即 #数据表版本# 标记上一行、右一列
+        const seqCell = sheet.getRangeByIndexes(absRow - 1, absCol + 1, 1, 1);
+        seqCell.values = [[newSeq]];
+
+        // 同时更新 #数据表版本# 右侧的版本全串（如 7.5.1152 → 7.5.1153）
+        const versionFullCell = sheet.getRangeByIndexes(absRow, absCol + 1, 1, 1);
+        const versionStr = String(config.outputSettings.versionNumber);
+        versionFullCell.values = [[`${versionStr}.${newSeq}`]];
+
         await context.sync();
 
         config.outputSettings.versionSequence = newSeq;
-        logger.info(`版本序列号更新为 ${newValue}`);
+        logger.info(`版本序列号更新为 ${newSeq}`);
       });
     } catch (err) {
       logger.error('更新版本序列号失败', err);
     }
-  }
-
-  private unwrapResult<T>(result: PromiseSettledResult<T>): T | null {
-    if (result.status === 'fulfilled') return result.value;
-    logger.error('配置加载子任务失败', result.reason);
-    return null;
   }
 }

@@ -1,118 +1,116 @@
-import { useState, useCallback } from 'react';
+import { useMemo } from 'react';
 import {
   makeStyles,
   tokens,
-  Button,
   Text,
-  Card,
-  CardHeader,
-  Textarea,
+  Label,
 } from '@fluentui/react-components';
 import {
-  BranchRegular,
-  CopyRegular,
-  CheckmarkRegular,
+  FolderRegular,
+  TextDescriptionRegular,
 } from '@fluentui/react-icons';
+import { Config } from '../../types/config';
 import { GitHandler } from '../../git/GitHandler';
 
 const useStyles = makeStyles({
   container: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
-    marginTop: '8px',
+    gap: '12px',
+    padding: '14px',
   },
-  commandBlock: {
-    fontFamily: 'Consolas, Monaco, monospace',
-    fontSize: '11px',
-    backgroundColor: tokens.colorNeutralBackground3,
-    padding: '8px',
-    borderRadius: '4px',
-    whiteSpace: 'pre-wrap',
-    wordBreak: 'break-all',
-    maxHeight: '120px',
-    overflow: 'auto',
-  },
-  row: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-  },
-  label: {
-    fontSize: '12px',
+  sectionTitle: {
+    fontSize: '13px',
     fontWeight: 600,
-    marginBottom: '4px',
+    color: tokens.colorNeutralForeground1,
+  },
+  card: {
+    backgroundColor: tokens.colorNeutralBackground2,
+    borderRadius: '6px',
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  fieldRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  fieldLabel: {
+    fontSize: '12px',
+    color: tokens.colorNeutralForeground3,
+  },
+  previewText: {
+    fontSize: '11px',
+    color: tokens.colorNeutralForeground2,
+    fontFamily: 'Consolas, Monaco, monospace',
+    backgroundColor: tokens.colorNeutralBackground3,
+    padding: '6px 8px',
+    borderRadius: '4px',
+    wordBreak: 'break-all',
+    lineHeight: '1.4',
   },
   hint: {
     fontSize: '11px',
     color: tokens.colorNeutralForeground3,
-    lineHeight: '1.4',
+    padding: '6px 8px',
+    backgroundColor: tokens.colorNeutralBackground2,
+    borderRadius: '4px',
   },
 });
 
 interface GitPanelProps {
+  config: Config;
   modifiedFiles: string[];
   outputDirectory: string;
 }
 
-export function GitPanel({ modifiedFiles, outputDirectory }: GitPanelProps) {
+export function GitPanel({ config, outputDirectory }: GitPanelProps) {
   const styles = useStyles();
-  const [copied, setCopied] = useState(false);
 
-  const gitHandler = new GitHandler(outputDirectory);
-  const commitMessage = gitHandler.generateCommitMessage(
-    '', '', 0, 0
+  const gitHandler = useMemo(
+    () => new GitHandler(config.outputSettings.outputDirectory || outputDirectory),
+    [config, outputDirectory]
   );
-  const pushScript = gitHandler.getFullPushScript(modifiedFiles, commitMessage);
 
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(pushScript);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // 降级方案
-      const textarea = document.createElement('textarea');
-      textarea.value = pushScript;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  }, [pushScript]);
+  const commitMessage = useMemo(
+    () => gitHandler.generateCommitMessage(
+      config.gitCommitTemplate,
+      config.outputSettings.versionName,
+      config.outputSettings.versionNumber,
+      config.outputSettings.versionSequence
+    ),
+    [gitHandler, config]
+  );
+
+  const repoPath = config.outputSettings.outputDirectory || outputDirectory || '(未配置)';
 
   return (
-    <Card size="small">
-      <CardHeader
-        image={<BranchRegular />}
-        header={<Text weight="semibold">Git 操作</Text>}
-      />
-      <div className={styles.container}>
-        <Text className={styles.hint}>
-          v1.0 版本暂不支持自动 Git 操作。请复制以下命令在终端中执行。
-        </Text>
+    <div className={styles.container}>
+      <Text className={styles.sectionTitle}>Git 设置</Text>
 
-        <div className={styles.label}>提交推送命令:</div>
-        <div className={styles.commandBlock}>{pushScript || '(无变更文件)'}</div>
+      <div className={styles.card}>
+        <div className={styles.fieldRow}>
+          <Label className={styles.fieldLabel} htmlFor="git-repo">
+            <FolderRegular fontSize={12} style={{ marginRight: 4 }} />
+            仓库目录
+          </Label>
+          <div className={styles.previewText}>{repoPath}</div>
+        </div>
 
-        <Button
-          icon={copied ? <CheckmarkRegular /> : <CopyRegular />}
-          appearance="subtle"
-          onClick={handleCopy}
-          disabled={!pushScript}
-        >
-          {copied ? '已复制' : '复制命令'}
-        </Button>
-
-        <Text className={styles.hint}>
-          变更文件 ({modifiedFiles.length} 个):
-          {modifiedFiles.map((f, i) => (
-            <span key={i}><br />  - {f}</span>
-          ))}
-        </Text>
+        <div className={styles.fieldRow}>
+          <Label className={styles.fieldLabel} htmlFor="git-commit">
+            <TextDescriptionRegular fontSize={12} style={{ marginRight: 4 }} />
+            提交信息预览
+          </Label>
+          <div className={styles.previewText}>{commitMessage}</div>
+        </div>
       </div>
-    </Card>
+
+      <Text className={styles.hint}>
+        v1.0：导出后点击「Git」按钮可复制推送命令到剪贴板。
+      </Text>
+    </div>
   );
 }
