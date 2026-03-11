@@ -917,16 +917,19 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
         }
         if (vrRow < 0) throw new Error('找不到 version_r');
 
-        // 收集当前表中 version_r 行的 roads 列（用于 R+C 模式的 roads 行写入）
-        const existingRoads: string[] = [];
-        for (let c = vrCol + 1; c < (snap.values[vrRow]?.length || 0); c++) {
-          const cellVal = String(snap.values[vrRow][c] ?? '').trim();
-          if (cellVal.startsWith('roads_')) {
-            existingRoads.push(cellVal);
-          } else if (cellVal === '' || cellVal === '#配置区域#') {
-            break;
+        // 从版本配置构建正确的 roads 列表（不依赖工作表中可能过时的 roads）
+        const configRoads: Array<{ field: string; name: string }> = [{ field: 'roads_0', name: '默认' }];
+        for (const vt of config.versionTemplates.values()) {
+          const field = vt.lineField || config.lineTemplates.get(vt.lineId)?.field || '';
+          if (field && field !== 'roads_0' && field.startsWith('roads_')) {
+            configRoads.push({ field, name: vt.name });
           }
         }
+        configRoads.sort((a, b) =>
+          parseInt(a.field.replace('roads_', '')) - parseInt(b.field.replace('roads_', ''))
+        );
+        const existingRoads = configRoads.map(r => r.field);
+        const roadsNameMap = new Map(configRoads.map(r => [r.field, r.name]));
 
         // 找到 #配置区域# 以确定数据列起始
         let configMarkerCol = -1;
@@ -978,9 +981,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
               // roads 字段名写在 version_c 同列（configMarkerCol）
               sheet.getRangeByIndexes(rowAbsIdx, configMarkerCol + snap.startCol, 1, 1).values = [[roadField]];
               // 版本名标签写在 version_c 左一列（configMarkerCol-1）
-              const versionName = config.versionTemplates instanceof Map
-                ? Array.from((config.versionTemplates as Map<string, VersionTemplate>).values()).find(vt => vt.lineField === roadField)?.name || ''
-                : '';
+              const versionName = roadsNameMap.get(roadField) || '';
               if (versionName) {
                 sheet.getRangeByIndexes(rowAbsIdx, configMarkerCol - 1 + snap.startCol, 1, 1).values = [[versionName]];
               }
@@ -1016,7 +1017,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
     } catch (err) {
       setStatusMsg({ text: `操作失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
     }
-  }, [config.versionTemplates]);
+  }, [config.versionTemplates, config.lineTemplates]);
 
   const handleScan = useCallback(async () => {
     setScanning(true);
