@@ -900,6 +900,10 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
   // 三态切换 version_c: R → R+c → R+C → R
   const handleToggleVersionC = useCallback(async (chineseName: string, currentState: VCState) => {
     try {
+      // 先同步该表的线路（确保 version_r 的 roads 列与配置一致）
+      setLoadingVC(true);
+      await lineSyncer.syncAllTables(config.versionTemplates, [chineseName]);
+
       await Excel.run(async (context) => {
         const snap = await excelHelper.loadSheetSnapshot(context, chineseName);
         if (!snap) throw new Error('找不到工作表');
@@ -1016,6 +1020,8 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
       setStatusMsg({ text: `「${chineseName}」已切换为 ${labels[nextState]}`, type: 'success' });
     } catch (err) {
       setStatusMsg({ text: `操作失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
+    } finally {
+      setLoadingVC(false);
     }
   }, [config.versionTemplates, config.lineTemplates]);
 
