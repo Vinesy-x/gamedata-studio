@@ -154,8 +154,15 @@ export class TableCreator {
     const data = await StudioConfigStore.load(context);
     if (data) {
       for (const v of data.versions) {
-        if (v.lineField !== 'roads_0') {
-          roads.push({ field: v.lineField, name: v.name });
+        // 跳过 roads_0（已默认添加）和无效的 lineField
+        let field = v.lineField;
+        if (!field || !field.startsWith('roads_')) {
+          // lineField 为空时从 lines 中查找
+          const line = data.lines?.find(l => l.id === v.lineId);
+          if (line?.field) field = line.field;
+        }
+        if (field && field !== 'roads_0' && field.startsWith('roads_')) {
+          roads.push({ field, name: v.name });
         }
       }
     }

@@ -19,11 +19,13 @@ export class LineSyncer {
     versionTemplates: Map<string, VersionTemplate>,
     tableSheetNames: string[]
   ): Promise<{ synced: number; skipped: number; errors: string[] }> {
-    // 收集所有需要的 roads（含 roads_0）
+    // 收集所有需要的 roads（含 roads_0），跳过无效的 lineField
     const requiredRoads = new Set<string>();
     requiredRoads.add('roads_0');
     for (const vt of versionTemplates.values()) {
-      requiredRoads.add(vt.lineField);
+      if (vt.lineField && vt.lineField.startsWith('roads_')) {
+        requiredRoads.add(vt.lineField);
+      }
     }
     const sortedRoads = Array.from(requiredRoads).sort((a, b) => {
       return parseInt(a.replace('roads_', '')) - parseInt(b.replace('roads_', ''));
@@ -33,7 +35,7 @@ export class LineSyncer {
     const roadsToName = new Map<string, string>();
     roadsToName.set('roads_0', '默认');
     for (const vt of versionTemplates.values()) {
-      if (vt.lineField !== 'roads_0') {
+      if (vt.lineField && vt.lineField.startsWith('roads_') && vt.lineField !== 'roads_0') {
         roadsToName.set(vt.lineField, vt.name);
       }
     }
