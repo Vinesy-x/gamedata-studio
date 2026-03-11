@@ -6,16 +6,28 @@ import {
   TabList,
   Text,
   Spinner,
+  Button,
 } from '@fluentui/react-components';
 import {
   ArrowExportRegular,
   SettingsRegular,
-  InfoRegular,
+  QuestionCircleRegular,
+  ShieldCheckmarkRegular,
+  EyeRegular,
+  AddRegular,
+  GridRegular,
+  NumberSymbolRegular,
+  DataBarVerticalRegular,
+  TableSimpleRegular,
 } from '@fluentui/react-icons';
 import { ExportTab } from './components/ExportTab';
 import { ManageTab } from './components/ManageTab';
+import { ValidationPanel } from './components/ValidationPanel';
+import { PreviewPanel } from './components/PreviewPanel';
+import { HelpPanel } from './components/HelpPanel';
 import { useConfig } from './hooks/useConfig';
 import { ExportResult, ExportProgress } from '../types/table';
+import { StudioConfigStore } from '../v2/StudioConfigStore';
 
 const useStyles = makeStyles({
   root: {
@@ -27,25 +39,23 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground1,
     overflow: 'hidden',
   },
-  header: {
+  banner: {
     display: 'flex',
     alignItems: 'center',
-    padding: '10px 14px',
+    justifyContent: 'center',
+    gap: '14px',
+    padding: '6px 14px',
     backgroundColor: '#0078d4',
-    color: 'white',
+    color: 'rgba(255,255,255,0.55)',
   },
-  title: {
-    fontSize: '15px',
-    fontWeight: 600,
-    color: 'white',
-    fontStyle: 'italic',
+  bannerIcon: {
+    fontSize: '16px',
   },
-  headerIcon: {
-    marginLeft: 'auto',
-    cursor: 'pointer',
-    color: 'white',
-    opacity: 0.8,
-    ':hover': { opacity: 1 },
+  bannerDot: {
+    width: '3px',
+    height: '3px',
+    borderRadius: '50%',
+    backgroundColor: 'rgba(255,255,255,0.3)',
   },
   tabBar: {
     borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
@@ -62,6 +72,26 @@ const useStyles = makeStyles({
     margin: '12px',
     fontSize: '12px',
     whiteSpace: 'pre-wrap',
+  },
+  setupBox: {
+    padding: '32px 20px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '14px',
+    textAlign: 'center' as const,
+    marginTop: '24px',
+  },
+  setupIcon: {
+    width: '64px',
+    height: '64px',
+    objectFit: 'contain' as const,
+  },
+  setupDesc: {
+    fontSize: '12px',
+    color: tokens.colorNeutralForeground3,
+    lineHeight: '1.6',
+    maxWidth: '240px',
   },
   loading: {
     display: 'flex',
@@ -80,6 +110,8 @@ export function App() {
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [progress, setProgress] = useState<ExportProgress | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [initializing, setInitializing] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
     loadConfig();
@@ -90,6 +122,21 @@ export function App() {
     setIsExporting(false);
     setProgress(null);
   }, []);
+
+  const handleInitialize = useCallback(async () => {
+    setInitializing(true);
+    setInitError(null);
+    try {
+      await Excel.run(async (context) => {
+        await StudioConfigStore.create(context);
+      });
+      await loadConfig();
+    } catch (err) {
+      setInitError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setInitializing(false);
+    }
+  }, [loadConfig]);
 
   if (loading) {
     return (
@@ -105,15 +152,26 @@ export function App() {
   if (error) {
     return (
       <div className={styles.root}>
-        <div className={styles.header}>
-          <Text className={styles.title}>GameData Studio</Text>
-        </div>
-        <div className={styles.errorBox}>
-          <Text weight="semibold">配置加载失败</Text>
-          <br /><br />
-          {error}
-          <br /><br />
-          <Text size={200}>请检查工作簿是否包含「表格输出」「配置设置表」「表名对照」三张表。</Text>
+        <div className={styles.setupBox}>
+          <img src="assets/gds-80.png" alt="GameData Studio" className={styles.setupIcon} />
+          <Text weight="semibold" size={400}>欢迎使用 GameData Studio</Text>
+          <Text className={styles.setupDesc}>
+            当前工作簿尚未初始化。点击下方按钮自动创建配置，即可开始管理游戏数据表。
+          </Text>
+          <Button
+            appearance="primary"
+            icon={initializing ? <Spinner size="tiny" /> : <AddRegular />}
+            disabled={initializing}
+            onClick={handleInitialize}
+            size="large"
+          >
+            {initializing ? '正在初始化...' : '初始化工作簿'}
+          </Button>
+          {initError && (
+            <div className={styles.errorBox}>
+              {initError}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -121,9 +179,14 @@ export function App() {
 
   return (
     <div className={styles.root}>
-      <div className={styles.header}>
-        <Text className={styles.title}>GameData Studio</Text>
-        <InfoRegular className={styles.headerIcon} fontSize={18} />
+      <div className={styles.banner}>
+        <GridRegular className={styles.bannerIcon} />
+        <span className={styles.bannerDot} />
+        <NumberSymbolRegular className={styles.bannerIcon} />
+        <span className={styles.bannerDot} />
+        <DataBarVerticalRegular className={styles.bannerIcon} />
+        <span className={styles.bannerDot} />
+        <TableSimpleRegular className={styles.bannerIcon} />
       </div>
 
       <div className={styles.tabBar}>
@@ -134,6 +197,9 @@ export function App() {
         >
           <Tab value="export" icon={<ArrowExportRegular fontSize={14} />}>导出</Tab>
           <Tab value="manage" icon={<SettingsRegular fontSize={14} />}>管理</Tab>
+          <Tab value="validate" icon={<ShieldCheckmarkRegular fontSize={14} />}>校验</Tab>
+          <Tab value="preview" icon={<EyeRegular fontSize={14} />}>预览</Tab>
+          <Tab value="help" icon={<QuestionCircleRegular fontSize={14} />}>帮助</Tab>
         </TabList>
       </div>
 
@@ -152,12 +218,22 @@ export function App() {
           />
         )}
 
+        {selectedTab === 'validate' && config && (
+          <ValidationPanel config={config} />
+        )}
+
+        {selectedTab === 'preview' && config && (
+          <PreviewPanel config={config} />
+        )}
+
         {selectedTab === 'manage' && config && (
           <ManageTab
             config={config}
             onReloadConfig={loadConfig}
           />
         )}
+
+        {selectedTab === 'help' && <HelpPanel />}
       </div>
     </div>
   );

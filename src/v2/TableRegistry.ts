@@ -1,7 +1,7 @@
 /* global Excel */
 
 import { TableInfo } from '../types/config';
-import { excelHelper, SheetSnapshot } from '../utils/ExcelHelper';
+import { excelHelper } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
 import { StudioConfigStore } from './StudioConfigStore';
 import { SHEET_CONFIG } from './TemplateFactory';
@@ -56,103 +56,85 @@ export class TableRegistry {
   }
 
   /**
-   * 注册新表
+   * 注册新表（写入表名对照，同步到 StudioConfig）
    */
   async registerTable(info: TableInfo): Promise<void> {
     await Excel.run(async (context) => {
-      const ok = await StudioConfigStore.update(context, (data) => {
-        data.tables.push(info);
-      });
-      if (!ok) {
-        // 旧格式回退
-        const snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
-        if (!snap) throw new Error('找不到包含 #输出控制# 的工作表');
-        const pos = excelHelper.findMarkerInData(snap.values, '#输出控制#');
-        if (!pos) throw new Error('未找到 #输出控制# 标记');
-        const rows = excelHelper.readBlockBelow(snap.values, pos.row, pos.col, 4);
-        const newRowIndex = pos.row + 1 + rows.length + snap.startRow;
-        const startCol = pos.col + snap.startCol;
-        await excelHelper.writeValues(context, LEGACY_MAPPING, newRowIndex, startCol,
-          [[info.versionRange, info.chineseName, info.englishName, info.shouldOutput]]);
+      let snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
+      if (!snap) {
+        await this.createLegacyMappingSheet(context);
+        snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
+        if (!snap) throw new Error('创建表名对照失败');
       }
-      // JSON 更新成功后也同步到表名对照
-      await this.syncToLegacyMapping(context);
+      const pos = excelHelper.findMarkerInData(snap.values, '#输出控制#');
+      if (!pos) throw new Error('未找到 #输出控制# 标记');
+      const rows = excelHelper.readBlockBelow(snap.values, pos.row, pos.col, 4);
+      const newRowIndex = pos.row + 1 + rows.length + snap.startRow;
+      const startCol = pos.col + snap.startCol;
+      await excelHelper.writeValues(context, LEGACY_MAPPING, newRowIndex, startCol,
+        [[info.versionRange, info.chineseName, info.englishName, info.shouldOutput]]);
+
+      // 同步到 StudioConfig JSON
+      await this.syncToStudioConfig(context);
       logger.info(`已注册表「${info.chineseName}」→「${info.englishName}」`);
     });
   }
 
   /**
-   * 修改已注册表的信息
+   * 修改已注册表的信息（写入表名对照，同步到 StudioConfig）
    */
   async updateTable(chineseName: string, updates: Partial<TableInfo>): Promise<void> {
     await Excel.run(async (context) => {
-      const ok = await StudioConfigStore.update(context, (data) => {
-        const idx = data.tables.findIndex(t => t.chineseName === chineseName);
-        if (idx === -1) throw new Error(`未找到已注册的表「${chineseName}」`);
-        Object.assign(data.tables[idx], updates);
-      });
-      if (!ok) {
-        // 旧格式回退
-        const snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
-        if (!snap) throw new Error('找不到包含 #输出控制# 的工作表');
-        const pos = excelHelper.findMarkerInData(snap.values, '#输出控制#');
-        if (!pos) throw new Error('未找到 #输出控制# 标记');
-        for (let r = pos.row + 1; r < snap.values.length; r++) {
-          const firstCell = snap.values[r]?.[pos.col];
-          if (firstCell == null || String(firstCell).trim() === '') break;
-          const currentName = String(snap.values[r]?.[pos.col + 1] ?? '').trim();
-          if (currentName !== chineseName) continue;
-          const newRow = [
-            updates.versionRange ?? snap.values[r]?.[pos.col] ?? null,
-            updates.chineseName ?? snap.values[r]?.[pos.col + 1] ?? null,
-            updates.englishName ?? snap.values[r]?.[pos.col + 2] ?? null,
-            updates.shouldOutput ?? snap.values[r]?.[pos.col + 3] ?? null,
-          ];
-          await excelHelper.writeValues(context, LEGACY_MAPPING, r + snap.startRow, pos.col + snap.startCol, [newRow]);
-          logger.info(`已更新表「${chineseName}」的注册信息`);
-          return;
-        }
-        throw new Error(`未找到已注册的表「${chineseName}」`);
+      const snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
+      if (!snap) throw new Error('找不到表名对照工作表');
+      const pos = excelHelper.findMarkerInData(snap.values, '#输出控制#');
+      if (!pos) throw new Error('未找到 #输出控制# 标记');
+      for (let r = pos.row + 1; r < snap.values.length; r++) {
+        const firstCell = snap.values[r]?.[pos.col];
+        if (firstCell == null || String(firstCell).trim() === '') break;
+        const currentName = String(snap.values[r]?.[pos.col + 1] ?? '').trim();
+        if (currentName !== chineseName) continue;
+        const newRow = [
+          updates.versionRange ?? snap.values[r]?.[pos.col] ?? null,
+          updates.chineseName ?? snap.values[r]?.[pos.col + 1] ?? null,
+          updates.englishName ?? snap.values[r]?.[pos.col + 2] ?? null,
+          updates.shouldOutput ?? snap.values[r]?.[pos.col + 3] ?? null,
+        ];
+        await excelHelper.writeValues(context, LEGACY_MAPPING, r + snap.startRow, pos.col + snap.startCol, [newRow]);
+        await this.syncToStudioConfig(context);
+        logger.info(`已更新表「${chineseName}」的注册信息`);
+        return;
       }
-      // JSON 更新成功后也同步到表名对照
-      await this.syncToLegacyMapping(context);
-      logger.info(`已更新表「${chineseName}」的注册信息`);
+      throw new Error(`未找到已注册的表「${chineseName}」`);
     });
   }
 
   /**
-   * 取消注册
+   * 取消注册（从表名对照删除，同步到 StudioConfig）
    */
   async unregisterTable(chineseName: string, deleteSheet = false): Promise<void> {
     await Excel.run(async (context) => {
-      const ok = await StudioConfigStore.update(context, (data) => {
-        const idx = data.tables.findIndex(t => t.chineseName === chineseName);
-        if (idx === -1) throw new Error(`未找到已注册的表「${chineseName}」`);
-        data.tables.splice(idx, 1);
-      });
-      if (!ok) {
-        // 旧格式回退
-        const snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
-        if (!snap) throw new Error('找不到包含 #输出控制# 的工作表');
-        const pos = excelHelper.findMarkerInData(snap.values, '#输出控制#');
-        if (!pos) throw new Error('未找到 #输出控制# 标记');
-        let found = false;
-        for (let r = pos.row + 1; r < snap.values.length; r++) {
-          const firstCell = snap.values[r]?.[pos.col];
-          if (firstCell == null || String(firstCell).trim() === '') break;
-          const currentName = String(snap.values[r]?.[pos.col + 1] ?? '').trim();
-          if (currentName !== chineseName) continue;
-          const sheet = context.workbook.worksheets.getItem(LEGACY_MAPPING);
-          sheet.getRangeByIndexes(r + snap.startRow, pos.col + snap.startCol, 1, 4).clear(Excel.ClearApplyTo.contents);
-          await context.sync();
-          found = true;
-          break;
-        }
-        if (!found) throw new Error(`未找到已注册的表「${chineseName}」`);
-      } else {
-        // JSON 更新成功后也同步到表名对照
-        await this.syncToLegacyMapping(context);
+      const snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
+      if (!snap) throw new Error('找不到表名对照工作表');
+      const pos = excelHelper.findMarkerInData(snap.values, '#输出控制#');
+      if (!pos) throw new Error('未找到 #输出控制# 标记');
+
+      let found = false;
+      for (let r = pos.row + 1; r < snap.values.length; r++) {
+        const firstCell = snap.values[r]?.[pos.col];
+        if (firstCell == null || String(firstCell).trim() === '') break;
+        const currentName = String(snap.values[r]?.[pos.col + 1] ?? '').trim();
+        if (currentName !== chineseName) continue;
+        const sheet = context.workbook.worksheets.getItem(LEGACY_MAPPING);
+        sheet.getRangeByIndexes(r + snap.startRow, pos.col + snap.startCol, 1, 4).clear(Excel.ClearApplyTo.contents);
+        await context.sync();
+        found = true;
+        break;
       }
+      if (!found) throw new Error(`未找到已注册的表「${chineseName}」`);
+
+      // 同步到 StudioConfig JSON
+      await this.syncToStudioConfig(context);
 
       // 删除实际工作表
       if (deleteSheet) {
@@ -171,26 +153,13 @@ export class TableRegistry {
   }
 
   /**
-   * 获取所有已注册表
+   * 获取所有已注册表（始终从表名对照读取）
    */
   async getRegisteredTables(): Promise<Map<string, TableInfo>> {
     return await Excel.run(async (context) => {
-      // 优先 JSON
-      const data = await StudioConfigStore.load(context);
-      if (data) {
-        const map = new Map<string, TableInfo>();
-        for (const t of data.tables) {
-          if (t.chineseName && t.englishName) {
-            map.set(t.chineseName, t);
-          }
-        }
-        return map;
-      }
-
-      // 旧格式回退
       const snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
       if (!snap) {
-        logger.warn('找不到包含 #输出控制# 的工作表');
+        logger.warn('找不到表名对照工作表');
         return new Map<string, TableInfo>();
       }
       return this.parseLegacyTableList(snap.values);
@@ -198,34 +167,51 @@ export class TableRegistry {
   }
 
   /**
-   * 将 StudioConfig 中的 tables 全量同步到表名对照工作表
+   * 将表名对照的数据同步到 StudioConfig JSON
    */
-  private async syncToLegacyMapping(context: Excel.RequestContext): Promise<void> {
-    const data = await StudioConfigStore.load(context);
-    if (!data) return;
-
+  private async syncToStudioConfig(context: Excel.RequestContext): Promise<void> {
     const snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
     if (!snap) return;
-    const pos = excelHelper.findMarkerInData(snap.values, '#输出控制#');
-    if (!pos) return;
 
-    const sheet = context.workbook.worksheets.getItem(LEGACY_MAPPING);
+    const tables = this.parseLegacyTableList(snap.values);
+    const tableArray = Array.from(tables.values());
 
-    // 清除旧数据（#输出控制# 标记下方所有行）
-    const oldRows = excelHelper.readBlockBelow(snap.values, pos.row, pos.col, 4);
-    if (oldRows.length > 0) {
-      sheet.getRangeByIndexes(pos.row + 1 + snap.startRow, pos.col + snap.startCol, oldRows.length, 4)
-        .clear(Excel.ClearApplyTo.contents);
-    }
+    await StudioConfigStore.update(context, (data) => {
+      data.tables = tableArray;
+    });
+  }
 
-    // 写入最新数据
-    if (data.tables.length > 0) {
-      const rows = data.tables.map(t => [t.versionRange, t.chineseName, t.englishName, t.shouldOutput]);
-      sheet.getRangeByIndexes(pos.row + 1 + snap.startRow, pos.col + snap.startCol, rows.length, 4)
-        .values = rows;
-    }
+  /**
+   * 创建表名对照工作表
+   *
+   * 格式（参考已有工作簿）：
+   *   A1: #输出控制#  B1: 功能表名  C1: 输出表名  D1: 是否输出表
+   *   A2 起: 版本区间 | 中文名 | 英文名 | TRUE/FALSE
+   */
+  private async createLegacyMappingSheet(context: Excel.RequestContext): Promise<void> {
+    const sheet = context.workbook.worksheets.add(LEGACY_MAPPING);
+    sheet.position = 0;
+
+    // 表头行：蓝色背景白色文字
+    const headerRange = sheet.getRangeByIndexes(0, 0, 1, 4);
+    headerRange.values = [['#输出控制#', '功能表名', '输出表名', '是否输出表']];
+    headerRange.format.font.bold = true;
+    headerRange.format.fill.color = '#00B0F0';
+    headerRange.format.font.color = '#FFFFFF';
+    headerRange.format.borders.getItem('EdgeBottom').style = 'Continuous';
+
+    // 「是否输出表」列头橙色背景
+    const outputHeader = sheet.getRangeByIndexes(0, 3, 1, 1);
+    outputHeader.format.fill.color = '#FFA500';
+
+    // 列宽
+    sheet.getRangeByIndexes(0, 0, 1, 1).format.columnWidth = 100;
+    sheet.getRangeByIndexes(0, 1, 1, 1).format.columnWidth = 140;
+    sheet.getRangeByIndexes(0, 2, 1, 1).format.columnWidth = 160;
+    sheet.getRangeByIndexes(0, 3, 1, 1).format.columnWidth = 100;
 
     await context.sync();
+    logger.info('已自动创建「表名对照」工作表');
   }
 
   private parseLegacyTableList(data: (string | number | boolean | null)[][]): Map<string, TableInfo> {

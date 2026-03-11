@@ -24,12 +24,11 @@ import {
   SearchRegular,
   CheckmarkRegular,
   DismissRegular,
-  ScanRegular,
 } from '@fluentui/react-icons';
 import { Config, VersionTemplate, TableInfo } from '../../types/config';
 import { ManageSubPage } from '../../types/studio';
 import { configManager } from '../../v2/ConfigManager';
-import { tableRegistry, UnregisteredTable } from '../../v2/TableRegistry';
+import { tableRegistry } from '../../v2/TableRegistry';
 import { TableCreator, TableCreationConfig } from '../../v2/TableCreator';
 import { lineSyncer } from '../../v2/LineSyncer';
 import { templateFactory, SHEET_CONFIG } from '../../v2/TemplateFactory';
@@ -510,15 +509,20 @@ function ConfigSubPage({ config, onReload, styles }: {
                   <td className={styles.td}>{roadsDisplayName(vt.lineField)}</td>
                   <td className={styles.td} style={{ wordBreak: 'break-all', maxWidth: 120, fontSize: '10px' }}>
                     {editingGitDir === vt.name ? (
-                      <Input
-                        size="small"
-                        value={editGitDirValue}
-                        onChange={(_, d) => setEditGitDirValue(d.value)}
-                        onBlur={() => handleSaveGitDir(vt)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveGitDir(vt); if (e.key === 'Escape') setEditingGitDir(null); }}
-                        style={{ width: '100%', fontSize: '10px' }}
-                        autoFocus
-                      />
+                      <div>
+                        <Input
+                          size="small"
+                          value={editGitDirValue}
+                          onChange={(_, d) => setEditGitDirValue(d.value)}
+                          onBlur={() => handleSaveGitDir(vt)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveGitDir(vt); if (e.key === 'Escape') setEditingGitDir(null); }}
+                          style={{ width: '100%', fontSize: '10px' }}
+                          autoFocus
+                        />
+                        <span style={{ fontSize: '9px', color: '#999', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
+                          {'{0}'}=版本号 {'{1}'}=版本名
+                        </span>
+                      </div>
                     ) : (
                       <span
                         onClick={() => { setEditingGitDir(vt.name); setEditGitDirValue(vt.gitDirectory || ''); }}
@@ -564,6 +568,9 @@ function ConfigSubPage({ config, onReload, styles }: {
                   placeholder="Git 目录路径（必填）"
                   style={{ width: '100%' }}
                 />
+                <span style={{ fontSize: '9px', color: '#999', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
+                  支持变量: {'{0}'}=版本号 {'{1}'}=版本名，如 /data/{'{1}'}/{'{0}'} → /data/默认/2.1
+                </span>
               </div>
               <div style={{ display: 'flex', gap: '6px' }}>
                 <Button appearance="primary" size="small" onClick={handleAddVersion} disabled={saving || !newVersionName.trim() || !newVersionGitDir.trim()}>
@@ -808,11 +815,41 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
   onSearchChange: (val: string) => void;
   styles: ReturnType<typeof useStyles>;
 }) {
-  const [scanning, setScanning] = useState(false);
-  const [unregistered, setUnregistered] = useState<UnregisteredTable[]>([]);
-  const [registering, setRegistering] = useState<string | null>(null);
+
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  // 监听「表名对照」工作表变更，自动刷新
+  useEffect(() => {
+    let handler: OfficeExtension.EventHandlerResult<Excel.WorksheetChangedEventArgs> | null = null;
+    let cancelled = false;
+    const setup = async () => {
+      try {
+        await Excel.run(async (context) => {
+          const sheet = context.workbook.worksheets.getItemOrNullObject('表名对照');
+          sheet.load('isNullObject');
+          await context.sync();
+          if (sheet.isNullObject || cancelled) return;
+          handler = sheet.onChanged.add(async () => {
+            if (!cancelled) onReload();
+          });
+          await context.sync();
+        });
+      } catch {
+        // 表名对照可能不存在，忽略
+      }
+    };
+    setup();
+    return () => {
+      cancelled = true;
+      if (handler) {
+        Excel.run(async (context) => {
+          handler!.remove();
+          await context.sync();
+        }).catch(() => {});
+      }
+    };
+  }, [onReload]);
 
   // version_c 三态检测: 'R' = 仅行控制, 'R+c' = 行+简单列(仅版本区间), 'R+C' = 行+完整列(含roads)
   type VCState = 'R' | 'R+c' | 'R+C';
@@ -1025,38 +1062,6 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
     }
   }, [config.versionTemplates, config.lineTemplates]);
 
-  const handleScan = useCallback(async () => {
-    setScanning(true);
-    setStatusMsg(null);
-    try {
-      const result = await tableRegistry.scanUnregistered();
-      setUnregistered(result);
-      setStatusMsg({ text: `扫描完成，发现 ${result.length} 张未注册表`, type: 'success' });
-    } catch (err) {
-      setStatusMsg({ text: `扫描失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
-    } finally {
-      setScanning(false);
-    }
-  }, []);
-
-  const handleRegister = useCallback(async (sheetName: string) => {
-    setRegistering(sheetName);
-    try {
-      await tableRegistry.registerTable({
-        chineseName: sheetName,
-        englishName: sheetName,
-        shouldOutput: true,
-        versionRange: '',
-      });
-      setUnregistered(prev => prev.filter(u => u.sheetName !== sheetName));
-      setStatusMsg({ text: `已注册「${sheetName}」`, type: 'success' });
-      onReload();
-    } catch (err) {
-      setStatusMsg({ text: `注册失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
-    } finally {
-      setRegistering(null);
-    }
-  }, [onReload]);
 
   const handleUnregister = useCallback(async (chineseName: string) => {
     try {
@@ -1074,52 +1079,14 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
     <>
       <div className={styles.sectionHeader}>
         <Text className={styles.sectionTitle}>数据表管理</Text>
-        <div className={styles.actionRow}>
-          <Button
-            icon={<ScanRegular />}
-            appearance="subtle"
-            size="small"
-            onClick={handleScan}
-            disabled={scanning}
-          >
-            {scanning ? '扫描中...' : '扫描'}
-          </Button>
-          <Button icon={<ArrowSyncRegular />} appearance="subtle" size="small" onClick={onReload}>
-            刷新
-          </Button>
-        </div>
+        <Button icon={<ArrowSyncRegular />} appearance="subtle" size="small" onClick={onReload}>
+          刷新
+        </Button>
       </div>
 
       {statusMsg && (
         <div className={`${styles.statusMsg} ${statusMsg.type === 'success' ? styles.statusSuccess : styles.statusError}`}>
           {statusMsg.text}
-        </div>
-      )}
-
-      {/* 未注册表 */}
-      {unregistered.length > 0 && (
-        <div className={styles.section}>
-          <Text style={{ fontSize: '12px', fontWeight: 600, color: tokens.colorBrandForeground1 }}>
-            未注册表 ({unregistered.length})
-          </Text>
-          <div className={styles.card}>
-            {unregistered.map((u) => (
-              <div key={u.sheetName} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0' }}>
-                <Text style={{ fontSize: '11px' }}>
-                  {u.sheetName}
-                  {u.hasConfigMarker && <span className={`${styles.badge} ${styles.badgeNew}`} style={{ marginLeft: 4 }}>有配置</span>}
-                </Text>
-                <Button
-                  appearance="subtle"
-                  size="small"
-                  onClick={() => handleRegister(u.sheetName)}
-                  disabled={registering === u.sheetName}
-                >
-                  {registering === u.sheetName ? '注册中...' : '注册'}
-                </Button>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 

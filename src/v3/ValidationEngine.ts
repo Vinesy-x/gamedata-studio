@@ -1,0 +1,474 @@
+/* global Excel */
+
+/**
+ * v3.0 数据校验引擎
+ *
+ * 对选中的数据表执行 7 条校验规则，返回校验结果列表。
+ * 复用 v1.0 的 VersionFilter 解析版本区间，
+ * 使用 excelHelper 加载表数据。
+ */
+
+import { VersionFilter } from '../engine/VersionFilter';
+import { excelHelper, SheetData } from '../utils/ExcelHelper';
+import { ValidationResult, TableValidationData } from '../types/validation';
+import { logger } from '../utils/Logger';
+
+export class ValidationEngine {
+  private versionFilter: VersionFilter;
+
+  constructor(versionFilter: VersionFilter) {
+    this.versionFilter = versionFilter;
+  }
+
+  // ──────────── 公开接口 ────────────
+
+  /**
+   * 运行全部规则校验
+   * 仅手动触发（点击「校验」按钮）
+   */
+  async runValidation(tableNames: Set<string>): Promise<ValidationResult[]> {
+    const results: ValidationResult[] = [];
+
+    for (const tableName of tableNames) {
+      const data = await this.loadTableData(tableName);
+      if (!data) continue;
+
+      results.push(...this.validateVersionFormat(tableName, data));
+      results.push(...this.validateDataTypes(tableName, data));
+      results.push(...this.validateArrayFormats(tableName, data));
+      results.push(...this.validateVersionCoverage(tableName, data));
+      results.push(...this.validateKeyVersionOrder(tableName, data));
+      results.push(...this.validateRequiredFields(tableName, data));
+      results.push(...this.validateRoadsConsistency(tableName, data));
+    }
+
+    return results;
+  }
+
+  // ──────────── 格式校验 ────────────
+
+  /**
+   * 规则1：版本区间格式检查
+   * 检测横线（应用波浪号~）、解析失败等情况
+   */
+  validateVersionFormat(tableName: string, data: TableValidationData): ValidationResult[] {
+    const results: ValidationResult[] = [];
+
+    // 行版本区间校验（A列，从数据行开始，跳过 version_r 和描述行）
+    for (let i = 2; i < data.versionValues.length; i++) {
+      const value = String(data.versionValues[i] ?? '');
+      if (value === '') continue;
+
+      const validation = this.versionFilter.validateRangeFormat(value);
+      if (!validation.valid) {
+        results.push({
+          severity: 'error',
+          ruleName: validation.errorCode === 2101 ? '版本区间分隔符' : '版本区间格式',
+          tableName,
+          location: { sheetName: tableName, row: data.versionRowStart + i, column: 1 },
+          message: validation.message || `行版本区间 "${value}" 格式无效`,
+        });
+      }
+    }
+
+    // 列版本区间校验（version_c 行，仅在有 version_c 时）
+    if (data.versionCValues && data.versionCRowStart != null) {
+      for (let c = 0; c < data.versionCValues.length; c++) {
+        const value = data.versionCValues[c];
+        if (value === '') continue;
+
+        const validation = this.versionFilter.validateRangeFormat(value);
+        if (!validation.valid) {
+          results.push({
+            severity: 'error',
+            ruleName: validation.errorCode === 2101 ? '版本区间分隔符' : '版本区间格式',
+            tableName,
+            location: { sheetName: tableName, row: data.versionCRowStart, column: data.dataColStart + c },
+            message: validation.message || `列版本区间 "${value}" 格式无效`,
+          });
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * 规则2：数据类型匹配检查
+   * 按字段定义的类型（int/float/string/int[]/int[][]）校验数据值
+   */
+  validateDataTypes(tableName: string, data: TableValidationData): ValidationResult[] {
+    const results: ValidationResult[] = [];
+
+    for (let col = 0; col < data.fieldTypes.length; col++) {
+      const expectedType = data.fieldTypes[col];
+      if (!expectedType) continue;
+
+      for (let row = 0; row < data.dataValues.length; row++) {
+        const value = data.dataValues[row][col];
+        if (value === '' || value === null || value === undefined) continue;
+
+        const error = this.checkType(String(value), expectedType);
+        if (error) {
+          results.push({
+            severity: 'warning',
+            ruleName: '数据类型',
+            tableName,
+            location: {
+              sheetName: tableName,
+              row: data.dataRowStart + row,
+              column: data.dataColStart + col,
+            },
+            message: `字段 "${data.fieldNames[col]}" 定义为 ${expectedType}，但值 "${value}" ${error}`,
+          });
+        }
+      }
+    }
+    return results;
+  }
+
+  /**
+   * 类型检查辅助方法
+   * 返回错误描述，null 表示通过
+   */
+  checkType(value: string, type: string): string | null {
+    switch (type) {
+      case 'int':
+        return /^-?\d+$/.test(value) ? null : '不是有效整数';
+      case 'float':
+        return isNaN(Number(value)) ? '不是有效数字' : null;
+      case 'int[]':
+        return /^-?\d+(\|-?\d+)*$/.test(value) ? null : '格式应为 N|N|N';
+      case 'int[][]':
+        return /^-?\d+(\|-?\d+)*(;-?\d+(\|-?\d+)*)*$/.test(value) ? null : '格式应为 N|N;N|N';
+    }
+    return null; // string 等类型不做校验
+  }
+
+  /**
+   * 规则3：数组分隔符检查
+   * 数组类型字段中使用逗号分隔的，应改用 | 和 ;
+   */
+  validateArrayFormats(tableName: string, data: TableValidationData): ValidationResult[] {
+    const results: ValidationResult[] = [];
+
+    for (let col = 0; col < data.fieldTypes.length; col++) {
+      const type = data.fieldTypes[col];
+      if (!type || !type.includes('[]')) continue;
+
+      for (let row = 0; row < data.dataValues.length; row++) {
+        const value = String(data.dataValues[row][col] ?? '');
+        if (value === '') continue;
+
+        // 使用了逗号且没有使用竖线 → 可能误用分隔符
+        if (value.includes(',') && !value.includes('|')) {
+          results.push({
+            severity: 'warning',
+            ruleName: '数组分隔符',
+            tableName,
+            location: {
+              sheetName: tableName,
+              row: data.dataRowStart + row,
+              column: data.dataColStart + col,
+            },
+            message: `字段 "${data.fieldNames[col]}" 使用了逗号分隔，应使用 | 和 ; 分隔`,
+          });
+        }
+      }
+    }
+    return results;
+  }
+
+  // ──────────── 逻辑校验 ────────────
+
+  /**
+   * 规则4：版本覆盖完整性检查（核心功能）
+   * 对同一 Key 的所有行，检查版本区间是否连续无间隙
+   */
+  validateVersionCoverage(tableName: string, data: TableValidationData): ValidationResult[] {
+    const results: ValidationResult[] = [];
+
+    // 按 Key（第一数据列）分组
+    const keyGroups = new Map<string, { row: number; versionRange: string }[]>();
+
+    for (let i = 0; i < data.dataValues.length; i++) {
+      const key = String(data.dataValues[i][0] ?? '');
+      // versionValues 索引 i+2 对应数据行（跳过两行表头）
+      const version = String(data.versionValues[i + 2] ?? '');
+      if (!key) continue;
+      if (!keyGroups.has(key)) keyGroups.set(key, []);
+      keyGroups.get(key)!.push({ row: data.dataRowStart + i, versionRange: version });
+    }
+
+    // 对多行 Key 检查覆盖
+    for (const [key, rows] of keyGroups) {
+      if (rows.length <= 1) continue;
+
+      const ranges: { row: number; min: number; max: number }[] = [];
+      for (const r of rows) {
+        const parsed = this.versionFilter.parseRange(r.versionRange);
+        if (parsed) {
+          ranges.push({ row: r.row, min: parsed.min, max: parsed.max });
+        }
+      }
+      if (ranges.length <= 1) continue;
+
+      // 按最小版本号排序
+      ranges.sort((a, b) => a.min - b.min);
+
+      for (let i = 1; i < ranges.length; i++) {
+        const prev = ranges[i - 1];
+        const curr = ranges[i];
+
+        if (curr.min > prev.max) {
+          // 有间隙
+          results.push({
+            severity: 'error',
+            ruleName: '版本覆盖完整性',
+            tableName,
+            location: { sheetName: tableName, row: curr.row, column: 1 },
+            message: `Key=${key} 在版本 ${prev.max}~${curr.min} 之间无配置数据，导出该区间版本时此 Key 将不存在`,
+          });
+        }
+        // 重叠是正常设计（同Key多版本覆盖），不需要提示
+      }
+    }
+    return results;
+  }
+
+  /**
+   * 规则5：同Key版本顺序检查
+   * 多行同Key是否按版本号递增排列
+   */
+  validateKeyVersionOrder(tableName: string, data: TableValidationData): ValidationResult[] {
+    const results: ValidationResult[] = [];
+    const keyGroups = new Map<string, { row: number; version: number }[]>();
+
+    for (let i = 0; i < data.dataValues.length; i++) {
+      const key = String(data.dataValues[i][0] ?? '');
+      const verStr = String(data.versionValues[i + 2] ?? '');
+      if (!key) continue;
+      const parsed = this.versionFilter.parseRange(verStr);
+      if (!parsed) continue;
+      if (!keyGroups.has(key)) keyGroups.set(key, []);
+      keyGroups.get(key)!.push({ row: data.dataRowStart + i, version: parsed.min });
+    }
+
+    for (const [key, rows] of keyGroups) {
+      if (rows.length <= 1) continue;
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i].version < rows[i - 1].version) {
+          results.push({
+            severity: 'warning',
+            ruleName: '同Key版本顺序',
+            tableName,
+            location: { sheetName: tableName, row: rows[i].row, column: 1 },
+            message: `Key=${key} 第 ${rows[i].row} 行的版本号比第 ${rows[i - 1].row} 行小，简写模式下可能导致覆盖逻辑异常`,
+          });
+        }
+      }
+    }
+    return results;
+  }
+
+  /**
+   * 规则6：必填字段检查
+   * 数据区域空单元格（severity 为 warning）
+   */
+  validateRequiredFields(tableName: string, data: TableValidationData): ValidationResult[] {
+    const results: ValidationResult[] = [];
+    for (let row = 0; row < data.dataValues.length; row++) {
+      for (let col = 0; col < data.dataValues[row].length; col++) {
+        const value = data.dataValues[row][col];
+        if (value === '' || value === null || value === undefined) {
+          results.push({
+            severity: 'warning',
+            ruleName: '必填字段',
+            tableName,
+            location: {
+              sheetName: tableName,
+              row: data.dataRowStart + row,
+              column: data.dataColStart + col,
+            },
+            message: `第 ${data.dataRowStart + row} 行 "${data.fieldNames[col] ?? ''}" 字段为空`,
+          });
+        }
+      }
+    }
+    return results;
+  }
+
+  /**
+   * 规则7：Roads 一致性检查
+   * roads_0=0 但 roads_N=1 的矛盾（总线路禁用但子线路启用）
+   */
+  validateRoadsConsistency(tableName: string, data: TableValidationData): ValidationResult[] {
+    const results: ValidationResult[] = [];
+    for (let i = 0; i < data.roadsValues.length; i++) {
+      const roads = data.roadsValues[i];
+      if (!roads || roads.length === 0) continue;
+      const roads0 = String(roads[0]);
+      if (roads0 === '0' || roads0 === '') {
+        for (let j = 1; j < roads.length; j++) {
+          if (String(roads[j]) === '1') {
+            results.push({
+              severity: 'warning',
+              ruleName: 'Roads一致性',
+              tableName,
+              location: { sheetName: tableName, row: data.versionRowStart + i + 2, column: 2 },
+              message: `第 ${data.versionRowStart + i + 2} 行 roads_0=0（总线路禁用），但 roads_${j}=1，该行在所有版本中都不会导出`,
+            });
+            break; // 每行只报一次
+          }
+        }
+      }
+    }
+    return results;
+  }
+
+  // ──────────── 数据加载 ────────────
+
+  /**
+   * 加载单表的校验数据
+   * 从 Excel 工作表中读取并解析出校验所需的结构化数据
+   */
+  async loadTableData(tableName: string): Promise<TableValidationData | null> {
+    let result: TableValidationData | null = null;
+
+    await Excel.run(async (context) => {
+      const snap = await excelHelper.loadSheetSnapshot(context, tableName);
+      if (!snap || snap.values.length === 0) {
+        logger.warn(`校验：找不到工作表「${tableName}」或数据为空`);
+        return;
+      }
+
+      result = this.parseValidationData(snap.values, tableName, snap.startRow);
+    });
+
+    return result;
+  }
+
+  /**
+   * 从内存数据中解析校验所需的结构化数据
+   * 可直接在测试中调用（不依赖 Excel.run）
+   */
+  parseValidationData(
+    allValues: SheetData,
+    tableName: string,
+    startRow: number = 0
+  ): TableValidationData | null {
+    // 定位 version_r 标记
+    const versionRPos = excelHelper.findMarkerInData(allValues, 'version_r');
+    if (!versionRPos) {
+      logger.warn(`校验：工作表「${tableName}」找不到 version_r 标记`);
+      return null;
+    }
+
+    // 定位 #配置区域# 标记（在 version_r 所在行）
+    const configAreaPos = excelHelper.findMarkerInData(allValues, '#配置区域#');
+    if (!configAreaPos) {
+      logger.warn(`校验：工作表「${tableName}」找不到 #配置区域# 标记`);
+      return null;
+    }
+
+    const versionRRow = versionRPos.row;        // 0-indexed in allValues
+    const configAreaCol = configAreaPos.col;     // 0-indexed in allValues
+    const dataStartCol = configAreaCol + 1;      // 数据区域起始列（0-indexed）
+
+    // 定位 version_c（可选，在 version_r 上方）
+    const versionCPos = excelHelper.findMarkerInData(allValues, 'version_c');
+
+    // version_r 所在行号（1-indexed，用于结果定位）
+    const versionRowStart = versionRRow + 1 + startRow;
+    // 数据从 version_r + 2 行开始（跳过字段定义行和中文描述行）
+    const dataRowStart = versionRowStart + 2;
+    // 数据列起始（1-indexed）
+    const dataColStart = dataStartCol + 1 + startRow; // 注意：实际只需列偏移
+
+    // 确定数据区域的实际行范围（到首列空单元格为止，与导出逻辑一致）
+    // version_r 行 + 字段定义行 + 描述行 = 表头，之后为数据行
+    const dataRowOffset = versionRRow + 2;
+    let dataEndRow = dataRowOffset;
+    for (let r = dataRowOffset; r < allValues.length; r++) {
+      const firstCell = allValues[r]?.[dataStartCol];
+      if (firstCell == null || String(firstCell).trim() === '') break;
+      dataEndRow = r + 1;
+    }
+    // 表头行（version_r、字段定义、描述）始终包含
+    const endRow = Math.max(dataEndRow, dataRowOffset);
+
+    // 提取 A 列版本区间值（从 version_r 行到数据结束行）
+    const versionValues: string[] = [];
+    for (let r = versionRRow; r < endRow; r++) {
+      versionValues.push(String(allValues[r]?.[0] ?? ''));
+    }
+
+    // 提取 roads 值（version_r 行到数据结束行，B 列到 #配置区域# 前的列）
+    const roadsValues: string[][] = [];
+    for (let r = versionRRow; r < endRow; r++) {
+      const roads: string[] = [];
+      for (let c = 1; c < configAreaCol; c++) {
+        roads.push(String(allValues[r]?.[c] ?? ''));
+      }
+      roadsValues.push(roads);
+    }
+
+    // 确定数据区域的实际列范围（version_r 行字段头遇到空单元格即停止）
+    const rawTotalCols = allValues[versionRRow]?.length ?? 0;
+    let dataEndCol = dataStartCol;
+    for (let c = dataStartCol; c < rawTotalCols; c++) {
+      const header = String(allValues[versionRRow][c] ?? '').trim();
+      if (header === '') break;
+      dataEndCol = c + 1;
+    }
+
+    // 提取字段名和字段类型（从 version_r 行的数据列读取）
+    const fieldNames: string[] = [];
+    const fieldTypes: string[] = [];
+    for (let c = dataStartCol; c < dataEndCol; c++) {
+      const raw = String(allValues[versionRRow][c] ?? '');
+      const eqIdx = raw.indexOf('=');
+      if (eqIdx >= 0) {
+        fieldNames.push(raw.substring(0, eqIdx));
+        fieldTypes.push(raw.substring(eqIdx + 1));
+      } else {
+        fieldNames.push(raw);
+        fieldTypes.push('');
+      }
+    }
+
+    // 提取数据区域值（从 version_r + 2 行到数据结束行，列范围到 dataEndCol）
+    const dataValues: (string | number | boolean | null)[][] = [];
+    for (let r = dataRowOffset; r < endRow; r++) {
+      const row: (string | number | boolean | null)[] = [];
+      for (let c = dataStartCol; c < dataEndCol; c++) {
+        row.push(allValues[r]?.[c] ?? null);
+      }
+      dataValues.push(row);
+    }
+
+    // 提取 version_c 列版本区间值（可选）
+    let versionCValues: string[] | undefined;
+    let versionCRowStart: number | undefined;
+    if (versionCPos && versionCPos.row < versionRRow) {
+      versionCRowStart = versionCPos.row + 1 + startRow; // 1-indexed
+      versionCValues = [];
+      for (let c = dataStartCol; c < dataEndCol; c++) {
+        versionCValues.push(String(allValues[versionCPos.row]?.[c] ?? ''));
+      }
+    }
+
+    return {
+      versionRowStart,
+      dataRowStart,
+      dataColStart: dataStartCol + 1, // 转为 1-indexed
+      versionValues,
+      roadsValues,
+      fieldNames,
+      fieldTypes,
+      dataValues,
+      versionCValues,
+      versionCRowStart,
+    };
+  }
+}

@@ -19,6 +19,7 @@ import {
   DocumentRegular,
   NavigationRegular,
   PersonRegular,
+  FolderOpenRegular,
 } from '@fluentui/react-icons';
 import { Config } from '../../types/config';
 import { ExportJob } from '../../engine/ExportJob';
@@ -77,6 +78,30 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground2,
     wordBreak: 'break-all',
     lineHeight: '1.4',
+  },
+  configValueEmpty: {
+    fontSize: '11px',
+    color: tokens.colorBrandForeground1,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    ':hover': {
+      textDecorationLine: 'underline',
+    },
+  },
+  dirHint: {
+    fontSize: '10px',
+    color: tokens.colorNeutralForeground4,
+    lineHeight: '1.4',
+    marginTop: '2px',
+  },
+  dirInputRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: 1,
+    minWidth: 0,
+    gap: '2px',
   },
   // 操作按钮区域
   actionSection: {
@@ -646,6 +671,22 @@ export function ExportTab({
     } catch { /* ignore */ }
   }, [config.outputSettings.versionNumber, onReloadConfig]);
 
+  const [editingDir, setEditingDir] = useState(false);
+
+  const handleSaveDirectory = useCallback(async (value: string) => {
+    const dir = value.trim();
+    setEditingDir(false);
+    if (!dir) return;
+    const currentVersion = config.versionTemplates.get(config.outputSettings.versionName);
+    if (currentVersion) {
+      await configManager.updateVersion(currentVersion.name, {
+        ...currentVersion,
+        gitDirectory: dir,
+      });
+      onReloadConfig();
+    }
+  }, [config, onReloadConfig]);
+
   const handleExport = useCallback(async () => {
     onClearResult();
     setResultDismissed(false);
@@ -777,12 +818,41 @@ export function ExportTab({
               </span>
             </div>
           )}
-          {outputDir && (
-            <div className={styles.configRow}>
-              <span className={styles.configLabel}>导出目录</span>
-              <span className={styles.configValuePath}>{outputDir}</span>
-            </div>
-          )}
+          <div className={styles.configRow} style={{ alignItems: 'flex-start' }}>
+            <span className={styles.configLabel} style={{ paddingTop: '4px' }}>导出目录</span>
+            {editingDir ? (
+              <div className={styles.dirInputRow}>
+                <Input
+                  size="small"
+                  placeholder="粘贴目录绝对路径"
+                  defaultValue={outputDir}
+                  autoFocus
+                  style={{ width: '100%' }}
+                  onBlur={(e) => handleSaveDirectory(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveDirectory((e.target as HTMLInputElement).value);
+                    if (e.key === 'Escape') setEditingDir(false);
+                  }}
+                />
+                <span className={styles.dirHint}>
+                  支持变量: {'{0}'}=版本号 {'{1}'}=版本名
+                  <br />
+                  如 /data/{'{1}'}/{'{0}'} → /data/默认/2.1
+                  <br />
+                  Finder 右键文件夹 → 拷贝路径名称
+                </span>
+              </div>
+            ) : outputDir ? (
+              <span className={styles.configValuePath} onClick={() => setEditingDir(true)} style={{ cursor: 'pointer' }}>
+                {outputDir}
+              </span>
+            ) : (
+              <span className={styles.configValueEmpty} onClick={() => setEditingDir(true)}>
+                <FolderOpenRegular fontSize={12} />
+                点击设置导出目录
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -794,10 +864,10 @@ export function ExportTab({
             icon={<ArrowExportRegular />}
             appearance="primary"
             onClick={handleExport}
-            disabled={isExporting}
+            disabled={isExporting || !outputDir}
             size="large"
           >
-            {isExporting ? '导出中...' : '开始导出'}
+            {isExporting ? '导出中...' : !outputDir ? '请先选择导出目录' : '开始导出'}
           </Button>
           <Button
             className={styles.gitBtn}

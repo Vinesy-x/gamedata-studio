@@ -44,7 +44,9 @@ export class ConfigLoader {
 
       // 3. JSON 加载成功 → 从 JSON 构建 Config
       if (jsonData) {
-        return this.buildConfigFromJson(jsonData);
+        // 表列表始终从表名对照读取（单一数据源）
+        const snap = await excelHelper.loadSheetSnapshot(context, '表名对照');
+        return this.buildConfigFromJson(jsonData, snap?.values);
       }
 
       // 4. 最终回退：旧格式三表
@@ -55,7 +57,7 @@ export class ConfigLoader {
   /**
    * 从 JSON 数据构建 Config 对象
    */
-  private buildConfigFromJson(data: StudioConfigData): Config {
+  private buildConfigFromJson(data: StudioConfigData, mappingValues?: SheetData): Config {
     // 版本模板
     const versionTemplates = new Map<string, VersionTemplate>();
     for (const v of data.versions) {
@@ -89,14 +91,25 @@ export class ConfigLoader {
       let versionStr = String(outputSettings.versionNumber);
       if (!versionStr.includes('.')) versionStr += '.0';
       outputSettings.outputDirectory = currentVT.gitDirectory
-        .replace('{0}', versionStr).replace('{1}', '');
+        .replace('{0}', versionStr).replace('{1}', outputSettings.versionName);
     }
 
-    // 表列表
+    // 表列表（优先从表名对照读取，保证与工作表实时同步）
     const tablesToProcess = new Map<string, TableInfo>();
-    for (const t of data.tables) {
-      if (t.chineseName && t.englishName) {
-        tablesToProcess.set(t.chineseName, { ...t });
+    if (mappingValues) {
+      const tables = this.parseTableList(mappingValues);
+      if (tables) {
+        for (const [name, info] of tables) {
+          tablesToProcess.set(name, info);
+        }
+      }
+    }
+    // 回退到 JSON 中的表列表
+    if (tablesToProcess.size === 0) {
+      for (const t of data.tables) {
+        if (t.chineseName && t.englishName) {
+          tablesToProcess.set(t.chineseName, { ...t });
+        }
       }
     }
 
@@ -160,7 +173,7 @@ export class ConfigLoader {
       let versionStr = String(outputSettings.versionNumber);
       if (!versionStr.includes('.')) versionStr += '.0';
       outputSettings.outputDirectory = currentVT.gitDirectory
-        .replace('{0}', versionStr).replace('{1}', '');
+        .replace('{0}', versionStr).replace('{1}', outputSettings.versionName);
     }
 
     logger.info('配置加载完成（旧格式兼容模式）');

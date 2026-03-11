@@ -387,13 +387,105 @@ export class StudioConfigStore {
       throw new Error(`工作表「${SHEET_CONFIG}」已存在`);
     }
 
+    // 1. 创建 StudioConfig 隐藏表（JSON 配置）
     const sheet = context.workbook.worksheets.add(SHEET_CONFIG);
     const configData = data ?? createDefaultConfig();
+
+    // 默认注册 配置表 GameConfig
+    if (configData.tables.length === 0) {
+      configData.tables.push({
+        chineseName: '配置表',
+        englishName: 'GameConfig',
+        shouldOutput: true,
+        versionRange: '1.0',
+      });
+    }
+
     sheet.getRange('A1').values = [[JSON.stringify(configData)]];
     sheet.visibility = Excel.SheetVisibility.hidden;
     await context.sync();
-
     logger.info('StudioConfig 创建完成 (JSON 格式)');
+
+    // 2. 创建 配置表 (GameConfig) 数据表
+    await this.createGameConfigSheet(context);
+
+    // 3. 创建 表名对照
+    await this.createMappingSheet(context, configData);
+  }
+
+  /**
+   * 创建配置表 (GameConfig) — 含一行 CONFIG_VERSION 数据
+   */
+  private static async createGameConfigSheet(context: Excel.RequestContext): Promise<void> {
+    const existing = context.workbook.worksheets.getItemOrNullObject('配置表');
+    existing.load('isNullObject');
+    await context.sync();
+    if (!existing.isNullObject) return;
+
+    const sheet = context.workbook.worksheets.add('配置表');
+
+    // 字段定义行: #配置区域# | id=int | param=string | value=string
+    // 描述行:                | key_序号 | 参数名 | 参数值
+    // 数据行:                | 1 | CONFIG_VERSION | 0
+    sheet.getRangeByIndexes(0, 0, 3, 4).values = [
+      ['#配置区域#', 'key_id=int', 'param=string', 'value=string'],
+      ['', 'key_序号', '参数名', '参数值'],
+      ['', 1, 'CONFIG_VERSION', '0'],
+    ];
+
+    // 列宽
+    sheet.getRangeByIndexes(0, 0, 1, 1).format.columnWidth = 80;
+    sheet.getRangeByIndexes(0, 1, 1, 1).format.columnWidth = 80;
+    sheet.getRangeByIndexes(0, 2, 1, 1).format.columnWidth = 200;
+    sheet.getRangeByIndexes(0, 3, 1, 1).format.columnWidth = 200;
+
+    sheet.activate();
+    await context.sync();
+    logger.info('已创建「配置表」(GameConfig)');
+  }
+
+  /**
+   * 创建表名对照工作表（含表头和初始数据）
+   */
+  private static async createMappingSheet(
+    context: Excel.RequestContext,
+    configData: StudioConfigData
+  ): Promise<void> {
+    const existing = context.workbook.worksheets.getItemOrNullObject('表名对照');
+    existing.load('isNullObject');
+    await context.sync();
+    if (!existing.isNullObject) return;
+
+    const sheet = context.workbook.worksheets.add('表名对照');
+    // 移到最前面
+    sheet.position = 0;
+
+    // 表头行：蓝色背景白色文字
+    const headerRange = sheet.getRangeByIndexes(0, 0, 1, 4);
+    headerRange.values = [['#输出控制#', '功能表名', '输出表名', '是否输出表']];
+    headerRange.format.font.bold = true;
+    headerRange.format.fill.color = '#00B0F0';
+    headerRange.format.font.color = '#FFFFFF';
+    headerRange.format.borders.getItem('EdgeBottom').style = 'Continuous';
+
+    // 「是否输出表」列头橙色背景
+    const outputHeader = sheet.getRangeByIndexes(0, 3, 1, 1);
+    outputHeader.format.fill.color = '#FFA500';
+
+    // 写入已注册的表数据（无背景色）
+    if (configData.tables.length > 0) {
+      const rows = configData.tables.map(t => [t.versionRange, t.chineseName, t.englishName, t.shouldOutput]);
+      sheet.getRangeByIndexes(1, 0, rows.length, 4).values = rows;
+    }
+
+    // 列宽
+    sheet.getRangeByIndexes(0, 0, 1, 1).format.columnWidth = 100;
+    sheet.getRangeByIndexes(0, 1, 1, 1).format.columnWidth = 140;
+    sheet.getRangeByIndexes(0, 2, 1, 1).format.columnWidth = 160;
+    sheet.getRangeByIndexes(0, 3, 1, 1).format.columnWidth = 100;
+
+    await context.sync();
+    logger.info('已创建「表名对照」工作表');
   }
 
   /**

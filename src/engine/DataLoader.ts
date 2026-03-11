@@ -94,57 +94,52 @@ export class DataLoader {
     }
 
     if (versionRRow === -1) {
-      this.errorHandler.log(
-        ErrorCode.VERSION_R_MARKER_NOT_FOUND, 'warning', chineseName,
-        `工作表「${chineseName}」找不到 version_r 标记`, 'DataLoader.parseTableData'
-      );
-      return null;
+      logger.info(`工作表「${chineseName}」找不到 version_r 标记，默认包含所有行`);
     }
 
-    // 查找 #配置区域#（在 version_r 所在行扫描）
-    for (let c = 0; c < totalCols; c++) {
-      const val = String(allValues[versionRRow][c] ?? '').trim();
-      if (val === '#配置区域#') {
-        configAreaCol = c;
-        break;
+    // 查找 #配置区域#（在 version_r 所在行扫描，仅当 version_r 存在时）
+    if (versionRRow >= 0) {
+      for (let c = 0; c < totalCols; c++) {
+        const val = String(allValues[versionRRow][c] ?? '').trim();
+        if (val === '#配置区域#') {
+          configAreaCol = c;
+          break;
+        }
       }
     }
 
     if (configAreaCol === -1) {
-      this.errorHandler.log(
-        ErrorCode.CONFIG_AREA_MARKER_NOT_FOUND, 'warning', chineseName,
-        `工作表「${chineseName}」找不到 #配置区域# 标记`, 'DataLoader.parseTableData'
-      );
-      return null;
+      logger.info(`工作表「${chineseName}」找不到 #配置区域# 标记，默认使用整个工作表范围`);
     }
 
-    if (configAreaCol + 1 >= totalCols) {
-      this.errorHandler.log(
-        ErrorCode.DATA_AREA_EMPTY, 'warning', chineseName,
-        `工作表「${chineseName}」#配置区域# 右侧无数据列`, 'DataLoader.parseTableData'
-      );
-      return null;
-    }
-
-    // 查找 version_c（在 version_r 之前的行中查找）
+    // 查找 version_c（在 version_r 之前的行中查找，仅当 version_r 存在时）
     let hasVersionCol = false;
-    for (let r = 0; r < versionRRow; r++) {
-      for (let c = 0; c < totalCols; c++) {
-        const val = String(allValues[r][c] ?? '').trim();
-        if (val === 'version_c') {
-          versionCRow = r;
-          versionCCol = c;
-          hasVersionCol = true;
-          break;
+    if (versionRRow > 0) {
+      for (let r = 0; r < versionRRow; r++) {
+        for (let c = 0; c < totalCols; c++) {
+          const val = String(allValues[r][c] ?? '').trim();
+          if (val === 'version_c') {
+            versionCRow = r;
+            versionCCol = c;
+            hasVersionCol = true;
+            break;
+          }
         }
+        if (hasVersionCol) break;
       }
-      if (hasVersionCol) break;
     }
 
-    // 提取主数据区（#配置区域# 右侧，version_r 所在行起）
-    const dataStartCol = configAreaCol + 1;
+    if (versionRRow >= 0 && !hasVersionCol) {
+      logger.info(`工作表「${chineseName}」找不到 version_c 标记，默认包含所有列`);
+    }
+
+    // 提取主数据区
+    // 当 #配置区域# 存在时：右侧为数据区；否则从第0列开始（整个工作表）
+    const dataStartCol = configAreaCol >= 0 ? configAreaCol + 1 : 0;
+    // 当 version_r 存在时：从其所在行开始；否则从第0行开始（整个工作表）
+    const dataStartRow = versionRRow >= 0 ? versionRRow : 0;
     const mainData: CellValue[][] = [];
-    for (let r = versionRRow; r < totalRows; r++) {
+    for (let r = dataStartRow; r < totalRows; r++) {
       const row: CellValue[] = [];
       for (let c = dataStartCol; c < totalCols; c++) {
         row.push(allValues[r][c] ?? null);
@@ -153,10 +148,12 @@ export class DataLoader {
     }
 
     // 提取行版本控制数据（A列到 #配置区域# 前的列，version_r 所在行起）
+    // 当 #配置区域# 不存在时，没有版本行数据列可提取
     const versionRowData: CellValue[][] = [];
-    for (let r = versionRRow; r < totalRows; r++) {
+    const versionRowEndCol = configAreaCol >= 0 ? configAreaCol : 0;
+    for (let r = dataStartRow; r < totalRows; r++) {
       const row: CellValue[] = [];
-      for (let c = 0; c < configAreaCol; c++) {
+      for (let c = 0; c < versionRowEndCol; c++) {
         row.push(allValues[r][c] ?? null);
       }
       versionRowData.push(row);
@@ -165,7 +162,7 @@ export class DataLoader {
     // 提取列版本控制数据（version_c 区域）
     let versionColData: CellValue[][] | null = null;
     let versionColLabels: CellValue[] | null = null;
-    if (hasVersionCol) {
+    if (hasVersionCol && versionRRow >= 0) {
       versionColData = [];
       // 提取各行左侧标签（version_c 所在列的值，用于识别 roads_0/roads_X）
       versionColLabels = [];
@@ -180,13 +177,15 @@ export class DataLoader {
       }
     }
 
+    const hasVersionRow = versionRRow >= 0;
+
     return {
       sourceSheetName: chineseName,
       mainData,
-      versionRowData,
+      versionRowData: hasVersionRow ? versionRowData : null,
       versionColData,
       versionColLabels,
-      hasVersionRowFlag: true,
+      hasVersionRowFlag: hasVersionRow,
       hasVersionColFlag: hasVersionCol,
     };
   }
