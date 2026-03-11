@@ -148,6 +148,7 @@ export function App() {
             onExportComplete={handleExportComplete}
             onProgress={setProgress}
             onReloadConfig={loadConfig}
+            onClearResult={() => setExportResult(null)}
           />
         )}
 

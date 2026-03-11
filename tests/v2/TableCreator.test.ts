@@ -177,6 +177,18 @@ function makeConfig(overrides?: Partial<TableCreationConfig>): TableCreationConf
   };
 }
 
+/** 从 rangeCalls 中提取指定 (row, col) 位置的值（支持批量写入） */
+function getValueAt(row: number, col: number): unknown {
+  for (const call of rangeCalls) {
+    if (call.values &&
+      call.row <= row && row < call.row + call.rowCount &&
+      call.col <= col && col < call.col + call.colCount) {
+      return call.values[row - call.row]?.[col - call.col];
+    }
+  }
+  return undefined;
+}
+
 // ─── 测试 ─────────────────────────────────────────────────────
 
 describe('TableCreator', () => {
@@ -237,220 +249,94 @@ describe('TableCreator', () => {
   // ─── createTable 列布局 ─────────────────────────────────
 
   describe('createTable - basic layout (no version_c)', () => {
+    // layout: version_r(0) | roads_0(1) | roads_1(2) | gap(3,4) | #配置区域#(5) | fields(6,7,8)
     it('should create sheet with correct name', async () => {
       await creator.createTable(makeConfig());
-
       expect(addedSheetNames).toContain('怪物表');
     });
 
-    it('should write version_r at row 0, col 0', async () => {
+    it('should write version_r row correctly', async () => {
       await creator.createTable(makeConfig());
-
-      const vrCall = rangeCalls.find(
-        (c) => c.row === 0 && c.col === 0 && c.values?.[0]?.[0] === 'version_r'
-      );
-      expect(vrCall).toBeDefined();
+      expect(getValueAt(0, 0)).toBe('version_r');
+      expect(getValueAt(0, 1)).toBe('roads_0');
+      expect(getValueAt(0, 2)).toBe('roads_1');
+      expect(getValueAt(0, 5)).toBe('#配置区域#');
+      expect(getValueAt(0, 6)).toBe('key_id=int');
+      expect(getValueAt(0, 7)).toBe('language_name=string');
+      expect(getValueAt(0, 8)).toBe('hp=int');
     });
 
-    it('should write roads columns after version_r', async () => {
+    it('should write description row correctly', async () => {
       await creator.createTable(makeConfig());
-
-      // 2 lines (roads_0, roads_1), so cols 1 and 2
-      const road0 = rangeCalls.find(
-        (c) => c.row === 0 && c.col === 1 && c.values?.[0]?.[0] === 'roads_0'
-      );
-      const road1 = rangeCalls.find(
-        (c) => c.row === 0 && c.col === 2 && c.values?.[0]?.[0] === 'roads_1'
-      );
-      expect(road0).toBeDefined();
-      expect(road1).toBeDefined();
-    });
-
-    it('should write #配置区域# marker at correct column', async () => {
-      // layout: version_r(col0) + roads(col1,2) + gap(col3,4) + #配置区域#(col5)
-      await creator.createTable(makeConfig());
-
-      const configMarker = rangeCalls.find(
-        (c) => c.values?.[0]?.[0] === '#配置区域#'
-      );
-      expect(configMarker).toBeDefined();
-      expect(configMarker!.row).toBe(0);
-      // configMarkerCol = 1 + 2(roads) + 2(gap) = 5
-      expect(configMarker!.col).toBe(5);
-    });
-
-    it('should write field definitions after #配置区域#', async () => {
-      await creator.createTable(makeConfig());
-
-      // dataStartCol = configMarkerCol + 1 = 6
-      const idField = rangeCalls.find(
-        (c) => c.row === 0 && c.col === 6 && c.values?.[0]?.[0] === 'key_id=int'
-      );
-      const nameField = rangeCalls.find(
-        (c) => c.row === 0 && c.col === 7 && c.values?.[0]?.[0] === 'language_name=string'
-      );
-      const hpField = rangeCalls.find(
-        (c) => c.row === 0 && c.col === 8 && c.values?.[0]?.[0] === 'hp=int'
-      );
-      expect(idField).toBeDefined();
-      expect(nameField).toBeDefined();
-      expect(hpField).toBeDefined();
-    });
-
-    it('should write description row below field definitions', async () => {
-      await creator.createTable(makeConfig());
-
-      // descRow = vrRow(0) + 1 = 1
-      const verRowAttr = rangeCalls.find(
-        (c) => c.row === 1 && c.col === 0 && c.values?.[0]?.[0] === '版本行属'
-      );
-      expect(verRowAttr).toBeDefined();
-
-      // road version names at descRow (roads_0=默认, roads_1=支线)
-      const roadName0 = rangeCalls.find(
-        (c) => c.row === 1 && c.col === 1 && c.values?.[0]?.[0] === '默认'
-      );
-      const roadName1 = rangeCalls.find(
-        (c) => c.row === 1 && c.col === 2 && c.values?.[0]?.[0] === '支线'
-      );
-      expect(roadName0).toBeDefined();
-      expect(roadName1).toBeDefined();
-
-      // field descriptions
-      const descId = rangeCalls.find(
-        (c) => c.row === 1 && c.col === 6 && c.values?.[0]?.[0] === '编号'
-      );
-      const descName = rangeCalls.find(
-        (c) => c.row === 1 && c.col === 7 && c.values?.[0]?.[0] === '名称'
-      );
-      expect(descId).toBeDefined();
-      expect(descName).toBeDefined();
+      expect(getValueAt(1, 0)).toBe('版本行属');
+      expect(getValueAt(1, 1)).toBe('默认');
+      expect(getValueAt(1, 2)).toBe('支线');
+      expect(getValueAt(1, 6)).toBe('编号');
+      expect(getValueAt(1, 7)).toBe('名称');
     });
   });
 
   // ─── 字段名组装 ────────────────────────────────────────
 
   describe('field name assembly', () => {
+    // dataStartCol = 1 + 2(roads) + 2(gap) + 1 = 6, 单字段时 dataStartCol = 1+2+2+1=6
     it('should add key_ prefix for key fields', async () => {
-      const config = makeConfig({
-        fields: [
-          { name: 'id', type: 'int', description: 'ID', isKey: true, isLanguage: false },
-        ],
-      });
-
-      await creator.createTable(config);
-
-      const keyField = rangeCalls.find(
-        (c) => c.values?.[0]?.[0] === 'key_id=int'
-      );
-      expect(keyField).toBeDefined();
+      await creator.createTable(makeConfig({
+        fields: [{ name: 'id', type: 'int', description: 'ID', isKey: true, isLanguage: false }],
+      }));
+      expect(getValueAt(0, 6)).toBe('key_id=int');
     });
 
     it('should add language_ prefix for language fields', async () => {
-      const config = makeConfig({
-        fields: [
-          { name: 'desc', type: 'string', description: '描述', isKey: false, isLanguage: true },
-        ],
-      });
-
-      await creator.createTable(config);
-
-      const langField = rangeCalls.find(
-        (c) => c.values?.[0]?.[0] === 'language_desc=string'
-      );
-      expect(langField).toBeDefined();
+      await creator.createTable(makeConfig({
+        fields: [{ name: 'desc', type: 'string', description: '描述', isKey: false, isLanguage: true }],
+      }));
+      expect(getValueAt(0, 6)).toBe('language_desc=string');
     });
 
     it('should use plain name when neither key nor language', async () => {
-      const config = makeConfig({
-        fields: [
-          { name: 'hp', type: 'int', description: '生命值', isKey: false, isLanguage: false },
-        ],
-      });
-
-      await creator.createTable(config);
-
-      const plainField = rangeCalls.find(
-        (c) => c.values?.[0]?.[0] === 'hp=int'
-      );
-      expect(plainField).toBeDefined();
+      await creator.createTable(makeConfig({
+        fields: [{ name: 'hp', type: 'int', description: '生命值', isKey: false, isLanguage: false }],
+      }));
+      expect(getValueAt(0, 6)).toBe('hp=int');
     });
 
     it('should prefer key_ prefix over language_ when both are true', async () => {
-      // Based on buildFieldString logic: if (isKey) ... else if (isLanguage)
-      const config = makeConfig({
-        fields: [
-          { name: 'special', type: 'string', description: '特殊', isKey: true, isLanguage: true },
-        ],
-      });
-
-      await creator.createTable(config);
-
-      const field = rangeCalls.find(
-        (c) => c.values?.[0]?.[0] === 'key_special=string'
-      );
-      expect(field).toBeDefined();
+      await creator.createTable(makeConfig({
+        fields: [{ name: 'special', type: 'string', description: '特殊', isKey: true, isLanguage: true }],
+      }));
+      expect(getValueAt(0, 6)).toBe('key_special=string');
     });
   });
 
   // ─── includeVersionCol ─────────────────────────────────
 
   describe('includeVersionCol=true layout', () => {
-    it('should shift version_r to row 4', async () => {
+    // configMarkerCol = 1 + 2(roads) + 2(gap) = 5, dataStartCol = 6, vrRow = 4
+
+    it('should write version_c row at row 0 and version_r at row 4', async () => {
       await creator.createTable(makeConfig({ includeVersionCol: true }));
 
-      const vrCall = rangeCalls.find(
-        (c) => c.row === 4 && c.col === 0 && c.values?.[0]?.[0] === 'version_r'
-      );
-      expect(vrCall).toBeDefined();
-    });
-
-    it('should write version_c header at row 0', async () => {
-      await creator.createTable(makeConfig({ includeVersionCol: true }));
-
-      // configMarkerCol = 1 + 2(roads) + 2(gap) = 5
-      // Row 0, col 4 (configMarkerCol-1): 版本列属
-      const colAttr = rangeCalls.find(
-        (c) => c.row === 0 && c.col === 4 && c.values?.[0]?.[0] === '版本列属'
-      );
-      expect(colAttr).toBeDefined();
-
-      // Row 0, col 5 (configMarkerCol): version_c
-      const vc = rangeCalls.find(
-        (c) => c.row === 0 && c.col === 5 && c.values?.[0]?.[0] === 'version_c'
-      );
-      expect(vc).toBeDefined();
+      // version_c 行
+      expect(getValueAt(0, 4)).toBe('版本列属');
+      expect(getValueAt(0, 5)).toBe('version_c');
+      // version_r 行
+      expect(getValueAt(4, 0)).toBe('version_r');
+      expect(getValueAt(4, 5)).toBe('#配置区域#');
     });
 
     it('should write startVersion for each field column in row 0', async () => {
-      const fields = makeFields();
       await creator.createTable(makeConfig({ includeVersionCol: true, startVersion: '3.5' }));
 
-      // dataStartCol = configMarkerCol + 1 = 1 + 2(roads) + 2(gap) + 1 = 6
-      for (let i = 0; i < fields.length; i++) {
-        const versionCell = rangeCalls.find(
-          (c) => c.row === 0 && c.col === 6 + i && c.values?.[0]?.[0] === '3.5'
-        );
-        expect(versionCell).toBeDefined();
-      }
-    });
-
-    it('should write #配置区域# at row 4', async () => {
-      await creator.createTable(makeConfig({ includeVersionCol: true }));
-
-      const marker = rangeCalls.find(
-        (c) => c.row === 4 && c.values?.[0]?.[0] === '#配置区域#'
-      );
-      expect(marker).toBeDefined();
+      expect(getValueAt(0, 6)).toBe('3.5');
+      expect(getValueAt(0, 7)).toBe('3.5');
+      expect(getValueAt(0, 8)).toBe('3.5');
     });
 
     it('should write description row at row 5', async () => {
       await creator.createTable(makeConfig({ includeVersionCol: true }));
 
-      const descRow = rangeCalls.find(
-        (c) => c.row === 5 && c.col === 0 && c.values?.[0]?.[0] === '版本行属'
-      );
-      expect(descRow).toBeDefined();
+      expect(getValueAt(5, 0)).toBe('版本行属');
     });
   });
 
@@ -528,29 +414,19 @@ describe('TableCreator', () => {
   describe('error handling', () => {
     it('StudioConfig 为 null 时只有 roads_0', async () => {
       mockStudioLoad.mockResolvedValue(null);
-
       await creator.createTable(makeConfig());
-
-      const vrCalls = rangeCalls.filter(c => c.values?.[0]?.[0]?.toString().startsWith('roads_'));
-      expect(vrCalls.length).toBe(1);
-      expect(vrCalls[0].values![0][0]).toBe('roads_0');
+      // version_r 行：col1 = roads_0, col2 = ''(gap)
+      expect(getValueAt(0, 1)).toBe('roads_0');
+      expect(getValueAt(0, 2)).toBe('');
     });
 
     it('StudioConfig 存在时只包含 roads_0，无额外版本', async () => {
       mockStudioLoad.mockResolvedValue({
-        versions: [],
-        lines: [],
-        tables: [],
-        staff: [],
-        switches: {},
+        versions: [], lines: [], tables: [], staff: [], switches: {},
       });
-
       await creator.createTable(makeConfig());
-
-      // 只有 roads_0
-      const vrCalls = rangeCalls.filter(c => c.values?.[0]?.[0]?.toString().startsWith('roads_'));
-      expect(vrCalls.length).toBe(1);
-      expect(vrCalls[0].values![0][0]).toBe('roads_0');
+      expect(getValueAt(0, 1)).toBe('roads_0');
+      expect(getValueAt(0, 2)).toBe('');
     });
   });
 });

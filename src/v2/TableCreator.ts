@@ -1,6 +1,6 @@
 /* global Excel */
 
-import { TableInfo, LineTemplate, VersionTemplate } from '../types/config';
+import { TableInfo } from '../types/config';
 import { excelHelper } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
 import { StudioConfigStore } from './StudioConfigStore';
@@ -25,7 +25,6 @@ export interface TableCreationConfig {
   autoRegister: boolean;
 }
 
-const LEGACY_SETTINGS = '配置设置表';
 const LEGACY_MAPPING = '表名对照';
 
 // ─── TableCreator ────────────────────────────────────────────
@@ -48,37 +47,46 @@ export class TableCreator {
 
       let vrRow = 0;
 
+      // 构建字段定义字符串
+      const fieldStrs = config.fields.map(f => this.buildFieldString(f));
+      const fieldDescs = config.fields.map(f => f.description);
+      const totalCols = dataStartCol + config.fields.length;
+
       if (config.includeVersionCol) {
         vrRow = 4;
-        // version_c 与 #配置区域# 同列，"版本列属"在其左一列
-        sheet.getRangeByIndexes(0, configMarkerCol - 1, 1, 1).values = [['版本列属']];
-        sheet.getRangeByIndexes(0, configMarkerCol, 1, 1).values = [['version_c']];
+        // version_c 行：整行批量写入
+        const vcRow: (string | number)[] = new Array(totalCols).fill('');
+        vcRow[configMarkerCol - 1] = '版本列属';
+        vcRow[configMarkerCol] = 'version_c';
         for (let i = 0; i < config.fields.length; i++) {
-          sheet.getRangeByIndexes(0, dataStartCol + i, 1, 1).values = [[config.startVersion]];
+          vcRow[dataStartCol + i] = config.startVersion;
         }
+        sheet.getRangeByIndexes(0, 0, 1, totalCols).values = [vcRow];
       }
 
-      sheet.getRangeByIndexes(vrRow, 0, 1, 1).values = [['version_r']];
+      // version_r 行：整行批量写入
+      const vrRowData: (string | number)[] = new Array(totalCols).fill('');
+      vrRowData[0] = 'version_r';
       for (let i = 0; i < roads.length; i++) {
-        sheet.getRangeByIndexes(vrRow, 1 + i, 1, 1).values = [[roads[i].field]];
+        vrRowData[1 + i] = roads[i].field;
       }
-
-      sheet.getRangeByIndexes(vrRow, configMarkerCol, 1, 1).values = [['#配置区域#']];
-
-      for (let i = 0; i < config.fields.length; i++) {
-        const f = config.fields[i];
-        const fieldStr = this.buildFieldString(f);
-        sheet.getRangeByIndexes(vrRow, dataStartCol + i, 1, 1).values = [[fieldStr]];
+      vrRowData[configMarkerCol] = '#配置区域#';
+      for (let i = 0; i < fieldStrs.length; i++) {
+        vrRowData[dataStartCol + i] = fieldStrs[i];
       }
+      sheet.getRangeByIndexes(vrRow, 0, 1, totalCols).values = [vrRowData];
 
+      // 描述行：整行批量写入
       const descRow = vrRow + 1;
-      sheet.getRangeByIndexes(descRow, 0, 1, 1).values = [['版本行属']];
+      const descRowData: (string | number)[] = new Array(totalCols).fill('');
+      descRowData[0] = '版本行属';
       for (let i = 0; i < roads.length; i++) {
-        sheet.getRangeByIndexes(descRow, 1 + i, 1, 1).values = [[roads[i].name]];
+        descRowData[1 + i] = roads[i].name;
       }
-      for (let i = 0; i < config.fields.length; i++) {
-        sheet.getRangeByIndexes(descRow, dataStartCol + i, 1, 1).values = [[config.fields[i].description]];
+      for (let i = 0; i < fieldDescs.length; i++) {
+        descRowData[dataStartCol + i] = fieldDescs[i];
       }
+      sheet.getRangeByIndexes(descRow, 0, 1, totalCols).values = [descRowData];
 
       // 激活新建的工作表，确保用户能直接看到内容
       sheet.activate();
@@ -159,44 +167,6 @@ export class TableCreator {
     });
 
     return roads;
-  }
-
-  private async loadLineTemplates(
-    context: Excel.RequestContext
-  ): Promise<LineTemplate[]> {
-    // 优先 JSON
-    const data = await StudioConfigStore.load(context);
-    if (data) {
-      return [...data.lines].sort((a, b) => a.id - b.id);
-    }
-
-    // 旧格式回退
-    let snap = await excelHelper.loadSheetSnapshot(context, SHEET_CONFIG);
-    if (!snap || !excelHelper.findMarkerInData(snap.values, '#线路列表#')) {
-      snap = await excelHelper.loadSheetSnapshot(context, LEGACY_SETTINGS);
-    }
-    if (!snap || snap.values.length === 0) {
-      throw new Error('找不到包含 #线路列表# 的工作表');
-    }
-
-    const pos = excelHelper.findMarkerInData(snap.values, '#线路列表#');
-    if (!pos) throw new Error('找不到 #线路列表# 标记');
-
-    const rows = excelHelper.readBlockBelow(snap.values, pos.row, pos.col, 3);
-    const lines: LineTemplate[] = [];
-
-    for (const row of rows) {
-      const id = Number(row[0]);
-      if (isNaN(id) || id === 0) continue;
-      lines.push({
-        id,
-        field: String(row[1] ?? '').trim(),
-        remark: String(row[2] ?? '').trim(),
-      });
-    }
-
-    lines.sort((a, b) => a.id - b.id);
-    return lines;
   }
 
   private buildFieldString(f: FieldDefinition): string {

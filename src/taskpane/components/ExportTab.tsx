@@ -554,6 +554,7 @@ interface ExportTabProps {
   onExportComplete: (result: ExportResult) => void;
   onProgress: (progress: ExportProgress) => void;
   onReloadConfig: () => void;
+  onClearResult: () => void;
 }
 
 export function ExportTab({
@@ -565,6 +566,7 @@ export function ExportTab({
   onExportComplete,
   onProgress,
   onReloadConfig,
+  onClearResult,
 }: ExportTabProps) {
   const styles = useStyles();
   const [changingVersion, setChangingVersion] = useState(false);
@@ -645,11 +647,13 @@ export function ExportTab({
   }, [config.outputSettings.versionNumber, onReloadConfig]);
 
   const handleExport = useCallback(async () => {
+    onClearResult();
+    setResultDismissed(false);
     onExportStart();
     const job = new ExportJob(onProgress);
     const result = await job.runExport();
     onExportComplete(result);
-  }, [onExportStart, onExportComplete, onProgress]);
+  }, [onClearResult, onExportStart, onExportComplete, onProgress]);
 
   const gitHandler = useMemo(
     () => new GitHandler(config.outputSettings.outputDirectory || ''),
@@ -696,7 +700,8 @@ export function ExportTab({
 
     // Git 上传后，重置导出结果区域回到空闲状态
     setResultDismissed(true);
-  }, [exportResult, gitHandler, config]);
+    onClearResult();
+  }, [exportResult, gitHandler, config, onClearResult]);
 
   const progressValue = progress ? progress.step / progress.totalSteps : 0;
   const outputDir = config.outputSettings.outputDirectory || '';

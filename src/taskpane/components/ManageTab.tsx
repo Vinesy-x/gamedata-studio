@@ -1051,12 +1051,13 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
   }, [onReload]);
 
   const handleUnregister = useCallback(async (chineseName: string) => {
+    if (!window.confirm(`确定要删除表「${chineseName}」吗？\n\n此操作将同时删除工作表和注册信息，不可撤销。`)) return;
     try {
-      await tableRegistry.unregisterTable(chineseName);
-      setStatusMsg({ text: `已取消注册「${chineseName}」`, type: 'success' });
+      await tableRegistry.unregisterTable(chineseName, true);
+      setStatusMsg({ text: `已删除「${chineseName}」`, type: 'success' });
       onReload();
     } catch (err) {
-      setStatusMsg({ text: `取消注册失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
+      setStatusMsg({ text: `删除失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
     }
   }, [onReload]);
 
