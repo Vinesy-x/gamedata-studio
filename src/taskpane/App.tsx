@@ -9,14 +9,11 @@ import {
 } from '@fluentui/react-components';
 import {
   ArrowExportRegular,
-  EyeRegular,
-  CheckboxCheckedRegular,
-  BranchRegular,
+  SettingsRegular,
   InfoRegular,
 } from '@fluentui/react-icons';
 import { ExportTab } from './components/ExportTab';
-import { GitPanel } from './components/GitPanel';
-import { ConfigPanel } from './components/ConfigPanel';
+import { ManageTab } from './components/ManageTab';
 import { useConfig } from './hooks/useConfig';
 import { ExportResult, ExportProgress } from '../types/table';
 
@@ -136,9 +133,7 @@ export function App() {
           size="small"
         >
           <Tab value="export" icon={<ArrowExportRegular fontSize={14} />}>导出</Tab>
-          <Tab value="preview" icon={<EyeRegular fontSize={14} />}>预览</Tab>
-          <Tab value="validate" icon={<CheckboxCheckedRegular fontSize={14} />}>校验</Tab>
-          <Tab value="git" icon={<BranchRegular fontSize={14} />}>Git</Tab>
+          <Tab value="manage" icon={<SettingsRegular fontSize={14} />}>管理</Tab>
         </TabList>
       </div>
 
@@ -156,23 +151,10 @@ export function App() {
           />
         )}
 
-        {selectedTab === 'preview' && (
-          <div style={{ padding: '16px', color: tokens.colorNeutralForeground3, fontSize: '12px' }}>
-            预览功能开发中...
-          </div>
-        )}
-
-        {selectedTab === 'validate' && (
-          <div style={{ padding: '16px', color: tokens.colorNeutralForeground3, fontSize: '12px' }}>
-            独立校验功能开发中...
-          </div>
-        )}
-
-        {selectedTab === 'git' && config && (
-          <GitPanel
+        {selectedTab === 'manage' && config && (
+          <ManageTab
             config={config}
-            modifiedFiles={exportResult?.modifiedFiles || []}
-            outputDirectory={config.outputSettings.outputDirectory || ''}
+            onReloadConfig={loadConfig}
           />
         )}
       </div>
