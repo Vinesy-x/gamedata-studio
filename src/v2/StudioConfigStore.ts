@@ -308,7 +308,14 @@ export class StudioConfigStore {
     if (raw == null || String(raw).trim() === '') return null;
 
     try {
-      return JSON.parse(String(raw)) as StudioConfigData;
+      const data = JSON.parse(String(raw)) as StudioConfigData;
+      // 自动补全 tableSchema（确保已有配置也包含格式说明）
+      if (!data.tableSchema) {
+        data.tableSchema = createTableSchema();
+        sheet.getRange('A1').values = [[JSON.stringify(data)]];
+        await context.sync();
+      }
+      return data;
     } catch {
       logger.error('StudioConfigStore.load: JSON 解析失败');
       return null;
@@ -327,6 +334,8 @@ export class StudioConfigStore {
       throw new Error(`工作表「${SHEET_CONFIG}」不存在`);
     }
 
+    // 每次保存时确保 tableSchema 为最新版本
+    data.tableSchema = createTableSchema();
     const json = JSON.stringify(data);
     sheet.getRange('A1').values = [[json]];
     await context.sync();
