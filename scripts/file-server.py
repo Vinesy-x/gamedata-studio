@@ -10,6 +10,8 @@ import json
 import base64
 import socket
 import uuid
+import subprocess
+import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from urllib.request import urlopen, Request
@@ -125,6 +127,11 @@ class FileHandler(BaseHTTPRequestHandler):
             self._handle_read(parsed)
             return
 
+        # API: git push (execute whitelisted git commands)
+        if path == '/api/git-push':
+            self._handle_git_push(parsed)
+            return
+
         # API: write file via GET (Office webview blocks POST)
         if path == '/api/write-start':
             self._handle_write_start(parsed)
@@ -147,6 +154,75 @@ class FileHandler(BaseHTTPRequestHandler):
         self.send_response(404)
         self._cors()
         self.end_headers()
+
+    # ── Git push (whitelisted commands only) ──
+
+    def _handle_git_push(self, parsed):
+        params = parse_qs(parsed.query)
+        directory = params.get('directory', [''])[0]
+        script_b64 = params.get('script', [''])[0]
+        if not directory or not script_b64:
+            self.send_response(400)
+            self._cors()
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"error":"missing params (directory, script)"}')
+            return
+
+        try:
+            script = base64.b64decode(script_b64).decode('utf-8')
+        except Exception as e:
+            self.send_response(400)
+            self._cors()
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": f"base64 decode failed: {e}"}).encode())
+            return
+
+        # Security: each line must start with cd, git, or be empty
+        for line in script.strip().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if not (line.startswith('cd ') or line.startswith('git ')):
+                self.send_response(403)
+                self._cors()
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"forbidden command: {line}"}).encode())
+                return
+
+        print(f'  [git-push] dir={directory}')
+        try:
+            result = subprocess.run(
+                script, shell=True, cwd=directory,
+                capture_output=True, text=True, timeout=60
+            )
+            body = {
+                "ok": result.returncode == 0,
+                "output": result.stdout,
+                "exitCode": result.returncode,
+            }
+            if result.returncode != 0:
+                body["error"] = result.stderr
+            print(f'  [git-push] exitCode={result.returncode}')
+            self.send_response(200)
+            self._cors()
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(body).encode())
+        except subprocess.TimeoutExpired:
+            self.send_response(504)
+            self._cors()
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"error":"command timed out (60s)"}')
+        except Exception as e:
+            self.send_response(500)
+            self._cors()
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode())
 
     # ── GET-based chunked write (bypass Office proxy POST block) ──
 

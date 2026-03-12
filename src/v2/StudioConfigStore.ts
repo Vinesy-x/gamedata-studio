@@ -105,6 +105,17 @@ export interface TableExampleDoc {
   grid: string[][];
 }
 
+// ─── 协同导出配置类型 ────────────────────────────────────
+
+export interface CollabConfig {
+  version: string;
+  versionNumber: number;
+  sequence: number;
+  operator: string;
+  workStatus: string;
+  exportResult: string;
+}
+
 // ─── 默认配置 ──────────────────────────────────────────
 
 export function createDefaultConfig(): StudioConfigData {
@@ -376,7 +387,44 @@ export class StudioConfigStore {
     data.tableSchema = createTableSchema();
     const json = JSON.stringify(data);
     sheet.getRange('A1').values = [[json]];
+
+    // 同步协同导出区域的下拉列表和值
+    this.syncCollabDropdowns(sheet, data);
+
     await context.sync();
+  }
+
+  /**
+   * 同步协同区域下拉列表 + 序列号等只读值
+   * 每次 save() 时自动调用，确保版本/人员变更后下拉选项同步
+   */
+  private static syncCollabDropdowns(sheet: Excel.Worksheet, data: StudioConfigData): void {
+    // 检查协同区域是否存在（A3 是否为标题）
+    // 因为 save 在 create 之前也可能调用，此处做防御
+    const R = this.ROW;
+
+    // 同步序列号（只读值）
+    sheet.getRangeByIndexes(R.SEQUENCE, 1, 1, 1).values = [[data.versionSequence]];
+
+    // 同步输出版本下拉
+    const versionNames = data.versions.map(v => v.name).join(',');
+    if (versionNames) {
+      const versionCell = sheet.getRangeByIndexes(R.VERSION, 1, 1, 1);
+      versionCell.dataValidation.clear();
+      versionCell.dataValidation.rule = {
+        list: { inCellDropDown: true, source: versionNames },
+      };
+    }
+
+    // 同步操作人下拉
+    const staffNames = data.staff.map(s => s.name).join(',');
+    if (staffNames) {
+      const operatorCell = sheet.getRangeByIndexes(R.OPERATOR, 1, 1, 1);
+      operatorCell.dataValidation.clear();
+      operatorCell.dataValidation.rule = {
+        list: { inCellDropDown: true, source: staffNames },
+      };
+    }
   }
 
   /**
@@ -391,7 +439,7 @@ export class StudioConfigStore {
       throw new Error(`工作表「${SHEET_CONFIG}」已存在`);
     }
 
-    // 1. 创建 StudioConfig 隐藏表（JSON 配置）
+    // 1. 创建 StudioConfig 表（JSON 配置 + 协同导出区域）
     const sheet = context.workbook.worksheets.add(SHEET_CONFIG);
     const configData = data ?? createDefaultConfig();
 
@@ -406,9 +454,14 @@ export class StudioConfigStore {
     }
 
     sheet.getRange('A1').values = [[JSON.stringify(configData)]];
-    sheet.visibility = Excel.SheetVisibility.hidden;
+    // 表可见，供网页端用户查看协同导出区域
+    sheet.visibility = Excel.SheetVisibility.visible;
+
+    // 写入协同导出区域 A3:B8
+    this.writeCollabArea(sheet, configData);
+
     await context.sync();
-    logger.info('StudioConfig 创建完成 (JSON 格式)');
+    logger.info('StudioConfig 创建完成 (JSON 格式 + 协同导出区域)');
 
     // 2. 创建 配置表 (GameConfig) 数据表
     await this.createGameConfigSheet(context);
@@ -565,5 +618,314 @@ export class StudioConfigStore {
     mutator(data);
     await this.save(context, data);
     return true;
+  }
+
+  // ─── 协同导出区域 ──────────────────────────────────────
+
+  /**
+   * 协同导出区域布局（A3 起）:
+   *   A3: #协同导出#     (标题行, 蓝色背景白字, 合并A3:B3)
+   *   ── 配置参数区 ──
+   *   A4: #输出版本#     B4: {版本名}     ← 下拉选择
+   *   A5: #输出版本号#   B5: {版本号}
+   *   A6: #序列号#       B6: {序列号}
+   *   A7: #操作人#       B7: {空}         ← 下拉选择, 写入触发导出
+   *   ── 空行分隔 ──
+   *   A8: (空)
+   *   ── 状态结果区 ──
+   *   A9:  #工作状态#    B9:  {空}        ← 本地回写
+   *   A10: #导出结果#    B10: {空}        ← 本地回写
+   */
+
+  /** 协同区域起始行 (0-indexed) */
+  private static readonly COLLAB_START_ROW = 2;
+
+  /**
+   * 写入协同导出区域到工作表
+   */
+  private static writeCollabArea(sheet: Excel.Worksheet, data: StudioConfigData): void {
+    // ── 0. 全屏白底 + 清除网格 ──
+    const canvas = sheet.getRangeByIndexes(0, 0, 30, 10);
+    canvas.format.fill.color = '#FFFFFF';
+    canvas.format.font.color = '#333333';
+    canvas.format.borders.getItem('InsideHorizontal').style = Excel.BorderLineStyle.none;
+    canvas.format.borders.getItem('InsideVertical').style = Excel.BorderLineStyle.none;
+
+    // 隐藏 Row 0~1 (JSON + 空行)
+    sheet.getRangeByIndexes(0, 0, 2, 1).format.rowHeight = 0;
+
+    // ── 列宽 ──
+    sheet.getRangeByIndexes(0, 0, 1, 1).format.columnWidth = 100;  // A: 标签
+    sheet.getRangeByIndexes(0, 1, 1, 1).format.columnWidth = 280;  // B: 值（加宽，下拉箭头更大）
+
+    // ── 1. 标题行 A3 ──
+    const titleRange = sheet.getRangeByIndexes(2, 0, 1, 2);
+    titleRange.merge(false);
+    titleRange.values = [['#协同导出#', '']];
+    titleRange.format.fill.color = '#0078D4';
+    titleRange.format.font.color = '#FFFFFF';
+    titleRange.format.font.bold = true;
+    titleRange.format.font.size = 13;
+    titleRange.format.horizontalAlignment = Excel.HorizontalAlignment.center;
+    titleRange.format.verticalAlignment = Excel.VerticalAlignment.center;
+    titleRange.format.rowHeight = 36;
+
+    // ── 2. 配置参数区 A4:B7 ──
+    const configValues: (string | number)[][] = [
+      ['#输出版本#', data.outputVersion],
+      ['#输出版本号#', data.outputVersionNumber],
+      ['#序列号#', data.versionSequence],
+      ['#操作人#', ''],
+    ];
+    sheet.getRangeByIndexes(3, 0, 4, 2).values = configValues;
+
+    // 行高：下拉行 (版本/操作人) 特别加高，下拉箭头和列表项跟行高成比例
+    sheet.getRangeByIndexes(3, 0, 1, 1).format.rowHeight = 44;  // #输出版本# — 下拉
+    sheet.getRangeByIndexes(4, 0, 1, 1).format.rowHeight = 32;  // #输出版本号#
+    sheet.getRangeByIndexes(5, 0, 1, 1).format.rowHeight = 32;  // #序列号#
+    sheet.getRangeByIndexes(6, 0, 1, 1).format.rowHeight = 44;  // #操作人# — 下拉
+
+    // 标签列 A4:A7
+    const labels = sheet.getRangeByIndexes(3, 0, 4, 1);
+    labels.format.font.color = '#5C6370';
+    labels.format.font.size = 13;
+    labels.format.horizontalAlignment = Excel.HorizontalAlignment.right;
+    labels.format.verticalAlignment = Excel.VerticalAlignment.center;
+    labels.format.fill.color = '#F8F9FA';
+
+    // 值列 B4:B7 — 基础样式
+    const vals = sheet.getRangeByIndexes(3, 1, 4, 1);
+    vals.format.font.size = 15;
+    vals.format.font.color = '#1A1A1A';
+    vals.format.horizontalAlignment = Excel.HorizontalAlignment.left;
+    vals.format.verticalAlignment = Excel.VerticalAlignment.center;
+    vals.format.indentLevel = 1;
+
+    // 版本名 — 大字加粗，下拉列表项也会跟着变大
+    const versionCell = sheet.getRangeByIndexes(3, 1, 1, 1);
+    versionCell.format.font.bold = true;
+    versionCell.format.font.size = 18;
+
+    // 序列号 — 灰色只读样式
+    const seqCell = sheet.getRangeByIndexes(5, 1, 1, 1);
+    seqCell.format.font.color = '#9CA3AF';
+    seqCell.format.fill.color = '#F3F4F6';
+    // 禁止编辑：用自定义验证阻止输入
+    seqCell.dataValidation.rule = {
+      custom: { formula: '=FALSE' },
+    };
+    seqCell.dataValidation.errorAlert = {
+      showAlert: true,
+      title: '禁止修改',
+      message: '序列号由系统自动管理，请勿手动修改。',
+      style: Excel.DataValidationAlertStyle.stop,
+    };
+
+    // 操作人单元格 — 浅蓝底 + 大字号(下拉列表项也变大)
+    const operatorCell = sheet.getRangeByIndexes(6, 1, 1, 1);
+    operatorCell.format.fill.color = '#EBF5FF';
+    operatorCell.format.font.bold = true;
+    operatorCell.format.font.size = 18;
+    operatorCell.format.font.color = '#0078D4';
+    operatorCell.format.borders.getItem('EdgeLeft').style = Excel.BorderLineStyle.continuous;
+    operatorCell.format.borders.getItem('EdgeLeft').color = '#0078D4';
+    operatorCell.format.borders.getItem('EdgeLeft').weight = Excel.BorderWeight.thick;
+
+    // 配置区行间细线
+    for (let r = 3; r <= 5; r++) {
+      const row = sheet.getRangeByIndexes(r, 0, 1, 2);
+      row.format.borders.getItem('EdgeBottom').style = Excel.BorderLineStyle.continuous;
+      row.format.borders.getItem('EdgeBottom').color = '#F0F0F0';
+    }
+
+    // ── 3. 分隔空行 A8 ──
+    sheet.getRangeByIndexes(7, 0, 1, 2).format.rowHeight = 6;
+
+    // ── 4. 状态结果区 A9:B10 ──
+    sheet.getRangeByIndexes(8, 0, 2, 2).values = [
+      ['#工作状态#', ''],
+      ['#导出结果#', ''],
+    ];
+    sheet.getRangeByIndexes(8, 0, 1, 1).format.rowHeight = 26;
+    sheet.getRangeByIndexes(9, 0, 1, 1).format.rowHeight = 26;
+
+    // 状态标签 A9:A10
+    const statusLabels = sheet.getRangeByIndexes(8, 0, 2, 1);
+    statusLabels.format.font.color = '#9CA3AF';
+    statusLabels.format.font.size = 11;
+    statusLabels.format.horizontalAlignment = Excel.HorizontalAlignment.right;
+    statusLabels.format.verticalAlignment = Excel.VerticalAlignment.center;
+    statusLabels.format.fill.color = '#FAFAFA';
+
+    // 状态值 B9:B10
+    const statusVals = sheet.getRangeByIndexes(8, 1, 2, 1);
+    statusVals.format.font.size = 11;
+    statusVals.format.font.color = '#6B7280';
+    statusVals.format.horizontalAlignment = Excel.HorizontalAlignment.left;
+    statusVals.format.verticalAlignment = Excel.VerticalAlignment.center;
+    statusVals.format.indentLevel = 1;
+
+    // 状态区顶部细线
+    sheet.getRangeByIndexes(8, 0, 1, 2).format.borders.getItem('EdgeTop').style = Excel.BorderLineStyle.continuous;
+    sheet.getRangeByIndexes(8, 0, 1, 2).format.borders.getItem('EdgeTop').color = '#E5E7EB';
+
+    // 状态区行间细线
+    sheet.getRangeByIndexes(8, 0, 1, 2).format.borders.getItem('EdgeBottom').style = Excel.BorderLineStyle.continuous;
+    sheet.getRangeByIndexes(8, 0, 1, 2).format.borders.getItem('EdgeBottom').color = '#F0F0F0';
+
+    // ── 5. 整体卡片边框 (A3:B10) ──
+    const card = sheet.getRangeByIndexes(2, 0, 8, 2);
+    for (const edge of ['EdgeTop', 'EdgeBottom', 'EdgeLeft', 'EdgeRight']) {
+      const border = card.format.borders.getItem(edge as Excel.BorderIndex);
+      border.style = Excel.BorderLineStyle.continuous;
+      border.color = '#E5E7EB';
+    }
+
+    // ── 6. 数据验证: 输出版本下拉 ──
+    const versionNames = data.versions.map(v => v.name).join(',');
+    if (versionNames) {
+      versionCell.dataValidation.rule = {
+        list: { inCellDropDown: true, source: versionNames },
+      };
+    }
+
+    // ── 7. 数据验证: 操作人下拉 ──
+    const staffNames = data.staff.map(s => s.name).join(',');
+    if (staffNames) {
+      operatorCell.dataValidation.rule = {
+        list: { inCellDropDown: true, source: staffNames },
+      };
+    }
+
+    // ── 8. 状态区也禁止手动编辑 ──
+    for (let r = 8; r <= 9; r++) {
+      const cell = sheet.getRangeByIndexes(r, 1, 1, 1);
+      cell.dataValidation.rule = { custom: { formula: '=FALSE' } };
+      cell.dataValidation.errorAlert = {
+        showAlert: true,
+        title: '禁止修改',
+        message: '此字段由系统自动更新。',
+        style: Excel.DataValidationAlertStyle.stop,
+      };
+    }
+  }
+
+  /**
+   * 确保已有工作簿包含协同导出区域（迁移方法）
+   * 如果 A3 不是 #协同导出#，自动补写
+   */
+  static async ensureCollabArea(context: Excel.RequestContext): Promise<void> {
+    const sheet = context.workbook.worksheets.getItemOrNullObject(SHEET_CONFIG);
+    sheet.load('isNullObject');
+    await context.sync();
+    if (sheet.isNullObject) return;
+
+    const a3 = sheet.getRange('A3');
+    a3.load('values');
+    await context.sync();
+
+    if (String(a3.values[0][0]).trim() === '#协同导出#') return;
+
+    // 需要迁移：读取当前配置写入协同区域
+    const data = await this.load(context);
+    if (!data) return;
+
+    this.writeCollabArea(sheet, data);
+
+    // 确保表可见
+    sheet.visibility = Excel.SheetVisibility.visible;
+    await context.sync();
+    logger.info('已迁移: 补写协同导出区域到 StudioConfig');
+  }
+
+  /**
+   * 行号映射 (0-indexed):
+   *   Row 0-1: A1 JSON + 空行 (隐藏)
+   *   Row 2:   #协同导出# 标题
+   *   Row 3:   #输出版本#   B: 版本名
+   *   Row 4:   #输出版本号# B: 版本号
+   *   Row 5:   #序列号#     B: 序列号
+   *   Row 6:   #操作人#     B: 操作人 (触发)
+   *   Row 7:   空行分隔
+   *   Row 8:   #工作状态#   B: 状态
+   *   Row 9:   #导出结果#   B: 结果
+   */
+  private static readonly ROW = {
+    VERSION: 3,
+    VERSION_NUM: 4,
+    SEQUENCE: 5,
+    OPERATOR: 6,
+    STATUS: 8,
+    RESULT: 9,
+  };
+
+  /**
+   * 读取协同导出配置
+   */
+  static async readCollabConfig(context: Excel.RequestContext): Promise<CollabConfig | null> {
+    const sheet = context.workbook.worksheets.getItemOrNullObject(SHEET_CONFIG);
+    sheet.load('isNullObject');
+    await context.sync();
+    if (sheet.isNullObject) return null;
+
+    // 读取 A3:B10 (row 2~9, 共 8 行)
+    const range = sheet.getRangeByIndexes(2, 0, 8, 2);
+    range.load('values');
+    await context.sync();
+
+    const v = range.values;
+    // 验证区域标记
+    if (String(v[0][0]).trim() !== '#协同导出#') return null;
+
+    return {
+      version: String(v[1][1] ?? ''),         // Row 3: #输出版本#
+      versionNumber: Number(v[2][1]) || 0,    // Row 4: #输出版本号#
+      sequence: Number(v[3][1]) || 0,         // Row 5: #序列号#
+      operator: String(v[4][1] ?? '').trim(),  // Row 6: #操作人#
+      workStatus: String(v[6][1] ?? ''),       // Row 8: #工作状态#
+      exportResult: String(v[7][1] ?? ''),     // Row 9: #导出结果#
+    };
+  }
+
+  /**
+   * 回写协同导出状态和结果，并可选清空操作人
+   */
+  static async writeCollabStatus(
+    context: Excel.RequestContext,
+    status: string,
+    result: string,
+    clearOperator = true
+  ): Promise<void> {
+    const sheet = context.workbook.worksheets.getItemOrNullObject(SHEET_CONFIG);
+    sheet.load('isNullObject');
+    await context.sync();
+    if (sheet.isNullObject) return;
+
+    const R = this.ROW;
+    if (clearOperator) {
+      sheet.getRangeByIndexes(R.OPERATOR, 1, 1, 1).values = [['']];
+    }
+    sheet.getRangeByIndexes(R.STATUS, 1, 1, 1).values = [[status]];
+    sheet.getRangeByIndexes(R.RESULT, 1, 1, 1).values = [[result]];
+    await context.sync();
+  }
+
+  /**
+   * 更新协同区域的单个字段
+   */
+  static async writeCollabField(
+    context: Excel.RequestContext,
+    field: '操作人' | '工作状态' | '导出结果',
+    value: string
+  ): Promise<void> {
+    const sheet = context.workbook.worksheets.getItemOrNullObject(SHEET_CONFIG);
+    sheet.load('isNullObject');
+    await context.sync();
+    if (sheet.isNullObject) return;
+
+    const R = this.ROW;
+    const rowMap = { '操作人': R.OPERATOR, '工作状态': R.STATUS, '导出结果': R.RESULT };
+    sheet.getRangeByIndexes(rowMap[field], 1, 1, 1).values = [[value]];
+    await context.sync();
   }
 }

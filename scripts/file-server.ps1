@@ -181,6 +181,81 @@ while ($listener.IsListening) {
         continue
     }
 
+    # API: git push (execute whitelisted git commands)
+    if ($req.HttpMethod -eq "GET" -and $urlPath -eq "/api/git-push") {
+        $params = [System.Web.HttpUtility]::ParseQueryString($req.Url.Query)
+        $dir = $params["directory"]
+        $scriptB64 = $params["script"]
+        $res.ContentType = "application/json"
+
+        if (-not $dir -or -not $scriptB64) {
+            $res.StatusCode = 400
+            $msg = [System.Text.Encoding]::UTF8.GetBytes('{"error":"missing params (directory, script)"}')
+            $res.OutputStream.Write($msg, 0, $msg.Length)
+            $res.Close()
+            continue
+        }
+
+        try {
+            $scriptText = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($scriptB64))
+        } catch {
+            $res.StatusCode = 400
+            $errMsg = $_.Exception.Message -replace '"', '\"'
+            $msg = [System.Text.Encoding]::UTF8.GetBytes("{`"error`":`"base64 decode failed: $errMsg`"}")
+            $res.OutputStream.Write($msg, 0, $msg.Length)
+            $res.Close()
+            continue
+        }
+
+        # Security: each line must start with cd, git, or be empty
+        $forbidden = $false
+        foreach ($line in $scriptText -split "`n") {
+            $trimmed = $line.Trim()
+            if (-not $trimmed) { continue }
+            if (-not ($trimmed.StartsWith("cd ") -or $trimmed.StartsWith("git "))) {
+                $res.StatusCode = 403
+                $msg = [System.Text.Encoding]::UTF8.GetBytes("{`"error`":`"forbidden command: $trimmed`"}")
+                $res.OutputStream.Write($msg, 0, $msg.Length)
+                $forbidden = $true
+                break
+            }
+        }
+        if ($forbidden) { $res.Close(); continue }
+
+        Write-Log "[git-push] dir=$dir"
+        try {
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = "cmd.exe"
+            $psi.Arguments = "/c $scriptText"
+            $psi.WorkingDirectory = $dir
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+            $psi.UseShellExecute = $false
+            $psi.CreateNoWindow = $true
+            $proc = [System.Diagnostics.Process]::Start($psi)
+            $stdout = $proc.StandardOutput.ReadToEnd()
+            $stderr = $proc.StandardError.ReadToEnd()
+            $proc.WaitForExit(60000)
+            $exitCode = $proc.ExitCode
+            Write-Log "[git-push] exitCode=$exitCode"
+
+            if ($exitCode -eq 0) {
+                $body = "{`"ok`":true,`"output`":$(($stdout | ConvertTo-Json)),`"exitCode`":0}"
+            } else {
+                $body = "{`"ok`":false,`"output`":$(($stdout | ConvertTo-Json)),`"error`":$(($stderr | ConvertTo-Json)),`"exitCode`":$exitCode}"
+            }
+            $msg = [System.Text.Encoding]::UTF8.GetBytes($body)
+            $res.OutputStream.Write($msg, 0, $msg.Length)
+        } catch {
+            $res.StatusCode = 500
+            $errMsg = $_.Exception.Message -replace '"', '\"'
+            $msg = [System.Text.Encoding]::UTF8.GetBytes("{`"error`":`"$errMsg`"}")
+            $res.OutputStream.Write($msg, 0, $msg.Length)
+        }
+        $res.Close()
+        continue
+    }
+
     # API: GET-based chunked write (bypass Office proxy POST block)
     if ($req.HttpMethod -eq "GET" -and $urlPath -eq "/api/write-start") {
         $params = [System.Web.HttpUtility]::ParseQueryString($req.Url.Query)

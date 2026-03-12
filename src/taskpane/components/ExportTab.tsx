@@ -9,6 +9,8 @@ import {
   Dropdown,
   Option,
   Input,
+  Switch,
+  Spinner,
 } from '@fluentui/react-components';
 import {
   ArrowExportRegular,
@@ -331,6 +333,9 @@ interface ExportTabProps {
   onProgress: (progress: ExportProgress) => void;
   onReloadConfig: () => void;
   onClearResult: () => void;
+  monitorEnabled: boolean;
+  monitorStatus: 'idle' | 'watching' | 'exporting';
+  onToggleMonitor: (enabled: boolean) => void;
 }
 
 export function ExportTab({
@@ -343,6 +348,9 @@ export function ExportTab({
   onProgress,
   onReloadConfig,
   onClearResult,
+  monitorEnabled,
+  monitorStatus,
+  onToggleMonitor,
 }: ExportTabProps) {
   const styles = useStyles();
   const [changingVersion, setChangingVersion] = useState(false);
@@ -541,6 +549,33 @@ export function ExportTab({
               </span>
             </div>
           )}
+          <div className={styles.configRow}>
+            <span className={styles.configLabel}>协同监听</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Switch
+                checked={monitorEnabled}
+                onChange={(_, data) => onToggleMonitor(data.checked)}
+                disabled={isExporting && !monitorEnabled}
+              />
+              {monitorStatus === 'watching' && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#107C10' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#107C10', display: 'inline-block' }} />
+                  监听中
+                </span>
+              )}
+              {monitorStatus === 'exporting' && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: tokens.colorBrandForeground1 }}>
+                  <Spinner size="extra-tiny" />
+                  正在协同导出...
+                </span>
+              )}
+              {monitorStatus === 'idle' && !monitorEnabled && (
+                <span style={{ fontSize: '11px', color: tokens.colorNeutralForeground4 }}>
+                  已关闭
+                </span>
+              )}
+            </div>
+          </div>
           <div className={styles.configRow} style={{ alignItems: 'flex-start', borderBottom: 'none' }}>
             <span className={styles.configLabel} style={{ paddingTop: '4px' }}>导出目录</span>
             {editingDir ? (

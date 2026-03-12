@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   makeStyles,
   tokens,
@@ -29,6 +29,11 @@ import { HelpPanel } from './components/HelpPanel';
 import { useConfig } from './hooks/useConfig';
 import { ExportResult, ExportProgress } from '../types/table';
 import { StudioConfigStore } from '../v2/StudioConfigStore';
+import { CollaborationMonitor, CollabTriggerParams } from '../v3/CollaborationMonitor';
+import { ExportJob } from '../engine/ExportJob';
+import { GitHandler } from '../git/GitHandler';
+import { GitExecutor } from '../git/GitExecutor';
+import { configManager } from '../v2/ConfigManager';
 
 const useStyles = makeStyles({
   root: {
@@ -132,15 +137,125 @@ export function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [initializing, setInitializing] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+  const [monitorEnabled, setMonitorEnabled] = useState(false);
+  const [monitorStatus, setMonitorStatus] = useState<'idle' | 'watching' | 'exporting'>('idle');
+  const monitorRef = useRef<CollaborationMonitor | null>(null);
+  const isExportingRef = useRef(false);
 
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
 
+  // 保持 isExportingRef 同步
+  useEffect(() => {
+    isExportingRef.current = isExporting;
+  }, [isExporting]);
+
   const handleExportComplete = useCallback((result: ExportResult) => {
     setExportResult(result);
     setIsExporting(false);
     setProgress(null);
+  }, []);
+
+  // 协同导出触发回调
+  const handleCollabTrigger = useCallback(async (params: CollabTriggerParams) => {
+    setMonitorStatus('exporting');
+    setIsExporting(true);
+
+    try {
+      // 覆盖版本配置
+      await configManager.setOutputVersion(params.version);
+      await configManager.setOutputVersionNumber(params.versionNumber);
+
+      // 执行导出
+      const job = new ExportJob((p) => setProgress(p));
+      const result = await job.runExport();
+      setExportResult(result);
+      setIsExporting(false);
+      setProgress(null);
+
+      // 准备状态文本
+      let statusText = result.success ? '导出完成' : '导出失败';
+      const resultText = result.success
+        ? `${result.changedTables} 张表已更新`
+        : `错误: ${result.errors.filter(e => e.severity === 'error').map(e => e.message).join('; ')}`;
+
+      // 自动 Git push
+      if (result.success && result.modifiedFiles.length > 0) {
+        const fileServerBase = await GitExecutor.detect();
+        if (fileServerBase) {
+          await loadConfig(); // 刷新以获取最新序列号
+          const freshConfig = await new Promise<typeof config>((resolve) => {
+            // loadConfig 是异步的，直接用当前 config 即可
+            resolve(config);
+          });
+
+          const outputDir = freshConfig?.outputSettings.outputDirectory || '';
+          if (outputDir) {
+            const gitHandler = new GitHandler(outputDir);
+            const commitMsg = gitHandler.generateCommitMessage(
+              freshConfig?.gitCommitTemplate || '',
+              params.version,
+              params.versionNumber,
+              freshConfig?.outputSettings.versionSequence || 0
+            );
+            const commands = gitHandler.generatePushCommands(result.modifiedFiles, commitMsg);
+            const executor = new GitExecutor(fileServerBase);
+            const gitResult = await executor.execute(outputDir, commands);
+            if (!gitResult.ok) {
+              statusText = `导出完成(Git失败: ${gitResult.error || 'unknown'})`;
+            }
+          }
+        } else {
+          statusText = '导出完成(Git跳过: file-server未运行)';
+        }
+      }
+
+      // 回写状态到 StudioConfig
+      await Excel.run(async (context) => {
+        await StudioConfigStore.writeCollabStatus(context, statusText, resultText, false);
+      });
+
+      await loadConfig();
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setIsExporting(false);
+      setProgress(null);
+
+      // 回写错误状态
+      try {
+        await Excel.run(async (context) => {
+          await StudioConfigStore.writeCollabStatus(context, `导出失败: ${errMsg}`, '', false);
+        });
+      } catch { /* ignore */ }
+    } finally {
+      setMonitorStatus(monitorEnabled ? 'watching' : 'idle');
+    }
+  }, [config, loadConfig, monitorEnabled]);
+
+  // 切换协同监听
+  const handleToggleMonitor = useCallback((enabled: boolean) => {
+    setMonitorEnabled(enabled);
+    if (enabled) {
+      if (!monitorRef.current) {
+        monitorRef.current = new CollaborationMonitor({
+          onTrigger: handleCollabTrigger,
+          isExporting: () => isExportingRef.current,
+        });
+      }
+      monitorRef.current.start();
+      setMonitorStatus('watching');
+    } else {
+      monitorRef.current?.stop();
+      setMonitorStatus('idle');
+    }
+  }, [handleCollabTrigger]);
+
+  // 清理 monitor
+  useEffect(() => {
+    return () => {
+      monitorRef.current?.stop();
+    };
   }, []);
 
   const handleInitialize = useCallback(async () => {
@@ -237,6 +352,9 @@ export function App() {
             onProgress={setProgress}
             onReloadConfig={loadConfig}
             onClearResult={() => setExportResult(null)}
+            monitorEnabled={monitorEnabled}
+            monitorStatus={monitorStatus}
+            onToggleMonitor={handleToggleMonitor}
           />
         )}
 
