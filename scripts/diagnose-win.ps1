@@ -205,12 +205,19 @@ if ($wv2) {
     }
 }
 
-# ── 6. Office Trust Center ────────────────────────────────────
+# ── 6. Office Trust Center & Policies ─────────────────────────
 
-Write-Check "6. Office Add-in Trust"
+Write-Check "6. Office Add-in Trust & Policies"
 $trustPath = "HKCU:\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs"
 if (Test-Path $trustPath) {
-    Write-Info "Trusted catalogs registry exists"
+    Write-Pass "Trusted catalogs registry exists"
+    $catalogs = Get-ChildItem $trustPath -ErrorAction SilentlyContinue
+    foreach ($cat in $catalogs) {
+        $catProps = Get-ItemProperty $cat.PSPath -ErrorAction SilentlyContinue
+        Write-Info "  Catalog: $($cat.PSChildName) -> Url=$($catProps.Url)"
+    }
+} else {
+    Write-Warn "No trusted catalogs configured"
 }
 
 # Check if web add-ins are blocked
@@ -220,6 +227,84 @@ if (Test-Path $secPath) {
     Write-Info "WEF Security settings: $($props | Format-List | Out-String)"
 } else {
     Write-Info "No WEF security overrides (using defaults)"
+}
+
+# Check Group Policy restrictions
+Write-Check "6b. Group Policy & Restrictions"
+$policyPaths = @(
+    "HKCU:\Software\Policies\Microsoft\Office\16.0\WEF",
+    "HKLM:\Software\Policies\Microsoft\Office\16.0\WEF",
+    "HKCU:\Software\Microsoft\Office\16.0\WEF"
+)
+$gpBlocked = $false
+foreach ($pp in $policyPaths) {
+    if (Test-Path $pp) {
+        $gpProps = Get-ItemProperty $pp -ErrorAction SilentlyContinue
+        # Check AllowDeveloperCatalog
+        if ($null -ne $gpProps.AllowDeveloperCatalog -and $gpProps.AllowDeveloperCatalog -eq 0) {
+            Write-Fail "Developer catalog BLOCKED at $pp (AllowDeveloperCatalog=0)"
+            $gpBlocked = $true
+        }
+        # Check BlockWebAddins
+        if ($null -ne $gpProps.BlockWebAddins -and $gpProps.BlockWebAddins -eq 1) {
+            Write-Fail "Web add-ins BLOCKED at $pp (BlockWebAddins=1)"
+            $gpBlocked = $true
+        }
+        # Check AllowWebExtensions
+        if ($null -ne $gpProps.AllowWebExtensions -and $gpProps.AllowWebExtensions -eq 0) {
+            Write-Fail "Web extensions BLOCKED at $pp (AllowWebExtensions=0)"
+            $gpBlocked = $true
+        }
+    }
+}
+if (-not $gpBlocked) {
+    Write-Pass "No Group Policy blocks detected"
+}
+
+# Check HasRegistryAddin flag
+Write-Check "6c. HasRegistryAddin Flag"
+$wefBase = "HKCU:\Software\Microsoft\Office\16.0\WEF"
+if (Test-Path $wefBase) {
+    $wefProps = Get-ItemProperty $wefBase -ErrorAction SilentlyContinue
+    $propNames = ($wefProps | Get-Member -MemberType NoteProperty | Where-Object { $_.Name -like "*HasRegistry*" }).Name
+    if ($propNames) {
+        foreach ($pn in $propNames) {
+            $val = $wefProps.$pn
+            if ($val -eq 0) {
+                Write-Fail "$pn = 0 (Excel ignores WEF\Developer key!)"
+                Write-Info "Fix: reg add `"HKCU\Software\Microsoft\Office\16.0\WEF`" /v `"$pn`" /t REG_DWORD /d 1 /f"
+            } else {
+                Write-Pass "$pn = $val"
+            }
+        }
+    } else {
+        Write-Info "No HasRegistryAddin flags found (checking all values...)"
+        $allNames = ($wefProps | Get-Member -MemberType NoteProperty).Name | Where-Object { $_ -notlike "PS*" }
+        foreach ($n in $allNames) {
+            Write-Info "  $n = $($wefProps.$n)"
+        }
+    }
+}
+
+# Check Developer key contents
+Write-Check "6d. WEF Developer Key"
+$devPath = "HKCU:\Software\Microsoft\Office\16.0\WEF\Developer"
+if (Test-Path $devPath) {
+    $devKeys = Get-ChildItem $devPath -ErrorAction SilentlyContinue
+    if ($devKeys.Count -eq 0) {
+        Write-Warn "Developer key exists but is empty"
+    }
+    foreach ($dk in $devKeys) {
+        $dkVal = (Get-ItemProperty $dk.PSPath -ErrorAction SilentlyContinue).'(default)'
+        Write-Info "  $($dk.PSChildName) -> $dkVal"
+        if ($dkVal -and (Test-Path $dkVal)) {
+            Write-Pass "  Manifest file exists"
+        } elseif ($dkVal) {
+            Write-Fail "  Manifest file NOT FOUND: $dkVal"
+        }
+    }
+} else {
+    Write-Fail "WEF\Developer key does not exist"
 }
 
 # ── 7. Startup shortcut ──────────────────────────────────────
