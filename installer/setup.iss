@@ -2,7 +2,7 @@
 ; Build: iscc setup.iss
 
 #define MyAppName "GameData Studio"
-#define MyAppVersion "1.1.35"
+#define MyAppVersion "1.1.36"
 #define MyAppPublisher "Vinesy"
 #define MyAppURL "https://github.com/Vinesy-x/gamedata-studio"
 #define MyAddinID "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -66,22 +66,5 @@ Filename: "taskkill.exe"; Parameters: "/F /IM powershell.exe /FI ""WINDOWTITLE e
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\web"
 
-[Code]
-// Patch manifest: replace https with http for Windows (no dev certs)
-procedure CurStepChanged(CurStep: TSetupStep);
-var
-  FileName: String;
-  Content: AnsiString;
-  ContentStr: String;
-begin
-  if CurStep = ssPostInstall then
-  begin
-    FileName := ExpandConstant('{app}\manifest.xml');
-    if LoadStringFromFile(FileName, Content) then
-    begin
-      ContentStr := String(Content);
-      StringChangeEx(ContentStr, 'https://localhost:9876', 'http://localhost:9876', True);
-      SaveStringToFile(FileName, AnsiString(ContentStr), False);
-    end;
-  end;
-end;
+; Note: manifest https→http patching is done at CI build time (UTF-8 safe)
+; Do NOT patch manifest here — Inno Setup AnsiString corrupts Chinese characters
