@@ -459,8 +459,9 @@ export class StudioConfigStore {
     }
     sheet.getRangeByIndexes(1, 0, 1, totalCols).values = [descRow];
 
-    // 数据行
+    // 数据行（A列填版本控制值1）
     const dataRow: (string | number)[] = new Array(totalCols).fill('');
+    dataRow[0] = 1;
     dataRow[dataStartCol] = 1;
     dataRow[dataStartCol + 1] = 'CONFIG_VERSION';
     dataRow[dataStartCol + 2] = '0';
