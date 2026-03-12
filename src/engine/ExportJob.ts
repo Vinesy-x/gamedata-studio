@@ -204,15 +204,18 @@ export class ExportJob {
    * 检测文件服务器：优先同源 dev server，其次 localhost:9876 轻量服务
    */
   private async detectWriteMode(_outputDir: string): Promise<void> {
-    // 1. 尝试同源 dev server (npm start)
-    try {
-      const resp = await fetch('/api/read-file?directory=.&fileName=package.json', { signal: AbortSignal.timeout(1500) });
-      if (resp.ok || resp.status === 404) {
-        this.fileServerBase = '';
-        logger.info('使用 Dev Server 写入文件');
-        return;
-      }
-    } catch { /* not available */ }
+    // 1. 尝试同源 dev server (npm start) — 仅在 localhost 下才有意义
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (host === 'localhost' || host === '127.0.0.1') {
+      try {
+        const resp = await fetch('/api/read-file?directory=.&fileName=package.json', { signal: AbortSignal.timeout(1500) });
+        if (resp.ok || resp.status === 404) {
+          this.fileServerBase = '';
+          logger.info('使用 Dev Server 写入文件');
+          return;
+        }
+      } catch { /* not available */ }
+    }
 
     // 2. 尝试本地文件服务 (file-server.py)
     try {
