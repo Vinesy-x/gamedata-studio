@@ -397,7 +397,7 @@ export class StudioConfigStore {
         chineseName: '配置表',
         englishName: 'GameConfig',
         shouldOutput: true,
-        versionRange: 'R',
+        versionRange: '1.0',
       });
     }
 
@@ -422,26 +422,63 @@ export class StudioConfigStore {
     await context.sync();
     if (!existing.isNullObject) return;
 
+    // 从配置构建 roads 列表
+    const data = await this.load(context);
+    const roads = data ? buildRoadsFromConfig(data) : [{ field: 'roads_0', name: '默认' }];
+    const roadsCount = roads.length;
+    const gapCols = 2;
+    const configMarkerCol = 1 + roadsCount + gapCols;
+    const dataStartCol = configMarkerCol + 1;
+
+    const fields = ['key_id=int', 'param=string', 'value=string'];
+    const fieldDescs = ['key_序号', '参数名', '参数值'];
+    const totalCols = dataStartCol + fields.length;
+
     const sheet = context.workbook.worksheets.add('配置表');
 
-    // 字段定义行: #配置区域# | id=int | param=string | value=string
-    // 描述行:                | key_序号 | 参数名 | 参数值
-    // 数据行:                | 1 | CONFIG_VERSION | 0
-    sheet.getRangeByIndexes(0, 0, 3, 4).values = [
-      ['#配置区域#', 'key_id=int', 'param=string', 'value=string'],
-      ['', 'key_序号', '参数名', '参数值'],
-      ['', 1, 'CONFIG_VERSION', '0'],
-    ];
+    // version_r 行（R控制方式）
+    const vrRow: (string | number)[] = new Array(totalCols).fill('');
+    vrRow[0] = 'version_r';
+    for (let i = 0; i < roadsCount; i++) {
+      vrRow[1 + i] = roads[i].field;
+    }
+    vrRow[configMarkerCol] = '#配置区域#';
+    for (let i = 0; i < fields.length; i++) {
+      vrRow[dataStartCol + i] = fields[i];
+    }
+    sheet.getRangeByIndexes(0, 0, 1, totalCols).values = [vrRow];
+
+    // 描述行
+    const descRow: (string | number)[] = new Array(totalCols).fill('');
+    descRow[0] = '版本行属';
+    for (let i = 0; i < roadsCount; i++) {
+      descRow[1 + i] = roads[i].name;
+    }
+    for (let i = 0; i < fieldDescs.length; i++) {
+      descRow[dataStartCol + i] = fieldDescs[i];
+    }
+    sheet.getRangeByIndexes(1, 0, 1, totalCols).values = [descRow];
+
+    // 数据行
+    const dataRow: (string | number)[] = new Array(totalCols).fill('');
+    dataRow[dataStartCol] = 1;
+    dataRow[dataStartCol + 1] = 'CONFIG_VERSION';
+    dataRow[dataStartCol + 2] = '0';
+    sheet.getRangeByIndexes(2, 0, 1, totalCols).values = [dataRow];
 
     // 列宽
     sheet.getRangeByIndexes(0, 0, 1, 1).format.columnWidth = 80;
-    sheet.getRangeByIndexes(0, 1, 1, 1).format.columnWidth = 80;
-    sheet.getRangeByIndexes(0, 2, 1, 1).format.columnWidth = 200;
-    sheet.getRangeByIndexes(0, 3, 1, 1).format.columnWidth = 200;
+    for (let i = 0; i < roadsCount; i++) {
+      sheet.getRangeByIndexes(0, 1 + i, 1, 1).format.columnWidth = 80;
+    }
+    sheet.getRangeByIndexes(0, configMarkerCol, 1, 1).format.columnWidth = 80;
+    for (let i = 0; i < fields.length; i++) {
+      sheet.getRangeByIndexes(0, dataStartCol + i, 1, 1).format.columnWidth = 160;
+    }
 
     sheet.activate();
     await context.sync();
-    logger.info('已创建「配置表」(GameConfig)');
+    logger.info('已创建「配置表」(GameConfig) — R控制方式');
   }
 
   /**
