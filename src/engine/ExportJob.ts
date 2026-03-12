@@ -23,6 +23,8 @@ export class ExportJob {
   private dataLoader: DataLoader;
   private exportWriter: ExportWriter;
   private onProgress: ProgressCallback;
+  private dirHandle: FileSystemDirectoryHandle | null = null;
+  private useFileSystemAPI = false;
 
   constructor(onProgress: ProgressCallback) {
     this.errorHandler = new ErrorHandler();
@@ -62,6 +64,9 @@ export class ExportJob {
         });
         return this.buildResult(false, modifiedFiles, startTime, 0, 0);
       }
+
+      // 检测写入模式：优先用 dev server API，不可用时切换到 File System Access API
+      await this.detectWriteMode(outputDir);
 
       // 步骤2: 创建版本筛选器
       this.emitProgress(2, 10, '正在初始化筛选器...');
@@ -197,13 +202,55 @@ export class ExportJob {
   }
 
   /**
-   * 通过本地服务写入文件到磁盘
+   * 检测写入模式
+   */
+  private async detectWriteMode(outputDir: string): Promise<void> {
+    // 先尝试 dev server
+    try {
+      const resp = await fetch('/api/read-file?directory=.&fileName=package.json', { signal: AbortSignal.timeout(2000) });
+      if (resp.ok || resp.status === 404) {
+        this.useFileSystemAPI = false;
+        logger.info('使用 Dev Server API 写入文件');
+        return;
+      }
+    } catch {
+      // dev server 不可用
+    }
+
+    // 回退到 File System Access API
+    if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
+      try {
+        this.dirHandle = await (window as any).showDirectoryPicker({
+          mode: 'readwrite',
+          startIn: 'desktop',
+        });
+        this.useFileSystemAPI = true;
+        logger.info('使用 File System Access API 写入文件（用户选择的目录）');
+        return;
+      } catch (err) {
+        throw new Error(`用户取消了目录选择或浏览器不支持: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    throw new Error('无法写入文件：本地开发服务器不可用，且浏览器不支持 File System Access API');
+  }
+
+  /**
+   * 写入文件到磁盘
    */
   private async writeFileToServer(
     directory: string,
     fileName: string,
     buffer: ArrayBuffer
   ): Promise<void> {
+    if (this.useFileSystemAPI && this.dirHandle) {
+      const fileHandle = await this.dirHandle.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(buffer);
+      await writable.close();
+      return;
+    }
+
     const base64 = this.arrayBufferToBase64(buffer);
     const resp = await fetch('/api/write-file', {
       method: 'POST',
@@ -217,12 +264,22 @@ export class ExportJob {
   }
 
   /**
-   * 通过本地服务读取已有文件（用于差异对比）
+   * 读取已有文件（用于差异对比）
    */
   private async readFileFromServer(
     directory: string,
     fileName: string
   ): Promise<ArrayBuffer | null> {
+    if (this.useFileSystemAPI && this.dirHandle) {
+      try {
+        const fileHandle = await this.dirHandle.getFileHandle(fileName);
+        const file = await fileHandle.getFile();
+        return await file.arrayBuffer();
+      } catch {
+        return null;
+      }
+    }
+
     try {
       const resp = await fetch(`/api/read-file?directory=${encodeURIComponent(directory)}&fileName=${encodeURIComponent(fileName)}`);
       if (!resp.ok) return null;
