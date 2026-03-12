@@ -2,84 +2,53 @@
 chcp 65001 >nul
 title GameData Studio Installer
 
-:: Check admin privileges
-net session >nul 2>&1
-if %errorLevel% neq 0 (
-    echo Requesting administrator privileges...
-    powershell -Command "Start-Process '%~f0' -Verb RunAs"
-    exit /b
-)
-
 echo =========================================
 echo   GameData Studio Installer
 echo =========================================
 echo.
 
 set MANIFEST_URL=https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/manifest-online.xml
-set ADDIN_DIR=%USERPROFILE%\GameDataStudio
+set ADDIN_DIR=%LOCALAPPDATA%\GameDataStudio
 set MANIFEST_FILE=%ADDIN_DIR%\manifest.xml
-set SHARE_NAME=GameDataStudio
+set ADDIN_ID=a1b2c3d4-e5f6-7890-abcd-ef1234567890
 
 :: Step 1: Create directory
 if not exist "%ADDIN_DIR%" (
-    echo [1/4] Creating directory...
+    echo [1/3] Creating directory...
     mkdir "%ADDIN_DIR%"
 ) else (
-    echo [1/4] Directory exists, OK
+    echo [1/3] Directory OK
 )
 
 :: Step 2: Download manifest
-echo [2/4] Downloading manifest...
+echo [2/3] Downloading manifest...
 powershell -Command "Invoke-WebRequest -Uri '%MANIFEST_URL%' -OutFile '%MANIFEST_FILE%'"
 
 if not exist "%MANIFEST_FILE%" (
     echo.
-    echo ERROR: Download failed. Check your network connection.
+    echo ERROR: Download failed. Check your network.
     pause
     exit /b 1
 )
-echo       Download OK
+echo       OK
 
-:: Step 3: Create network share
-echo [3/4] Creating network share...
-net share %SHARE_NAME% >nul 2>&1
-if %errorLevel% equ 0 (
-    echo       Share already exists, updating...
-    net share %SHARE_NAME% /delete /y >nul 2>&1
-)
-net share %SHARE_NAME%="%ADDIN_DIR%" /grant:everyone,READ >nul 2>&1
-if %errorLevel% neq 0 (
-    echo       WARNING: Could not create share, trying alternative...
-    net share %SHARE_NAME%="%ADDIN_DIR%" >nul 2>&1
-)
-echo       Share: \\%COMPUTERNAME%\%SHARE_NAME%
-
-:: Step 4: Register trusted catalog in registry
-echo [4/4] Registering trusted catalog...
-set REG_PATH=HKCU\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\GameDataStudio
-reg add "%REG_PATH%" /v Url /t REG_SZ /d "\\%COMPUTERNAME%\%SHARE_NAME%" /f >nul 2>&1
-reg add "%REG_PATH%" /v Flags /t REG_DWORD /d 1 /f >nul 2>&1
-echo       Registry OK
+:: Step 3: Register add-in in registry (Developer sideload)
+echo [3/3] Registering add-in...
+reg add "HKCU\Software\Microsoft\Office\16.0\WEF\Developer\%ADDIN_ID%" /ve /t REG_SZ /d "%MANIFEST_FILE%" /f >nul 2>&1
+echo       OK
 
 echo.
 echo =========================================
 echo   Install complete!
 echo =========================================
 echo.
-echo Next steps:
-echo   1. Open Excel (close it first if running)
-echo   2. File - Options - Trust Center
-echo   3. Click "Trust Center Settings"
-echo   4. Click "Trusted Add-in Catalogs"
-echo   5. You should see: \\%COMPUTERNAME%\%SHARE_NAME%
-echo      If not, add it manually and check "Show in Menu"
-echo   6. Click OK, restart Excel
-echo   7. Home tab - Add-ins dropdown
-echo      or Insert - My Add-ins - SHARED FOLDER
-echo   8. Click GameData Studio - Add
+echo   1. Close Excel if running
+echo   2. Open Excel
+echo   3. GameData Studio will appear automatically
 echo.
-echo Share path: \\%COMPUTERNAME%\%SHARE_NAME%
-echo Manifest:   %MANIFEST_FILE%
+echo To uninstall:
+echo   reg delete "HKCU\Software\Microsoft\Office\16.0\WEF\Developer\%ADDIN_ID%" /f
+echo   del "%MANIFEST_FILE%"
 echo =========================================
 echo.
 pause
