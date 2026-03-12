@@ -2,7 +2,7 @@
 ; Build: iscc setup.iss
 
 #define MyAppName "GameData Studio"
-#define MyAppVersion "1.1.34"
+#define MyAppVersion "1.1.35"
 #define MyAppPublisher "Vinesy"
 #define MyAppURL "https://github.com/Vinesy-x/gamedata-studio"
 #define MyAddinID "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -35,6 +35,7 @@ Source: "files\manifest.xml"; DestDir: "{app}"; Flags: ignoreversion
 ; File server scripts
 Source: "..\scripts\file-server.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\scripts\start-hidden.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\scripts\diagnose-win.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Web files (pre-built from dist/)
 Source: "..\dist\taskpane.html"; DestDir: "{app}\web"; Flags: ignoreversion
@@ -45,11 +46,13 @@ Source: "..\dist\assets\*"; DestDir: "{app}\web\assets"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
+Name: "{group}\Diagnose {#MyAppName}"; Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\diagnose-win.ps1"""
 ; Auto-start file server on Windows login (truly hidden via VBS)
 Name: "{userstartup}\GameData Studio Server"; Filename: "wscript.exe"; Parameters: """{app}\start-hidden.vbs"""
 
 [Registry]
-; Register Office add-in via sideloading (try both 16.0 and 15.0)
+; Register Office add-in via sideloading (cover Office 2013/2016/365)
+Root: HKCU; Subkey: "Software\Microsoft\Office\15.0\WEF\Developer\{#MyAddinID}"; ValueType: string; ValueData: "{app}\manifest.xml"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Office\16.0\WEF\Developer\{#MyAddinID}"; ValueType: string; ValueData: "{app}\manifest.xml"; Flags: uninsdeletekey
 
 [Run]
