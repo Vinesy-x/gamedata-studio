@@ -503,7 +503,15 @@ export class StudioConfigStore {
     await context.sync();
 
     let sheet: Excel.Worksheet;
+    let isSheet1Empty = false;
     if (!sheet1.isNullObject) {
+      const usedRange = sheet1.getUsedRangeOrNullObject();
+      usedRange.load('isNullObject');
+      await context.sync();
+      isSheet1Empty = usedRange.isNullObject;
+    }
+
+    if (!sheet1.isNullObject && isSheet1Empty) {
       sheet1.name = '表名对照';
       sheet = sheet1;
     } else {
