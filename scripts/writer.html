@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html><head>
+<title>GameData Studio Writer</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+</head>
+<body>
+<p id="status">Initializing...</p>
+<script>
+var statusEl = document.getElementById('status');
+var queue = [];
+var processing = false;
+
+async function processQueue() {
+  if (processing || queue.length === 0) return;
+  processing = true;
+  var item = queue.shift();
+  statusEl.textContent = 'Writing: ' + item.fileName;
+  try {
+    if (item.action === 'write') {
+      var resp = await fetch('/api/write-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory: item.directory, fileName: item.fileName, data: item.data })
+      });
+      if (!resp.ok) {
+        var text = await resp.text();
+        Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: false, error: 'HTTP ' + resp.status + ': ' + text }));
+      } else {
+        Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: true }));
+      }
+    } else if (item.action === 'read') {
+      var resp = await fetch('/api/read-file?directory=' + encodeURIComponent(item.directory) + '&fileName=' + encodeURIComponent(item.fileName));
+      if (!resp.ok) {
+        Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: false, error: 'not found' }));
+      } else {
+        var buf = await resp.arrayBuffer();
+        var bytes = new Uint8Array(buf);
+        var binary = '';
+        for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        var b64 = btoa(binary);
+        Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: true, data: b64 }));
+      }
+    } else if (item.action === 'ping') {
+      Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: true }));
+    }
+  } catch (err) {
+    Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: false, error: err.message }));
+  }
+  processing = false;
+  if (queue.length > 0) processQueue();
+}
+
+Office.onReady(function() {
+  statusEl.textContent = 'Ready - waiting for commands...';
+  Office.context.ui.addHandlerAsync(
+    Office.EventType.DialogParentMessageReceived,
+    function(arg) {
+      var msg = JSON.parse(arg.message);
+      queue.push(msg);
+      processQueue();
+    }
+  );
+  // Signal ready
+  Office.context.ui.messageParent(JSON.stringify({ id: '__ready__', ok: true }));
+});
+</script>
+</body></html>

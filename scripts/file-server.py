@@ -25,6 +25,7 @@ REMOTE_VERSION_URL = f'{GITHUB_PAGES}/version.txt'
 DIST_FILES = [
     'taskpane.html',
     'bridge.html',
+    'writer.html',
     'taskpane.bundle.js',
     'taskpane.bundle.js.LICENSE.txt',
     'assets/gds-16.png',

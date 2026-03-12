@@ -193,8 +193,10 @@ export class ExportJob {
       }
       await this.updateExportResults(modifiedFiles);
 
+      this.closeDialog();
       return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables);
     } catch (err) {
+      this.closeDialog();
       logger.error('导出失败', err);
       this.errorHandler.logError({
         code: ErrorCode.FILE_WRITE_FAILED,
@@ -207,89 +209,95 @@ export class ExportJob {
     }
   }
 
-  // ── iframe bridge: Office webview 代理阻止直接 fetch localhost ──
+  // ── Office Dialog API: webview 无法直接访问 localhost，通过 dialog 中转 ──
 
-  private bridge: HTMLIFrameElement | null = null;
-  private bridgeReady = false;
-  private bridgeCallbacks = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
-  private bridgeIdCounter = 0;
+  private dialog: Office.Dialog | null = null;
+  private dialogReady = false;
+  private dialogCallbacks = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
+  private dialogIdCounter = 0;
   private fileServerBase = 'http://localhost:9876';
 
-  private initBridge(): Promise<void> {
-    if (this.bridgeReady) return Promise.resolve();
+  private openWriterDialog(): Promise<void> {
+    if (this.dialogReady && this.dialog) return Promise.resolve();
 
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('无法连接本地文件服务。请先启动文件服务再导出。')), 5000);
+      const timeout = setTimeout(() => reject(new Error('无法连接本地文件服务。请先启动文件服务再导出。')), 10000);
 
-      const onMessage = (e: MessageEvent) => {
-        const data = e.data;
-        if (!data || !data.id) return;
+      Office.context.ui.displayDialogAsync(
+        `${this.fileServerBase}/writer.html`,
+        { width: 15, height: 10, displayInIframe: false },
+        (result) => {
+          if (result.status !== Office.AsyncResultStatus.Succeeded) {
+            clearTimeout(timeout);
+            reject(new Error(`打开文件服务对话框失败: ${result.error?.message}`));
+            return;
+          }
+          this.dialog = result.value;
 
-        // bridge ready signal
-        if (data.id === '__bridge_ready__') {
-          this.bridgeReady = true;
-          clearTimeout(timeout);
-          window.removeEventListener('message', onMessage);
-          // Re-register permanent listener
-          window.addEventListener('message', (ev) => this.onBridgeMessage(ev));
-          logger.info('iframe bridge 已就绪');
-          resolve();
-          return;
+          this.dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg: any) => {
+            let data: any;
+            try { data = JSON.parse(arg.message); } catch { return; }
+
+            // Ready signal
+            if (data.id === '__ready__') {
+              this.dialogReady = true;
+              clearTimeout(timeout);
+              logger.info('Writer dialog 已就绪');
+              resolve();
+              return;
+            }
+
+            // Callback response
+            const cb = this.dialogCallbacks.get(data.id);
+            if (cb) {
+              this.dialogCallbacks.delete(data.id);
+              cb.resolve(data);
+            }
+          });
+
+          this.dialog.addEventHandler(Office.EventType.DialogEventReceived, () => {
+            this.dialog = null;
+            this.dialogReady = false;
+          });
         }
-      };
-      window.addEventListener('message', onMessage);
-
-      // Create hidden iframe
-      this.bridge = document.createElement('iframe');
-      this.bridge.style.display = 'none';
-      this.bridge.src = `${this.fileServerBase}/bridge.html`;
-      document.body.appendChild(this.bridge);
+      );
     });
   }
 
-  private onBridgeMessage(e: MessageEvent): void {
-    const { id, ok, status, body } = e.data || {};
-    if (!id) return;
-    const cb = this.bridgeCallbacks.get(id);
-    if (!cb) return;
-    this.bridgeCallbacks.delete(id);
-    cb.resolve({ ok, status, body });
-  }
-
-  private bridgeFetch(url: string, options?: RequestInit): Promise<{ ok: boolean; status: number; body: string }> {
+  private sendToDialog(msg: any): Promise<any> {
     return new Promise((resolve, reject) => {
-      if (!this.bridge?.contentWindow) {
-        reject(new Error('bridge not initialized'));
+      if (!this.dialog) {
+        reject(new Error('dialog not open'));
         return;
       }
-      const id = `bf_${++this.bridgeIdCounter}`;
+      const id = `d_${++this.dialogIdCounter}`;
+      msg.id = id;
       const timer = setTimeout(() => {
-        this.bridgeCallbacks.delete(id);
-        reject(new Error('bridge fetch timeout'));
-      }, 30000);
-      this.bridgeCallbacks.set(id, {
+        this.dialogCallbacks.delete(id);
+        reject(new Error('dialog operation timeout'));
+      }, 60000);
+      this.dialogCallbacks.set(id, {
         resolve: (v) => { clearTimeout(timer); resolve(v); },
         reject: (e) => { clearTimeout(timer); reject(e); },
       });
-      this.bridge.contentWindow.postMessage({
-        id,
-        action: 'fetch',
-        url,
-        options: options ? {
-          method: options.method,
-          headers: options.headers,
-          body: options.body,
-        } : undefined,
-      }, '*');
+      this.dialog.messageChild(JSON.stringify(msg));
     });
   }
 
+  private closeDialog(): void {
+    if (this.dialog) {
+      try { this.dialog.close(); } catch { /* ignore */ }
+      this.dialog = null;
+      this.dialogReady = false;
+    }
+  }
+
   /**
-   * 初始化文件服务连接 (通过 iframe bridge)
+   * 初始化文件服务连接
    */
   private async detectWriteMode(_outputDir: string): Promise<void> {
-    await this.initBridge();
-    logger.info(`文件服务连接成功: ${this.fileServerBase}`);
+    await this.openWriterDialog();
+    logger.info('文件服务连接成功');
   }
 
   /**
@@ -301,15 +309,10 @@ export class ExportJob {
     buffer: ArrayBuffer
   ): Promise<void> {
     const base64 = this.arrayBufferToBase64(buffer);
-    const body = JSON.stringify({ directory, fileName, data: base64 });
-    logger.info(`writeFile: ${directory}/${fileName} (${body.length} bytes payload)`);
-    const resp = await this.bridgeFetch(`${this.fileServerBase}/api/write-file`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-    });
+    logger.info(`writeFile: ${directory}/${fileName}`);
+    const resp = await this.sendToDialog({ action: 'write', directory, fileName, data: base64 });
     if (!resp.ok) {
-      throw new Error(`写入文件失败 (HTTP ${resp.status}): ${resp.body}`);
+      throw new Error(`写入文件失败: ${resp.error}`);
     }
   }
 
@@ -321,19 +324,12 @@ export class ExportJob {
     fileName: string
   ): Promise<ArrayBuffer | null> {
     try {
-      const resp = await this.bridgeFetch(
-        `${this.fileServerBase}/api/read-file?directory=${encodeURIComponent(directory)}&fileName=${encodeURIComponent(fileName)}`
-      );
+      const resp = await this.sendToDialog({ action: 'read', directory, fileName });
       if (!resp.ok) return null;
-      // Binary responses are prefixed with __b64__
-      if (resp.body.startsWith('__b64__')) {
-        const b64 = resp.body.slice(7);
-        const binary = atob(b64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        return bytes.buffer;
-      }
-      return new TextEncoder().encode(resp.body).buffer;
+      const binary = atob(resp.data);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes.buffer;
     } catch {
       return null;
     }
