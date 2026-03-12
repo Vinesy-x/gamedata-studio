@@ -2,7 +2,7 @@
 ; Build: iscc setup.iss
 
 #define MyAppName "GameData Studio"
-#define MyAppVersion "1.1.24"
+#define MyAppVersion "1.1.25"
 #define MyAppPublisher "Vinesy"
 #define MyAppURL "https://github.com/Vinesy-x/gamedata-studio"
 #define MyAddinID "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -57,7 +57,7 @@ Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -WindowStyle Hi
 
 [UninstallRun]
 ; Stop file server on uninstall
-Filename: "powershell.exe"; Parameters: "-Command ""Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like '*GameData*File*Server*' } | Stop-Process -Force"""; Flags: runhidden
+Filename: "powershell.exe"; Parameters: "-Command ""Get-Process -ErrorAction SilentlyContinue | Where-Object {{  $_.MainWindowTitle -like '*GameData*File*Server*' }} | Stop-Process -Force"""; Flags: runhidden
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\web"
