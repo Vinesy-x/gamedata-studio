@@ -2,7 +2,7 @@
 ; Build: iscc setup.iss
 
 #define MyAppName "GameData Studio"
-#define MyAppVersion "1.1.37"
+#define MyAppVersion "1.1.38"
 #define MyAppPublisher "Vinesy"
 #define MyAppURL "https://github.com/Vinesy-x/gamedata-studio"
 #define MyAddinID "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -51,9 +51,13 @@ Name: "{group}\Diagnose {#MyAppName}"; Filename: "powershell.exe"; Parameters: "
 Name: "{userstartup}\GameData Studio Server"; Filename: "wscript.exe"; Parameters: """{app}\start-hidden.vbs"""
 
 [Registry]
-; Register Office add-in via sideloading (cover Office 2013/2016/365)
+; Method 1: Direct sideloading (Office 2013/2016)
 Root: HKCU; Subkey: "Software\Microsoft\Office\15.0\WEF\Developer\{#MyAddinID}"; ValueType: string; ValueData: "{app}\manifest.xml"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Office\16.0\WEF\Developer\{#MyAddinID}"; ValueType: string; ValueData: "{app}\manifest.xml"; Flags: uninsdeletekey
+; Method 2: Trusted Catalog (Office 365 / newer versions)
+Root: HKCU; Subkey: "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\GameDataStudio"; ValueType: string; ValueName: "Id"; ValueData: "GameDataStudio"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\GameDataStudio"; ValueType: string; ValueName: "Url"; ValueData: "{app}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\GameDataStudio"; ValueType: dword; ValueName: "Flags"; ValueData: "1"; Flags: uninsdeletekey
 
 [Run]
 ; Start file server after install (truly hidden via VBS)
