@@ -397,7 +397,7 @@ export class StudioConfigStore {
         chineseName: '配置表',
         englishName: 'GameConfig',
         shouldOutput: true,
-        versionRange: '1.0',
+        versionRange: 'R',
       });
     }
 
@@ -456,7 +456,18 @@ export class StudioConfigStore {
     await context.sync();
     if (!existing.isNullObject) return;
 
-    const sheet = context.workbook.worksheets.add('表名对照');
+    // 尝试重用 Sheet1（空白工作簿默认sheet），避免多出一个空白sheet
+    const sheet1 = context.workbook.worksheets.getItemOrNullObject('Sheet1');
+    sheet1.load('isNullObject');
+    await context.sync();
+
+    let sheet: Excel.Worksheet;
+    if (!sheet1.isNullObject) {
+      sheet1.name = '表名对照';
+      sheet = sheet1;
+    } else {
+      sheet = context.workbook.worksheets.add('表名对照');
+    }
     // 移到最前面
     sheet.position = 0;
 
