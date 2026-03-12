@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html><head><title>GDS Bridge</title></head>
+<body><script>
+function arrayBufferToBase64(buf) {
+  var bytes = new Uint8Array(buf);
+  var binary = '';
+  for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+window.addEventListener('message', async function(e) {
+  var data = e.data;
+  if (!data || !data.id || !data.action) return;
+  try {
+    if (data.action === 'fetch') {
+      var opts = data.options || {};
+      var resp = await fetch(data.url, opts);
+      var contentType = resp.headers.get('content-type') || '';
+      var body;
+      if (contentType.indexOf('octet-stream') !== -1) {
+        // Binary response: send as base64
+        var buf = await resp.arrayBuffer();
+        body = '__b64__' + arrayBufferToBase64(buf);
+      } else {
+        body = await resp.text();
+      }
+      e.source.postMessage({ id: data.id, ok: resp.ok, status: resp.status, body: body }, '*');
+    } else if (data.action === 'ping') {
+      e.source.postMessage({ id: data.id, ok: true }, '*');
+    }
+  } catch (err) {
+    e.source.postMessage({ id: data.id, ok: false, status: 0, body: err.message }, '*');
+  }
+});
+window.parent.postMessage({ id: '__bridge_ready__', ok: true }, '*');
+</script></body></html>
