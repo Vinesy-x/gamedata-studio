@@ -1,0 +1,30 @@
+#!/bin/sh
+# Auto-increment patch version before push
+
+cd "$(git rev-parse --show-toplevel)" || exit 0
+
+# Read current version from package.json
+CURRENT=$(node -p "require('./package.json').version" 2>/dev/null)
+if [ -z "$CURRENT" ]; then
+  exit 0
+fi
+
+# Increment patch version
+npm version patch --no-git-tag-version >/dev/null 2>&1
+NEW=$(node -p "require('./package.json').version" 2>/dev/null)
+
+# Sync version to installer/setup.iss if it exists
+if [ -f "installer/setup.iss" ]; then
+  if [ "$(uname)" = "Darwin" ]; then
+    sed -i '' "s/#define MyAppVersion \".*\"/#define MyAppVersion \"$NEW\"/" installer/setup.iss
+  else
+    sed -i "s/#define MyAppVersion \".*\"/#define MyAppVersion \"$NEW\"/" installer/setup.iss
+  fi
+  git add installer/setup.iss
+fi
+
+# Amend the latest commit with version bump
+git add package.json
+git commit --amend --no-edit >/dev/null 2>&1
+
+echo "Version: $CURRENT -> $NEW"
