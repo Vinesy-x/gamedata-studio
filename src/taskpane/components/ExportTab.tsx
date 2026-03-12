@@ -513,7 +513,7 @@ const useStyles = makeStyles({
 });
 
 // ─── 数值策划 Tips ─────────────────────────────────────────
-const IDLE_TIPS = [
+export const IDLE_TIPS = [
   // 数值设计哲学
   '好的数值设计，玩家感受不到它的存在',
   '数值策划的终极目标：让玩家觉得自己在做选择',
