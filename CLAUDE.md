@@ -8,6 +8,16 @@ Office Web Add-in (Excel 侧边栏), React + TypeScript + Office JS API
 - `npm test` — 运行单元测试 (Jest)
 - `npm run build` — 生产构建
 - `npm run lint` — TypeScript 类型检查
+- `git config core.hooksPath scripts/hooks` — 启用 git hooks（克隆后需执行一次）
+
+## 版本管理
+- `git push` 时 pre-push hook 自动递增 patch 版本（package.json + installer/setup.iss）
+
+## Windows 安装包
+- 安装 [Inno Setup](https://jrsoftware.org/isdl.php)
+- 运行 `installer/prepare.bat` 准备文件
+- 运行 `iscc installer/setup.iss` 生成安装包
+- 输出：`installer/output/GameDataStudio-Setup-x.x.x.exe`
 
 ## 项目结构
 - `src/engine/` — 核心导出引擎（ConfigLoader, VersionFilter, DataFilter, DataLoader, ExportJob, ExportWriter）
