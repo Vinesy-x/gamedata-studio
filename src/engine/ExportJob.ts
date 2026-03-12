@@ -23,8 +23,7 @@ export class ExportJob {
   private dataLoader: DataLoader;
   private exportWriter: ExportWriter;
   private onProgress: ProgressCallback;
-  private dirHandle: FileSystemDirectoryHandle | null = null;
-  private useFileSystemAPI = false;
+  private fileServerBase = '';  // '' = same origin, or 'http://localhost:9876'
 
   constructor(onProgress: ProgressCallback) {
     this.errorHandler = new ErrorHandler();
@@ -202,37 +201,30 @@ export class ExportJob {
   }
 
   /**
-   * 检测写入模式
+   * 检测文件服务器：优先同源 dev server，其次 localhost:9876 轻量服务
    */
-  private async detectWriteMode(outputDir: string): Promise<void> {
-    // 先尝试 dev server
+  private async detectWriteMode(_outputDir: string): Promise<void> {
+    // 1. 尝试同源 dev server (npm start)
     try {
-      const resp = await fetch('/api/read-file?directory=.&fileName=package.json', { signal: AbortSignal.timeout(2000) });
+      const resp = await fetch('/api/read-file?directory=.&fileName=package.json', { signal: AbortSignal.timeout(1500) });
       if (resp.ok || resp.status === 404) {
-        this.useFileSystemAPI = false;
-        logger.info('使用 Dev Server API 写入文件');
+        this.fileServerBase = '';
+        logger.info('使用 Dev Server 写入文件');
         return;
       }
-    } catch {
-      // dev server 不可用
-    }
+    } catch { /* not available */ }
 
-    // 回退到 File System Access API
-    if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
-      try {
-        this.dirHandle = await (window as any).showDirectoryPicker({
-          mode: 'readwrite',
-          startIn: 'desktop',
-        });
-        this.useFileSystemAPI = true;
-        logger.info('使用 File System Access API 写入文件（用户选择的目录）');
+    // 2. 尝试本地文件服务 (file-server.py)
+    try {
+      const resp = await fetch('http://localhost:9876/api/read-file?directory=.&fileName=_probe', { signal: AbortSignal.timeout(1500) });
+      if (resp.ok || resp.status === 404) {
+        this.fileServerBase = 'http://localhost:9876';
+        logger.info('使用本地文件服务 (localhost:9876) 写入文件');
         return;
-      } catch (err) {
-        throw new Error(`用户取消了目录选择或浏览器不支持: ${err instanceof Error ? err.message : String(err)}`);
       }
-    }
+    } catch { /* not available */ }
 
-    throw new Error('无法写入文件：本地开发服务器不可用，且浏览器不支持 File System Access API');
+    throw new Error('无法写入文件。请先启动本地文件服务：\npython3 scripts/file-server.py');
   }
 
   /**
@@ -243,16 +235,8 @@ export class ExportJob {
     fileName: string,
     buffer: ArrayBuffer
   ): Promise<void> {
-    if (this.useFileSystemAPI && this.dirHandle) {
-      const fileHandle = await this.dirHandle.getFileHandle(fileName, { create: true });
-      const writable = await fileHandle.createWritable();
-      await writable.write(buffer);
-      await writable.close();
-      return;
-    }
-
     const base64 = this.arrayBufferToBase64(buffer);
-    const resp = await fetch('/api/write-file', {
+    const resp = await fetch(`${this.fileServerBase}/api/write-file`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ directory, fileName, data: base64 }),
@@ -270,18 +254,8 @@ export class ExportJob {
     directory: string,
     fileName: string
   ): Promise<ArrayBuffer | null> {
-    if (this.useFileSystemAPI && this.dirHandle) {
-      try {
-        const fileHandle = await this.dirHandle.getFileHandle(fileName);
-        const file = await fileHandle.getFile();
-        return await file.arrayBuffer();
-      } catch {
-        return null;
-      }
-    }
-
     try {
-      const resp = await fetch(`/api/read-file?directory=${encodeURIComponent(directory)}&fileName=${encodeURIComponent(fileName)}`);
+      const resp = await fetch(`${this.fileServerBase}/api/read-file?directory=${encodeURIComponent(directory)}&fileName=${encodeURIComponent(fileName)}`);
       if (!resp.ok) return null;
       return await resp.arrayBuffer();
     } catch {
