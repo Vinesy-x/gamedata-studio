@@ -4,7 +4,13 @@
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $port = 9876
-$dataDir = "$env:USERPROFILE\.gamedata-studio"
+# Auto-detect: if web/ exists next to this script, use script directory; otherwise use ~/.gamedata-studio
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (Test-Path "$scriptDir\web") {
+    $dataDir = $scriptDir
+} else {
+    $dataDir = "$env:USERPROFILE\.gamedata-studio"
+}
 $webDir = "$dataDir\web"
 $versionFile = "$webDir\version.txt"
 $githubPages = "https://vinesy-x.github.io/gamedata-studio"
