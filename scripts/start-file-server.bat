@@ -1,4 +1,4 @@
 @echo off
 title GameData Studio File Server
-powershell -ExecutionPolicy Bypass -File "%~dp0file-server.ps1"
+powershell -ExecutionPolicy Bypass -File "%USERPROFILE%\.gamedata-studio\file-server.ps1"
 pause

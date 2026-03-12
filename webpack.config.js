@@ -81,6 +81,16 @@ module.exports = async (env, options) => {
           { from: dev ? "manifest.xml" : "manifest-online.xml", to: "manifest.xml" },
         ],
       }),
+      // Generate version.txt in dist for file-server auto-update
+      {
+        apply: (compiler) => {
+          compiler.hooks.afterEmit.tap("VersionFile", () => {
+            const distDir = path.resolve(__dirname, "dist");
+            const version = require("./package.json").version;
+            fs.writeFileSync(path.join(distDir, "version.txt"), version);
+          });
+        },
+      },
     ],
   };
 

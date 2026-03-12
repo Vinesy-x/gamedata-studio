@@ -1,23 +1,103 @@
 # GameData Studio - Local File Server (Windows)
-# Usage: Right-click -> Run with PowerShell
-# Or: powershell -ExecutionPolicy Bypass -File file-server.ps1
+# Usage: Double-click start-file-server.bat
+
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $port = 9876
+$dataDir = "$env:USERPROFILE\.gamedata-studio"
+$webDir = "$dataDir\web"
+$versionFile = "$webDir\version.txt"
+$githubPages = "https://vinesy-x.github.io/gamedata-studio"
+
+$distFiles = @(
+    "taskpane.html",
+    "taskpane.bundle.js",
+    "taskpane.bundle.js.LICENSE.txt",
+    "assets/gds-16.png",
+    "assets/gds-32.png",
+    "assets/gds-80.png"
+)
+
+function Update-WebFiles {
+    $localVersion = ""
+    if (Test-Path $versionFile) {
+        $localVersion = (Get-Content $versionFile -Raw).Trim()
+    }
+
+    Write-Host "Checking for updates..."
+    try {
+        $remoteVersion = (Invoke-WebRequest -Uri "$githubPages/version.txt" -UseBasicParsing -TimeoutSec 10).Content.Trim()
+    } catch {
+        if ($localVersion) {
+            Write-Host "  Offline mode, using cached v$localVersion"
+            return $true
+        }
+        Write-Host "  ERROR: No cached files and cannot reach GitHub."
+        return $false
+    }
+
+    if ($remoteVersion -eq $localVersion) {
+        Write-Host "  Already up to date (v$localVersion)"
+        return $true
+    }
+
+    Write-Host "  Updating: v$localVersion -> v$remoteVersion"
+    New-Item -ItemType Directory -Path "$webDir\assets" -Force | Out-Null
+
+    $ok = $true
+    foreach ($file in $distFiles) {
+        $url = "$githubPages/$file"
+        $localPath = Join-Path $webDir ($file -replace '/', '\')
+        $dir = Split-Path $localPath -Parent
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $localPath -UseBasicParsing -TimeoutSec 15
+            $size = (Get-Item $localPath).Length
+            Write-Host "  Downloaded $file ($size bytes)"
+        } catch {
+            Write-Host "  Warning: failed to download $file"
+            $ok = $false
+        }
+    }
+
+    if ($ok) {
+        Set-Content -Path $versionFile -Value $remoteVersion -NoNewline
+        Write-Host "  Updated to v$remoteVersion"
+    }
+    return $true
+}
+
+# Check and update
+Write-Host "GameData Studio File Server"
+Write-Host ""
+if (-not (Update-WebFiles)) { exit 1 }
+
+# Start HTTP listener
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$port/")
+$listener.Prefixes.Add("http://127.0.0.1:$port/")
 $listener.Start()
 
-Write-Host "GameData Studio File Server"
-Write-Host "Listening on http://localhost:$port"
-Write-Host "Keep this window open while using the add-in."
 Write-Host ""
+Write-Host "Ready! http://localhost:$port"
+Write-Host "Keep this window open while using Excel."
+Write-Host ""
+
+$mimeTypes = @{
+    ".html" = "text/html; charset=utf-8"
+    ".js"   = "application/javascript"
+    ".css"  = "text/css"
+    ".png"  = "image/png"
+    ".svg"  = "image/svg+xml"
+    ".json" = "application/json"
+    ".txt"  = "text/plain"
+}
 
 while ($listener.IsListening) {
     $context = $listener.GetContext()
     $req = $context.Request
     $res = $context.Response
 
-    # CORS headers
     $res.Headers.Add("Access-Control-Allow-Origin", "*")
     $res.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
     $res.Headers.Add("Access-Control-Allow-Headers", "Content-Type")
@@ -28,7 +108,10 @@ while ($listener.IsListening) {
         continue
     }
 
-    if ($req.HttpMethod -eq "GET" -and $req.Url.AbsolutePath -eq "/api/read-file") {
+    $urlPath = $req.Url.AbsolutePath
+
+    # API: read file
+    if ($req.HttpMethod -eq "GET" -and $urlPath -eq "/api/read-file") {
         $params = [System.Web.HttpUtility]::ParseQueryString($req.Url.Query)
         $dir = $params["directory"]
         $fileName = $params["fileName"]
@@ -47,7 +130,8 @@ while ($listener.IsListening) {
         continue
     }
 
-    if ($req.HttpMethod -eq "POST" -and $req.Url.AbsolutePath -eq "/api/write-file") {
+    # API: write file
+    if ($req.HttpMethod -eq "POST" -and $urlPath -eq "/api/write-file") {
         $reader = New-Object System.IO.StreamReader($req.InputStream)
         $body = $reader.ReadToEnd() | ConvertFrom-Json
 
@@ -68,6 +152,24 @@ while ($listener.IsListening) {
         $res.OutputStream.Write($msg, 0, $msg.Length)
         $res.Close()
         continue
+    }
+
+    # Static files
+    if ($req.HttpMethod -eq "GET") {
+        $servePath = $urlPath
+        if ($servePath -eq "/") { $servePath = "/taskpane.html" }
+        $localPath = Join-Path $webDir ($servePath.TrimStart('/') -replace '/', '\')
+
+        if (Test-Path $localPath) {
+            $ext = [System.IO.Path]::GetExtension($localPath).ToLower()
+            $ct = $mimeTypes[$ext]
+            if (-not $ct) { $ct = "application/octet-stream" }
+            $res.ContentType = $ct
+            $fileData = [System.IO.File]::ReadAllBytes($localPath)
+            $res.OutputStream.Write($fileData, 0, $fileData.Length)
+            $res.Close()
+            continue
+        }
     }
 
     $res.StatusCode = 404

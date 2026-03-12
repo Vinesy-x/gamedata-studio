@@ -208,33 +208,41 @@ export class ExportJob {
   }
 
   /**
-   * 检测文件服务器：优先同源 dev server，其次 localhost:9876 轻量服务
+   * 检测文件写入方式：同源优先（localhost:9876 或 dev server）
    */
+  private fetchWithTimeout(url: string, timeoutMs = 2000): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+  }
+
   private async detectWriteMode(_outputDir: string): Promise<void> {
-    // 1. 尝试同源 dev server (npm start) — 仅在 localhost 下才有意义
+    // 同源请求（加载项和文件服务在同一个 localhost:9876）
     const host = typeof window !== 'undefined' ? window.location.hostname : '';
     if (host === 'localhost' || host === '127.0.0.1') {
       try {
-        const resp = await fetch('/api/read-file?directory=.&fileName=package.json', { signal: AbortSignal.timeout(1500) });
+        const resp = await this.fetchWithTimeout('/api/read-file?directory=.&fileName=_probe');
         if (resp.ok || resp.status === 404) {
           this.fileServerBase = '';
-          logger.info('使用 Dev Server 写入文件');
+          logger.info('使用本地文件服务（同源）写入文件');
           return;
         }
-      } catch { /* not available */ }
+      } catch { /* fall through */ }
     }
 
-    // 2. 尝试本地文件服务 (file-server.py)
-    try {
-      const resp = await fetch('http://localhost:9876/api/read-file?directory=.&fileName=_probe', { signal: AbortSignal.timeout(1500) });
-      if (resp.ok || resp.status === 404) {
-        this.fileServerBase = 'http://localhost:9876';
-        logger.info('使用本地文件服务 (localhost:9876) 写入文件');
-        return;
-      }
-    } catch { /* not available */ }
+    // 跨域回退（GitHub Pages 等场景）
+    for (const base of ['http://localhost:9876', 'http://127.0.0.1:9876']) {
+      try {
+        const resp = await this.fetchWithTimeout(`${base}/api/read-file?directory=.&fileName=_probe`);
+        if (resp.ok || resp.status === 404) {
+          this.fileServerBase = base;
+          logger.info(`使用本地文件服务 (${base}) 写入文件`);
+          return;
+        }
+      } catch { /* continue */ }
+    }
 
-    throw new Error('无法写入文件。请先启动本地文件服务：\npython3 scripts/file-server.py');
+    throw new Error('无法连接本地文件服务。请先启动文件服务再导出。');
   }
 
   /**
