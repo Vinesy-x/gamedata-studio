@@ -78,6 +78,7 @@ module.exports = async (env, options) => {
       new CopyWebpackPlugin({
         patterns: [
           { from: "assets", to: "assets", noErrorOnMissing: true },
+          { from: "scripts/bridge.html", to: "bridge.html" },
           { from: dev ? "manifest.xml" : "manifest-online.xml", to: "manifest.xml" },
         ],
       }),

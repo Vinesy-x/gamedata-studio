@@ -24,6 +24,7 @@ REMOTE_VERSION_URL = f'{GITHUB_PAGES}/version.txt'
 # Files to download from GitHub Pages
 DIST_FILES = [
     'taskpane.html',
+    'bridge.html',
     'taskpane.bundle.js',
     'taskpane.bundle.js.LICENSE.txt',
     'assets/gds-16.png',

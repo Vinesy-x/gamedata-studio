@@ -207,30 +207,89 @@ export class ExportJob {
     }
   }
 
-  /**
-   * 检测文件写入方式：同源优先（localhost:9876 或 dev server）
-   */
-  private fetchWithTimeout(url: string, timeoutMs = 2000): Promise<Response> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
-  }
+  // ── iframe bridge: Office webview 代理阻止直接 fetch localhost ──
 
-  private async detectWriteMode(_outputDir: string): Promise<void> {
-    // Office webview 通过内部代理加载页面，同源请求不可靠
-    // 始终使用显式地址连接本地文件服务
-    for (const base of ['http://localhost:9876', 'http://127.0.0.1:9876']) {
-      try {
-        const resp = await this.fetchWithTimeout(`${base}/api/read-file?directory=.&fileName=_probe`);
-        if (resp.ok || resp.status === 404) {
-          this.fileServerBase = base;
-          logger.info(`使用本地文件服务 (${base}) 写入文件`);
+  private bridge: HTMLIFrameElement | null = null;
+  private bridgeReady = false;
+  private bridgeCallbacks = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
+  private bridgeIdCounter = 0;
+  private fileServerBase = 'http://localhost:9876';
+
+  private initBridge(): Promise<void> {
+    if (this.bridgeReady) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('无法连接本地文件服务。请先启动文件服务再导出。')), 5000);
+
+      const onMessage = (e: MessageEvent) => {
+        const data = e.data;
+        if (!data || !data.id) return;
+
+        // bridge ready signal
+        if (data.id === '__bridge_ready__') {
+          this.bridgeReady = true;
+          clearTimeout(timeout);
+          window.removeEventListener('message', onMessage);
+          // Re-register permanent listener
+          window.addEventListener('message', (ev) => this.onBridgeMessage(ev));
+          logger.info('iframe bridge 已就绪');
+          resolve();
           return;
         }
-      } catch { /* continue */ }
-    }
+      };
+      window.addEventListener('message', onMessage);
 
-    throw new Error('无法连接本地文件服务。请先启动文件服务再导出。');
+      // Create hidden iframe
+      this.bridge = document.createElement('iframe');
+      this.bridge.style.display = 'none';
+      this.bridge.src = `${this.fileServerBase}/bridge.html`;
+      document.body.appendChild(this.bridge);
+    });
+  }
+
+  private onBridgeMessage(e: MessageEvent): void {
+    const { id, ok, status, body } = e.data || {};
+    if (!id) return;
+    const cb = this.bridgeCallbacks.get(id);
+    if (!cb) return;
+    this.bridgeCallbacks.delete(id);
+    cb.resolve({ ok, status, body });
+  }
+
+  private bridgeFetch(url: string, options?: RequestInit): Promise<{ ok: boolean; status: number; body: string }> {
+    return new Promise((resolve, reject) => {
+      if (!this.bridge?.contentWindow) {
+        reject(new Error('bridge not initialized'));
+        return;
+      }
+      const id = `bf_${++this.bridgeIdCounter}`;
+      const timer = setTimeout(() => {
+        this.bridgeCallbacks.delete(id);
+        reject(new Error('bridge fetch timeout'));
+      }, 30000);
+      this.bridgeCallbacks.set(id, {
+        resolve: (v) => { clearTimeout(timer); resolve(v); },
+        reject: (e) => { clearTimeout(timer); reject(e); },
+      });
+      this.bridge.contentWindow.postMessage({
+        id,
+        action: 'fetch',
+        url,
+        options: options ? {
+          method: options.method,
+          headers: options.headers,
+          body: options.body,
+        } : undefined,
+      }, '*');
+    });
+  }
+
+  /**
+   * 初始化文件服务连接 (通过 iframe bridge)
+   */
+  private async detectWriteMode(_outputDir: string): Promise<void> {
+    await this.initBridge();
+    logger.info(`文件服务连接成功: ${this.fileServerBase}`);
   }
 
   /**
@@ -244,14 +303,13 @@ export class ExportJob {
     const base64 = this.arrayBufferToBase64(buffer);
     const body = JSON.stringify({ directory, fileName, data: base64 });
     logger.info(`writeFile: ${directory}/${fileName} (${body.length} bytes payload)`);
-    const resp = await fetch(`${this.fileServerBase}/api/write-file`, {
+    const resp = await this.bridgeFetch(`${this.fileServerBase}/api/write-file`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
     });
     if (!resp.ok) {
-      const text = await resp.text().catch(() => resp.statusText);
-      throw new Error(`写入文件失败 (HTTP ${resp.status}): ${text}`);
+      throw new Error(`写入文件失败 (HTTP ${resp.status}): ${resp.body}`);
     }
   }
 
@@ -263,9 +321,19 @@ export class ExportJob {
     fileName: string
   ): Promise<ArrayBuffer | null> {
     try {
-      const resp = await fetch(`${this.fileServerBase}/api/read-file?directory=${encodeURIComponent(directory)}&fileName=${encodeURIComponent(fileName)}`);
+      const resp = await this.bridgeFetch(
+        `${this.fileServerBase}/api/read-file?directory=${encodeURIComponent(directory)}&fileName=${encodeURIComponent(fileName)}`
+      );
       if (!resp.ok) return null;
-      return await resp.arrayBuffer();
+      // Binary responses are prefixed with __b64__
+      if (resp.body.startsWith('__b64__')) {
+        const b64 = resp.body.slice(7);
+        const binary = atob(b64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes.buffer;
+      }
+      return new TextEncoder().encode(resp.body).buffer;
     } catch {
       return null;
     }
