@@ -1091,7 +1091,7 @@ export function ExportTab({
       )}
 
       {/* 签名水印 */}
-      <div className={styles.watermark}>vin</div>
+      <div className={styles.watermark}>vin {__APP_VERSION__}</div>
     </div>
   );
 }

@@ -63,6 +63,9 @@ module.exports = async (env, options) => {
       ],
     },
     plugins: [
+      new webpack.DefinePlugin({
+        __APP_VERSION__: JSON.stringify(require("./package.json").version),
+      }),
       new webpack.ProvidePlugin({
         Buffer: ["buffer", "Buffer"],
         process: "process/browser",
