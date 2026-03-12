@@ -196,6 +196,13 @@ export class ExportJob {
       return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables);
     } catch (err) {
       logger.error('导出失败', err);
+      this.errorHandler.logError({
+        code: ErrorCode.FILE_WRITE_FAILED,
+        severity: 'error',
+        tableName: '',
+        message: err instanceof Error ? err.message : String(err),
+        procedure: 'ExportJob.runExport',
+      });
       return this.buildResult(false, modifiedFiles, startTime, totalTables, changedTables);
     }
   }

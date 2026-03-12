@@ -24,6 +24,11 @@
 
   <Permissions>ReadWriteDocument</Permissions>
 
+  <AppDomains>
+    <AppDomain>http://localhost:9876</AppDomain>
+    <AppDomain>http://127.0.0.1:9876</AppDomain>
+  </AppDomains>
+
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
     <Hosts>
       <Host xsi:type="Workbook">
