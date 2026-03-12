@@ -193,7 +193,6 @@ export class ExportJob {
       }
       await this.updateExportResults(modifiedFiles);
 
-      this.closeDialog();
       return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables);
     } catch (err) {
       this.closeDialog();
@@ -209,96 +208,29 @@ export class ExportJob {
     }
   }
 
-  // ── Office Dialog API: webview 无法直接访问 localhost，通过 dialog 中转 ──
+  private fileServerBase = '';  // '' = same origin
 
-  private dialog: Office.Dialog | null = null;
-  private dialogReady = false;
-  private dialogCallbacks = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
-  private dialogIdCounter = 0;
-  private fileServerBase = 'http://localhost:9876';
-  private writerUrl = 'https://vinesy-x.github.io/gamedata-studio/writer.html';
-
-  private openWriterDialog(): Promise<void> {
-    if (this.dialogReady && this.dialog) return Promise.resolve();
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('无法连接本地文件服务。请先启动文件服务再导出。')), 10000);
-
-      Office.context.ui.displayDialogAsync(
-        this.writerUrl,
-        { width: 15, height: 10, displayInIframe: false },
-        (result) => {
-          if (result.status !== Office.AsyncResultStatus.Succeeded) {
-            clearTimeout(timeout);
-            reject(new Error(`打开文件服务对话框失败: ${result.error?.message}`));
-            return;
-          }
-          this.dialog = result.value;
-
-          this.dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg: any) => {
-            let data: any;
-            try { data = JSON.parse(arg.message); } catch { return; }
-
-            // Ready signal
-            if (data.id === '__ready__') {
-              this.dialogReady = true;
-              clearTimeout(timeout);
-              logger.info('Writer dialog 已就绪');
-              resolve();
-              return;
-            }
-
-            // Callback response
-            const cb = this.dialogCallbacks.get(data.id);
-            if (cb) {
-              this.dialogCallbacks.delete(data.id);
-              cb.resolve(data);
-            }
-          });
-
-          this.dialog.addEventHandler(Office.EventType.DialogEventReceived, () => {
-            this.dialog = null;
-            this.dialogReady = false;
-          });
-        }
-      );
-    });
-  }
-
-  private sendToDialog(msg: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (!this.dialog) {
-        reject(new Error('dialog not open'));
-        return;
-      }
-      const id = `d_${++this.dialogIdCounter}`;
-      msg.id = id;
-      const timer = setTimeout(() => {
-        this.dialogCallbacks.delete(id);
-        reject(new Error('dialog operation timeout'));
-      }, 60000);
-      this.dialogCallbacks.set(id, {
-        resolve: (v) => { clearTimeout(timer); resolve(v); },
-        reject: (e) => { clearTimeout(timer); reject(e); },
-      });
-      this.dialog.messageChild(JSON.stringify(msg));
-    });
-  }
-
-  private closeDialog(): void {
-    if (this.dialog) {
-      try { this.dialog.close(); } catch { /* ignore */ }
-      this.dialog = null;
-      this.dialogReady = false;
-    }
+  private fetchWithTimeout(url: string, timeoutMs = 3000): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
   }
 
   /**
-   * 初始化文件服务连接
+   * 检测文件服务（同源 HTTPS，和 dev server 一样的模式）
    */
   private async detectWriteMode(_outputDir: string): Promise<void> {
-    await this.openWriterDialog();
-    logger.info('文件服务连接成功');
+    // 同源: 加载项和文件服务都在 https://localhost:9876
+    try {
+      const resp = await this.fetchWithTimeout('/api/read-file?directory=.&fileName=_probe');
+      if (resp.ok || resp.status === 404) {
+        this.fileServerBase = '';
+        logger.info('使用本地文件服务（同源 HTTPS）');
+        return;
+      }
+    } catch { /* fall through */ }
+
+    throw new Error('无法连接文件服务。请先启动：python3 ~/.gamedata-studio/file-server.py');
   }
 
   /**
@@ -310,10 +242,14 @@ export class ExportJob {
     buffer: ArrayBuffer
   ): Promise<void> {
     const base64 = this.arrayBufferToBase64(buffer);
-    logger.info(`writeFile: ${directory}/${fileName}`);
-    const resp = await this.sendToDialog({ action: 'write', directory, fileName, data: base64 });
+    const resp = await fetch(`${this.fileServerBase}/api/write-file`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ directory, fileName, data: base64 }),
+    });
     if (!resp.ok) {
-      throw new Error(`写入文件失败: ${resp.error}`);
+      const text = await resp.text().catch(() => resp.statusText);
+      throw new Error(`写入文件失败 (HTTP ${resp.status}): ${text}`);
     }
   }
 
@@ -325,12 +261,9 @@ export class ExportJob {
     fileName: string
   ): Promise<ArrayBuffer | null> {
     try {
-      const resp = await this.sendToDialog({ action: 'read', directory, fileName });
+      const resp = await fetch(`${this.fileServerBase}/api/read-file?directory=${encodeURIComponent(directory)}&fileName=${encodeURIComponent(fileName)}`);
       if (!resp.ok) return null;
-      const binary = atob(resp.data);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      return bytes.buffer;
+      return await resp.arrayBuffer();
     } catch {
       return null;
     }

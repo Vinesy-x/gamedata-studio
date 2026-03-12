@@ -5,6 +5,7 @@
 """
 
 import os
+import ssl
 import json
 import base64
 import socket
@@ -235,6 +236,17 @@ class DualStackHTTPServer(HTTPServer):
         super().server_bind()
 
 
+def find_dev_certs():
+    """Find office-addin-dev-certs for HTTPS."""
+    cert_dir = os.path.expanduser('~/.office-addin-dev-certs')
+    cert = os.path.join(cert_dir, 'localhost.crt')
+    key = os.path.join(cert_dir, 'localhost.key')
+    ca = os.path.join(cert_dir, 'ca.crt')
+    if os.path.exists(cert) and os.path.exists(key):
+        return cert, key, ca
+    return None, None, None
+
+
 if __name__ == '__main__':
     print('GameData Studio File Server')
     print()
@@ -247,8 +259,17 @@ if __name__ == '__main__':
     except OSError:
         server = HTTPServer(('0.0.0.0', PORT), FileHandler)
 
+    # Enable HTTPS if dev certs are available
+    cert, key, ca = find_dev_certs()
+    protocol = 'http'
+    if cert and key:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(cert, key)
+        server.socket = ctx.wrap_socket(server.socket, server_side=True)
+        protocol = 'https'
+
     print()
-    print(f'Ready! http://localhost:{PORT}')
+    print(f'Ready! {protocol}://localhost:{PORT}')
     print('Keep this window open while using Excel.')
     print()
     try:
