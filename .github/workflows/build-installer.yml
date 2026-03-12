@@ -1,0 +1,68 @@
+name: Build Installer
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Read version
+        id: version
+        run: |
+          $ver = node -p "require('./package.json').version"
+          echo "version=$ver" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Prepare installer files
+        run: |
+          mkdir installer\files
+          copy manifest-local.xml installer\files\manifest.xml
+        shell: cmd
+
+      - name: Compile installer with Inno Setup
+        run: iscc installer\setup.iss
+        shell: cmd
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameDataStudio-Setup-${{ steps.version.outputs.version }}
+          path: installer/output/*.exe
+
+      - name: Create or update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: GameData Studio v${{ steps.version.outputs.version }}
+          body: |
+            ## GameData Studio v${{ steps.version.outputs.version }}
+
+            ### 安装方法
+            1. 下载 `GameDataStudio-Setup-${{ steps.version.outputs.version }}.exe`
+            2. 双击运行安装
+            3. 重启 Excel，即可在 Home 标签页看到 GameData Studio
+
+            ### 系统要求
+            - Windows 10/11
+            - Excel 2016 或更高版本
+            - PowerShell 3.0+（系统自带）
+          files: installer/output/GameDataStudio-Setup-${{ steps.version.outputs.version }}.exe
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
