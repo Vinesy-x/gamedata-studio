@@ -82,15 +82,19 @@ const useStyles = makeStyles({
     marginBottom: '8px',
   },
   sectionTitle: {
-    fontSize: '13px',
+    fontSize: '12px',
     fontWeight: 600,
-    color: tokens.colorNeutralForeground1,
+    color: tokens.colorNeutralForeground3,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
   },
   card: {
-    backgroundColor: tokens.colorNeutralBackground2,
-    borderRadius: '6px',
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderRadius: '8px',
     padding: '10px 12px',
     marginBottom: '8px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   table: {
     fontSize: '11px',
@@ -99,14 +103,18 @@ const useStyles = makeStyles({
   },
   th: {
     textAlign: 'left',
-    padding: '4px 6px',
-    backgroundColor: tokens.colorNeutralBackground3,
+    padding: '5px 6px',
+    backgroundColor: '#f8f9fa',
     fontWeight: 600,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+    fontSize: '10px',
+    color: tokens.colorNeutralForeground3,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   td: {
-    padding: '4px 6px',
-    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    padding: '5px 6px',
+    borderBottom: `1px solid ${tokens.colorNeutralStroke3}`,
   },
   badge: {
     display: 'inline-block',
@@ -162,17 +170,19 @@ const useStyles = makeStyles({
   },
   statusMsg: {
     fontSize: '11px',
-    padding: '6px 8px',
-    borderRadius: '4px',
+    padding: '8px 10px',
+    borderRadius: '6px',
     marginBottom: '8px',
   },
   statusSuccess: {
-    backgroundColor: tokens.colorPaletteGreenBackground1,
-    color: tokens.colorPaletteGreenForeground1,
+    backgroundColor: '#E8F5E9',
+    color: '#2E7D32',
+    border: '1px solid #C8E6C9',
   },
   statusError: {
-    backgroundColor: tokens.colorPaletteRedBackground1,
-    color: tokens.colorPaletteRedForeground1,
+    backgroundColor: '#FFF5F5',
+    color: '#C62828',
+    border: '1px solid #FFCDD2',
   },
 });
 

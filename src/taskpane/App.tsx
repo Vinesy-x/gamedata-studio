@@ -37,7 +37,7 @@ const useStyles = makeStyles({
     height: '100vh',
     boxSizing: 'border-box',
     fontFamily: tokens.fontFamilyBase,
-    backgroundColor: tokens.colorNeutralBackground1,
+    backgroundColor: '#f5f5f5',
     overflow: 'hidden',
   },
   banner: {
@@ -45,21 +45,41 @@ const useStyles = makeStyles({
     alignItems: 'center',
     justifyContent: 'center',
     gap: '14px',
-    padding: '6px 14px',
-    backgroundColor: '#0078d4',
-    color: 'rgba(255,255,255,0.55)',
+    padding: '8px 14px',
+    backgroundImage: 'linear-gradient(135deg, #0078d4 0%, #1565c0 40%, #0d47a1 100%)',
+    color: 'rgba(255,255,255,0.65)',
+    position: 'relative' as const,
+    overflow: 'hidden' as const,
+  },
+  bannerShimmer: {
+    position: 'absolute' as const,
+    top: 0,
+    left: '-100%',
+    width: '200%',
+    height: '100%',
+    backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 45%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 55%, transparent 100%)',
+    animationName: {
+      from: { transform: 'translateX(-30%)' },
+      to: { transform: 'translateX(30%)' },
+    },
+    animationDuration: '6s',
+    animationIterationCount: 'infinite',
+    animationTimingFunction: 'ease-in-out',
   },
   bannerIcon: {
     fontSize: '16px',
+    position: 'relative' as const,
   },
   bannerDot: {
     width: '3px',
     height: '3px',
     borderRadius: '50%',
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    position: 'relative' as const,
   },
   tabBar: {
-    borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   tabContent: {
     flex: 1,
@@ -181,6 +201,7 @@ export function App() {
   return (
     <div className={styles.root}>
       <div className={styles.banner}>
+        <span className={styles.bannerShimmer} />
         <GridRegular className={styles.bannerIcon} />
         <span className={styles.bannerDot} />
         <NumberSymbolRegular className={styles.bannerIcon} />

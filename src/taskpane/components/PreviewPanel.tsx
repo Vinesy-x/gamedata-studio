@@ -35,9 +35,11 @@ const useStyles = makeStyles({
     gap: '8px',
   },
   sectionTitle: {
-    fontSize: '13px',
+    fontSize: '12px',
     fontWeight: 600,
-    color: tokens.colorNeutralForeground1,
+    color: tokens.colorNeutralForeground3,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
   },
   fieldRow: {
     display: 'flex',
@@ -75,13 +77,16 @@ const useStyles = makeStyles({
     fontSize: '11px',
   },
   th: {
-    padding: '4px 6px',
+    padding: '5px 6px',
     fontSize: '10px',
     fontWeight: 600,
     color: tokens.colorNeutralForeground3,
     textAlign: 'left' as const,
     borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
     whiteSpace: 'nowrap' as const,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+    backgroundColor: '#f8f9fa',
   },
   td: {
     padding: '4px 6px',

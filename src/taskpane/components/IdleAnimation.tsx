@@ -254,10 +254,12 @@ const useStyles = makeStyles({
     padding: '8px 14px',
     fontSize: '10px',
     color: tokens.colorNeutralForeground4,
-    letterSpacing: '1px',
-    opacity: 0.45,
+    letterSpacing: '1.5px',
+    opacity: 0.35,
     userSelect: 'none' as const,
     marginTop: 'auto',
+    fontFamily: '"Cascadia Code", "Fira Code", Consolas, monospace',
+    textTransform: 'uppercase' as const,
   },
 });
 

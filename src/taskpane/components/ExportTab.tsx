@@ -40,7 +40,7 @@ const useStyles = makeStyles({
   },
   // 当前配置区域
   configSection: {
-    padding: '12px 14px',
+    padding: '14px 14px 10px',
   },
   configHeader: {
     display: 'flex',
@@ -49,26 +49,36 @@ const useStyles = makeStyles({
     marginBottom: '10px',
   },
   configTitle: {
-    fontSize: '13px',
+    fontSize: '12px',
     fontWeight: 600,
-    color: tokens.colorNeutralForeground1,
+    color: tokens.colorNeutralForeground3,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
   },
   configCard: {
-    backgroundColor: tokens.colorNeutralBackground2,
-    borderRadius: '6px',
-    padding: '10px 12px',
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderRadius: '8px',
+    padding: '0',
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    overflow: 'hidden' as const,
   },
   configRow: {
     display: 'flex',
     alignItems: 'center',
     fontSize: '12px',
+    padding: '8px 12px',
+    borderBottom: `1px solid ${tokens.colorNeutralStroke3}`,
+    ':last-child': {
+      borderBottom: 'none',
+    },
   },
   configLabel: {
     color: tokens.colorNeutralForeground3,
     minWidth: '60px',
+    fontSize: '11px',
   },
   configValue: {
     fontWeight: 600,
@@ -106,7 +116,7 @@ const useStyles = makeStyles({
   },
   // 操作按钮区域
   actionSection: {
-    padding: '0 14px 12px',
+    padding: '4px 14px 14px',
   },
   actionRow: {
     display: 'flex',
@@ -142,9 +152,11 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    padding: '8px 12px',
-    backgroundColor: tokens.colorNeutralBackground2,
-    borderRadius: '6px',
+    padding: '10px 12px',
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderRadius: '8px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   resultStatusIcon: {
     fontSize: '18px',
@@ -188,12 +200,14 @@ const useStyles = makeStyles({
   },
   // 文件列表
   resultCard: {
-    backgroundColor: tokens.colorNeutralBackground2,
-    borderRadius: '6px',
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderRadius: '8px',
     padding: '10px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   fileList: {
     display: 'flex',
@@ -219,12 +233,13 @@ const useStyles = makeStyles({
   },
   // 警告/错误
   warningCard: {
-    backgroundColor: '#FFF4CE',
-    borderRadius: '6px',
+    backgroundColor: '#FFF8E1',
+    borderRadius: '8px',
     padding: '10px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
+    border: '1px solid #FFE082',
   },
   warningHeader: {
     display: 'flex',
@@ -241,12 +256,13 @@ const useStyles = makeStyles({
     wordBreak: 'break-all',
   },
   errorCard: {
-    backgroundColor: tokens.colorPaletteRedBackground1,
-    borderRadius: '6px',
+    backgroundColor: '#FFF5F5',
+    borderRadius: '8px',
     padding: '10px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
+    border: '1px solid #FFCDD2',
   },
   errorHeader: {
     display: 'flex',
@@ -525,7 +541,7 @@ export function ExportTab({
               </span>
             </div>
           )}
-          <div className={styles.configRow} style={{ alignItems: 'flex-start' }}>
+          <div className={styles.configRow} style={{ alignItems: 'flex-start', borderBottom: 'none' }}>
             <span className={styles.configLabel} style={{ paddingTop: '4px' }}>导出目录</span>
             {editingDir ? (
               <div className={styles.dirInputRow}>
