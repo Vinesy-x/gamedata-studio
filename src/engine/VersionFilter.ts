@@ -12,10 +12,6 @@ export class VersionFilter {
     this.targetLineField = targetLineField;
   }
 
-  getTargetVersion(): number {
-    return this.targetVersion;
-  }
-
   getTargetLineField(): string {
     return this.targetLineField;
   }

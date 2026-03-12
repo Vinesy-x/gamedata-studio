@@ -3,6 +3,7 @@
 import { TableInfo } from '../types/config';
 import { excelHelper } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
+import { UnregisteredTable } from '../types/studio';
 import { StudioConfigStore } from './StudioConfigStore';
 import { SHEET_CONFIG } from './TemplateFactory';
 
@@ -18,11 +19,6 @@ const SYSTEM_SHEETS = new Set([
   '说明表',
   SHEET_CONFIG,
 ]);
-
-export interface UnregisteredTable {
-  sheetName: string;
-  hasConfigMarker: boolean;
-}
 
 export class TableRegistry {
   /**

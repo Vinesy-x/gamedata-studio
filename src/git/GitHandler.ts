@@ -1,18 +1,3 @@
-import { logger } from '../utils/Logger';
-
-export interface GitEnvironment {
-  available: boolean;
-  repoRoot?: string;
-  reason?: string;
-  errorCode?: number;
-}
-
-export interface GitResult {
-  success: boolean;
-  output: string;
-  errorCode?: number;
-}
-
 /**
  * Git 操作处理器
  *
@@ -21,7 +6,6 @@ export interface GitResult {
  */
 export class GitHandler {
   private outputDirectory: string;
-  private repoRoot: string | null = null;
 
   constructor(outputDirectory: string) {
     this.outputDirectory = outputDirectory;

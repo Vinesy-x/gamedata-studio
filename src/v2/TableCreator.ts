@@ -1,28 +1,10 @@
 /* global Excel */
 
 import { TableInfo } from '../types/config';
+import { FieldDefinition, TableCreationConfig } from '../types/studio';
 import { logger } from '../utils/Logger';
 import { StudioConfigStore, buildRoadsFromConfig } from './StudioConfigStore';
 import { tableRegistry } from './TableRegistry';
-
-// ─── 接口定义 ───────────────────────────────────────────────
-
-export interface FieldDefinition {
-  name: string;
-  type: string;
-  description: string;
-  isKey: boolean;
-  isLanguage: boolean;
-}
-
-export interface TableCreationConfig {
-  chineseName: string;
-  englishName: string;
-  startVersion: string;
-  fields: FieldDefinition[];
-  includeVersionCol: boolean;
-  autoRegister: boolean;
-}
 
 // ─── TableCreator ────────────────────────────────────────────
 

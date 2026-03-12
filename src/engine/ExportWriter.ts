@@ -8,12 +8,6 @@ export interface HashManifest {
   [englishName: string]: string;
 }
 
-export interface WriteResult {
-  changed: boolean;
-  fileName: string;
-  buffer?: ArrayBuffer;
-}
-
 export class ExportWriter {
   /**
    * 计算表数据的哈希值（简单高效的 djb2 字符串哈希）

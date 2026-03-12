@@ -26,10 +26,10 @@ import {
   DismissRegular,
 } from '@fluentui/react-icons';
 import { Config, VersionTemplate, TableInfo } from '../../types/config';
-import { ManageSubPage } from '../../types/studio';
+import { ManageSubPage, TableCreationConfig } from '../../types/studio';
 import { configManager } from '../../v2/ConfigManager';
 import { tableRegistry } from '../../v2/TableRegistry';
-import { TableCreator, TableCreationConfig } from '../../v2/TableCreator';
+import { TableCreator } from '../../v2/TableCreator';
 import { lineSyncer } from '../../v2/LineSyncer';
 import { templateFactory, SHEET_CONFIG } from '../../v2/TemplateFactory';
 import { operatorIdentity } from '../../v2/OperatorIdentity';
