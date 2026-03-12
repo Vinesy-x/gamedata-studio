@@ -31,7 +31,7 @@ import { configManager } from '../../v2/ConfigManager';
 import { tableRegistry } from '../../v2/TableRegistry';
 import { TableCreator } from '../../v2/TableCreator';
 import { lineSyncer } from '../../v2/LineSyncer';
-import { templateFactory, SHEET_CONFIG } from '../../v2/TemplateFactory';
+import { SHEET_CONFIG } from '../../v2/TemplateFactory';
 import { operatorIdentity } from '../../v2/OperatorIdentity';
 import { excelHelper } from '../../utils/ExcelHelper';
 import { logger } from '../../utils/Logger';
@@ -268,7 +268,6 @@ function ConfigSubPage({ config, onReload, styles }: {
   const [newVersionGitDir, setNewVersionGitDir] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [studioConfigVisible, setStudioConfigVisible] = useState(false);
-  const [creatingTemplate, setCreatingTemplate] = useState(false);
 
   // Git 目录行内编辑
   const [editingGitDir, setEditingGitDir] = useState<string | null>(null);
@@ -771,36 +770,7 @@ function ConfigSubPage({ config, onReload, styles }: {
               }}
             />
           </div>
-          <Button
-            appearance="subtle"
-            size="small"
-            onClick={async () => {
-              setCreatingTemplate(true);
-              setStatusMsg(null);
-              try {
-                const exists = await templateFactory.exists();
-                if (exists) {
-                  setStatusMsg({ text: 'StudioConfig 已存在，无需重复创建', type: 'error' });
-                } else {
-                  await templateFactory.createTemplate();
-                  setStatusMsg({ text: 'StudioConfig 模版创建成功', type: 'success' });
-                  onReload();
-                }
-              } catch (err) {
-                setStatusMsg({ text: `创建失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
-              } finally {
-                setCreatingTemplate(false);
-              }
-            }}
-            disabled={creatingTemplate}
-            style={{ width: '100%', marginTop: '6px' }}
-          >
-            {creatingTemplate ? '创建中...' : '一键创建模版'}
-          </Button>
         </div>
-        <Text style={{ fontSize: '10px', color: tokens.colorNeutralForeground3 }}>
-          在空白工作簿中一键创建 StudioConfig 配置表模版
-        </Text>
       </div>
     </>
   );
