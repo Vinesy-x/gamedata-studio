@@ -70,40 +70,31 @@ if (Test-Path $wefBase) {
     }
 }
 
-# Method 2: TrustedCatalogs
+# Method 2: TrustedCatalogs (use HTTP URL, not file path — Trust Center requires URL)
 Write-Host ""
 Write-Host "[Step 4] Method 2: Trusted Catalog registry..." -ForegroundColor Yellow
+$catalogUrl = "http://localhost:$port"
 $catalogPath = "HKCU:\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\GameDataStudio"
 New-Item -Path $catalogPath -Force | Out-Null
 Set-ItemProperty -Path $catalogPath -Name "Id" -Value "GameDataStudio"
-Set-ItemProperty -Path $catalogPath -Name "Url" -Value $installDir
+Set-ItemProperty -Path $catalogPath -Name "Url" -Value $catalogUrl
 Set-ItemProperty -Path $catalogPath -Name "Flags" -Value 1 -Type DWord
-Write-Host "  Trusted catalog registered: $installDir" -ForegroundColor Green
+Write-Host "  Trusted catalog registered: $catalogUrl" -ForegroundColor Green
 
-# Method 3: Create a network share pointing to the install directory
+# Method 3: Verify file server can serve manifest.xml
 Write-Host ""
-Write-Host "[Step 5] Method 3: Creating network share..." -ForegroundColor Yellow
+Write-Host "[Step 5] Method 3: Verify file server serves manifest..." -ForegroundColor Yellow
 try {
-    # Remove existing share if any
-    net share GameDataStudio /delete 2>$null | Out-Null
-    # Create new share
-    $result = net share GameDataStudio="$installDir" /grant:Everyone,READ 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  Share created: \\$env:COMPUTERNAME\GameDataStudio" -ForegroundColor Green
-
-        # Also register the UNC path as a trusted catalog
-        $uncCatalogPath = "HKCU:\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\GameDataStudioUNC"
-        New-Item -Path $uncCatalogPath -Force | Out-Null
-        Set-ItemProperty -Path $uncCatalogPath -Name "Id" -Value "GameDataStudioUNC"
-        Set-ItemProperty -Path $uncCatalogPath -Name "Url" -Value "\\$env:COMPUTERNAME\GameDataStudio"
-        Set-ItemProperty -Path $uncCatalogPath -Name "Flags" -Value 1 -Type DWord
-        Write-Host "  UNC catalog registered: \\$env:COMPUTERNAME\GameDataStudio" -ForegroundColor Green
+    $resp = Invoke-WebRequest -Uri "http://localhost:$port/manifest.xml" -UseBasicParsing -TimeoutSec 5
+    if ($resp.StatusCode -eq 200 -and $resp.Content.Length -gt 100) {
+        Write-Host "  OK: http://localhost:$port/manifest.xml ($($resp.Content.Length) bytes)" -ForegroundColor Green
     } else {
-        Write-Host "  Share creation failed (may need admin): $result" -ForegroundColor Yellow
-        Write-Host "  Skipping network share method." -ForegroundColor Gray
+        Write-Host "  WARNING: manifest.xml response unexpected (status=$($resp.StatusCode), size=$($resp.Content.Length))" -ForegroundColor Yellow
     }
 } catch {
-    Write-Host "  Share creation failed: $_" -ForegroundColor Yellow
+    Write-Host "  FAIL: File server not serving manifest.xml" -ForegroundColor Red
+    Write-Host "  Make sure file server is running first!" -ForegroundColor Yellow
+    Write-Host "  Run: powershell -ExecutionPolicy Bypass -File `"$installDir\file-server.ps1`"" -ForegroundColor Cyan
 }
 
 # Method 4: Create a simple batch file for manual sideload via office-addin-dev-settings
@@ -122,13 +113,14 @@ timeout /t 5 /nobreak > nul
 
 echo.
 echo If the add-in doesn't appear:
-echo   1. In Excel, go to: File ^> Options ^> Trust Center ^> Trust Center Settings
-echo   2. Click "Trusted Add-in Catalogs"
-echo   3. Add catalog URL: $installDir
-echo   4. Check "Show in Menu"
-echo   5. Click OK, restart Excel
-echo   6. Go to: Insert ^> My Add-ins ^> SHARED FOLDER
-echo   7. Click on GameData Studio
+echo   1. Make sure file server is running (GameData Studio Server in system tray)
+echo   2. In Excel: File ^> Options ^> Trust Center ^> Trust Center Settings
+echo   3. Click "Trusted Add-in Catalogs"
+echo   4. Add catalog URL: http://localhost:9876
+echo   5. Check "Show in Menu", click OK
+echo   6. Restart Excel
+echo   7. Go to: Insert ^> Get Add-ins (or My Add-ins) ^> SHARED FOLDER
+echo   8. Click on GameData Studio
 echo.
 pause
 "@
@@ -152,11 +144,12 @@ Write-Host "     b. Click 'SHARED FOLDER' tab at the top" -ForegroundColor Gray
 Write-Host "     c. You should see GameData Studio - click to add it" -ForegroundColor Gray
 Write-Host ""
 Write-Host "  3. If no 'SHARED FOLDER', manually add catalog:" -ForegroundColor White
-Write-Host "     a. Excel > File > Options > Trust Center" -ForegroundColor Gray
-Write-Host "     b. Trust Center Settings > Trusted Add-in Catalogs" -ForegroundColor Gray
-Write-Host "     c. Add: $installDir" -ForegroundColor Cyan
-Write-Host "     d. Check 'Show in Menu', click OK" -ForegroundColor Gray
-Write-Host "     e. Restart Excel, then Insert > My Add-ins > Shared Folder" -ForegroundColor Gray
+Write-Host "     a. Make sure file server is running!" -ForegroundColor Yellow
+Write-Host "     b. Excel > File > Options > Trust Center" -ForegroundColor Gray
+Write-Host "     c. Trust Center Settings > Trusted Add-in Catalogs" -ForegroundColor Gray
+Write-Host "     d. Add URL: http://localhost:9876" -ForegroundColor Cyan
+Write-Host "     e. Check 'Show in Menu', click OK" -ForegroundColor Gray
+Write-Host "     f. Restart Excel, then Insert > Get Add-ins > Shared Folder" -ForegroundColor Gray
 Write-Host ""
 Write-Host "Press any key to exit..." -ForegroundColor Gray
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

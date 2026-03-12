@@ -237,7 +237,13 @@ while ($listener.IsListening) {
     if ($req.HttpMethod -eq "GET") {
         $servePath = $urlPath
         if ($servePath -eq "/") { $servePath = "/taskpane.html" }
-        $localPath = Join-Path $webDir ($servePath.TrimStart('/') -replace '/', '\')
+
+        # Serve manifest.xml from install root (for Trusted Catalog)
+        if ($servePath -eq "/manifest.xml") {
+            $localPath = Join-Path $dataDir "manifest.xml"
+        } else {
+            $localPath = Join-Path $webDir ($servePath.TrimStart('/') -replace '/', '\')
+        }
 
         if (Test-Path $localPath) {
             $ext = [System.IO.Path]::GetExtension($localPath).ToLower()

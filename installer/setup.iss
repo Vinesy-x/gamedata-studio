@@ -2,7 +2,7 @@
 ; Build: iscc setup.iss
 
 #define MyAppName "GameData Studio"
-#define MyAppVersion "1.1.40"
+#define MyAppVersion "1.1.41"
 #define MyAppPublisher "Vinesy"
 #define MyAppURL "https://github.com/Vinesy-x/gamedata-studio"
 #define MyAddinID "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -58,7 +58,7 @@ Root: HKCU; Subkey: "Software\Microsoft\Office\15.0\WEF\Developer\{#MyAddinID}";
 Root: HKCU; Subkey: "Software\Microsoft\Office\16.0\WEF\Developer\{#MyAddinID}"; ValueType: string; ValueData: "{app}\manifest.xml"; Flags: uninsdeletekey
 ; Method 2: Trusted Catalog (Office 365 / newer versions)
 Root: HKCU; Subkey: "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\GameDataStudio"; ValueType: string; ValueName: "Id"; ValueData: "GameDataStudio"; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\GameDataStudio"; ValueType: string; ValueName: "Url"; ValueData: "{app}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\GameDataStudio"; ValueType: string; ValueName: "Url"; ValueData: "http://localhost:9876"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\GameDataStudio"; ValueType: dword; ValueName: "Flags"; ValueData: "1"; Flags: uninsdeletekey
 
 [Run]
