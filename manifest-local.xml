@@ -10,8 +10,8 @@
   <DefaultLocale>zh-CN</DefaultLocale>
   <DisplayName DefaultValue="GameData Studio" />
   <Description DefaultValue="RPG/MMO 游戏数值管理工具" />
-  <IconUrl DefaultValue="https://localhost:9876/assets/gds-32.png" />
-  <HighResolutionIconUrl DefaultValue="https://localhost:9876/assets/gds-80.png" />
+  <IconUrl DefaultValue="http://localhost:9876/assets/gds-32.png" />
+  <HighResolutionIconUrl DefaultValue="http://localhost:9876/assets/gds-80.png" />
   <SupportUrl DefaultValue="https://github.com/Vinesy-x/gamedata-studio" />
 
   <Hosts>
@@ -19,7 +19,7 @@
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://localhost:9876/taskpane.html" />
+    <SourceLocation DefaultValue="http://localhost:9876/taskpane.html" />
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -67,12 +67,12 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="https://localhost:9876/assets/gds-16.png" />
-        <bt:Image id="Icon.32x32" DefaultValue="https://localhost:9876/assets/gds-32.png" />
-        <bt:Image id="Icon.80x80" DefaultValue="https://localhost:9876/assets/gds-80.png" />
+        <bt:Image id="Icon.16x16" DefaultValue="http://localhost:9876/assets/gds-16.png" />
+        <bt:Image id="Icon.32x32" DefaultValue="http://localhost:9876/assets/gds-32.png" />
+        <bt:Image id="Icon.80x80" DefaultValue="http://localhost:9876/assets/gds-80.png" />
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:9876/taskpane.html" />
+        <bt:Url id="Taskpane.Url" DefaultValue="http://localhost:9876/taskpane.html" />
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://github.com/Vinesy-x/gamedata-studio" />
       </bt:Urls>
       <bt:ShortStrings>

@@ -34,12 +34,9 @@ jobs:
 
       - name: Prepare installer files
         run: |
-          New-Item -ItemType Directory -Path installer\files -Force | Out-Null
-          # Copy manifest and pre-patch https→http (reliable UTF-8 encoding)
-          $content = Get-Content manifest-local.xml -Raw -Encoding UTF8
-          $content = $content -replace 'https://localhost:9876', 'http://localhost:9876'
-          [System.IO.File]::WriteAllText("installer\files\manifest.xml", $content, [System.Text.UTF8Encoding]::new($false))
-        shell: pwsh
+          mkdir installer\files
+          copy manifest-local.xml installer\files\manifest.xml
+        shell: cmd
 
       - name: Compile installer with Inno Setup
         run: iscc installer\setup.iss
