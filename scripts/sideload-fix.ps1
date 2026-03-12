@@ -1,16 +1,26 @@
 # GameData Studio - Sideloading Fix Script
 # Tries multiple methods to register the add-in in Excel
-# Usage: Right-click → Run with PowerShell
+# Usage: Right-click → Run as Administrator
 
 $addinId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 $port = 9876
 $installDir = "$env:APPDATA\GameDataStudio"
 $manifestPath = "$installDir\manifest.xml"
+$catalogDir = "C:\GameDataStudioCatalog"
+$catalogShare = "GameDataStudioCatalog"
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host " GameData Studio - Sideload Fix" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
+
+# Check admin
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Host "[WARN] Not running as Administrator. Network share creation may fail." -ForegroundColor Yellow
+    Write-Host "  Right-click this script and select 'Run as Administrator'" -ForegroundColor Yellow
+    Write-Host ""
+}
 
 # Pre-check
 if (-not (Test-Path $manifestPath)) {
@@ -44,9 +54,39 @@ if (Test-Path $wefCache) {
     Write-Host "  No cache found." -ForegroundColor Gray
 }
 
-# Method 1: WEF\Developer (standard sideloading)
+# Method 1: Network share catalog (most reliable for modern Office)
 Write-Host ""
-Write-Host "[Step 2] Method 1: WEF\Developer registry..." -ForegroundColor Yellow
+Write-Host "[Step 2] Method 1: Network share catalog..." -ForegroundColor Yellow
+if (-not (Test-Path $catalogDir)) {
+    New-Item -ItemType Directory -Path $catalogDir -Force | Out-Null
+}
+Copy-Item -Path $manifestPath -Destination "$catalogDir\manifest.xml" -Force
+Write-Host "  Manifest copied to $catalogDir" -ForegroundColor Green
+
+# Create/update network share
+try {
+    net share $catalogShare /delete /yes 2>$null
+    net share "$catalogShare=$catalogDir" /grant:everyone,read 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  Network share created: \\localhost\$catalogShare" -ForegroundColor Green
+    } else {
+        Write-Host "  WARN: net share failed (need admin). Try running as Administrator." -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "  WARN: Could not create share: $_" -ForegroundColor Yellow
+}
+
+# Register trusted catalog with UNC path
+$catalogRegPath = "HKCU:\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\$catalogShare"
+New-Item -Path $catalogRegPath -Force | Out-Null
+Set-ItemProperty -Path $catalogRegPath -Name "Id" -Value $catalogShare
+Set-ItemProperty -Path $catalogRegPath -Name "Url" -Value "\\localhost\$catalogShare"
+Set-ItemProperty -Path $catalogRegPath -Name "Flags" -Value 1 -Type DWord
+Write-Host "  Trusted catalog registered: \\localhost\$catalogShare" -ForegroundColor Green
+
+# Method 2: WEF\Developer (fallback for older Office)
+Write-Host ""
+Write-Host "[Step 3] Method 2: WEF\Developer registry..." -ForegroundColor Yellow
 foreach ($ver in @("16.0", "15.0")) {
     $regPath = "HKCU:\Software\Microsoft\Office\$ver\WEF\Developer\$addinId"
     New-Item -Path $regPath -Force | Out-Null
@@ -56,7 +96,7 @@ foreach ($ver in @("16.0", "15.0")) {
 
 # Fix HasRegistryAddin flags
 Write-Host ""
-Write-Host "[Step 3] Fixing HasRegistryAddin flags..." -ForegroundColor Yellow
+Write-Host "[Step 4] Fixing HasRegistryAddin flags..." -ForegroundColor Yellow
 $wefBase = "HKCU:\Software\Microsoft\Office\16.0\WEF"
 if (Test-Path $wefBase) {
     $wefProps = Get-ItemProperty $wefBase -ErrorAction SilentlyContinue
@@ -70,86 +110,30 @@ if (Test-Path $wefBase) {
     }
 }
 
-# Method 2: TrustedCatalogs (use HTTP URL, not file path — Trust Center requires URL)
+# Verify file server
 Write-Host ""
-Write-Host "[Step 4] Method 2: Trusted Catalog registry..." -ForegroundColor Yellow
-$catalogUrl = "http://localhost:$port"
-$catalogPath = "HKCU:\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\GameDataStudio"
-New-Item -Path $catalogPath -Force | Out-Null
-Set-ItemProperty -Path $catalogPath -Name "Id" -Value "GameDataStudio"
-Set-ItemProperty -Path $catalogPath -Name "Url" -Value $catalogUrl
-Set-ItemProperty -Path $catalogPath -Name "Flags" -Value 1 -Type DWord
-Write-Host "  Trusted catalog registered: $catalogUrl" -ForegroundColor Green
-
-# Method 3: Verify file server can serve manifest.xml
-Write-Host ""
-Write-Host "[Step 5] Method 3: Verify file server serves manifest..." -ForegroundColor Yellow
+Write-Host "[Step 5] Verify file server..." -ForegroundColor Yellow
 try {
     $resp = Invoke-WebRequest -Uri "http://localhost:$port/manifest.xml" -UseBasicParsing -TimeoutSec 5
-    if ($resp.StatusCode -eq 200 -and $resp.Content.Length -gt 100) {
-        Write-Host "  OK: http://localhost:$port/manifest.xml ($($resp.Content.Length) bytes)" -ForegroundColor Green
-    } else {
-        Write-Host "  WARNING: manifest.xml response unexpected (status=$($resp.StatusCode), size=$($resp.Content.Length))" -ForegroundColor Yellow
-    }
+    Write-Host "  OK: file server running ($($resp.Content.Length) bytes)" -ForegroundColor Green
 } catch {
-    Write-Host "  FAIL: File server not serving manifest.xml" -ForegroundColor Red
-    Write-Host "  Make sure file server is running first!" -ForegroundColor Yellow
-    Write-Host "  Run: powershell -ExecutionPolicy Bypass -File `"$installDir\file-server.ps1`"" -ForegroundColor Cyan
+    Write-Host "  WARN: File server not running (needed for file export only)" -ForegroundColor Yellow
 }
 
-# Method 4: Create a simple batch file for manual sideload via office-addin-dev-settings
-Write-Host ""
-Write-Host "[Step 6] Creating manual sideload helper..." -ForegroundColor Yellow
-$helperScript = @"
-@echo off
-echo Opening Excel with sideloaded add-in...
-echo.
-
-REM Method A: Open Excel and trigger manifest load
-start excel
-
-echo Waiting for Excel to start...
-timeout /t 5 /nobreak > nul
-
-echo.
-echo If the add-in doesn't appear:
-echo   1. Make sure file server is running (GameData Studio Server in system tray)
-echo   2. In Excel: File ^> Options ^> Trust Center ^> Trust Center Settings
-echo   3. Click "Trusted Add-in Catalogs"
-echo   4. Add catalog URL: http://localhost:9876
-echo   5. Check "Show in Menu", click OK
-echo   6. Restart Excel
-echo   7. Go to: Insert ^> Get Add-ins (or My Add-ins) ^> SHARED FOLDER
-echo   8. Click on GameData Studio
-echo.
-pause
-"@
-$helperPath = Join-Path $installDir "open-with-addin.bat"
-Set-Content -Path $helperPath -Value $helperScript -Encoding ASCII
-Write-Host "  Helper saved: $helperPath" -ForegroundColor Green
-
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " All methods applied!" -ForegroundColor Green
+Write-Host " Done!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Now try these steps IN ORDER:" -ForegroundColor Yellow
-Write-Host ""
+Write-Host "Now:" -ForegroundColor Yellow
 Write-Host "  1. Open Excel" -ForegroundColor White
-Write-Host "     -> Check if GameData Studio appears on Home tab" -ForegroundColor Gray
+Write-Host "  2. Insert > Get Add-ins > SHARED FOLDER" -ForegroundColor White
+Write-Host "  3. Click GameData Studio to add it" -ForegroundColor White
 Write-Host ""
-Write-Host "  2. If NOT on Home tab, try Shared Folder catalog:" -ForegroundColor White
-Write-Host "     a. Excel > Insert > Get Add-ins (or My Add-ins)" -ForegroundColor Gray
-Write-Host "     b. Click 'SHARED FOLDER' tab at the top" -ForegroundColor Gray
-Write-Host "     c. You should see GameData Studio - click to add it" -ForegroundColor Gray
-Write-Host ""
-Write-Host "  3. If no 'SHARED FOLDER', manually add catalog:" -ForegroundColor White
-Write-Host "     a. Make sure file server is running!" -ForegroundColor Yellow
-Write-Host "     b. Excel > File > Options > Trust Center" -ForegroundColor Gray
-Write-Host "     c. Trust Center Settings > Trusted Add-in Catalogs" -ForegroundColor Gray
-Write-Host "     d. Add URL: http://localhost:9876" -ForegroundColor Cyan
-Write-Host "     e. Check 'Show in Menu', click OK" -ForegroundColor Gray
-Write-Host "     f. Restart Excel, then Insert > Get Add-ins > Shared Folder" -ForegroundColor Gray
+Write-Host "If no SHARED FOLDER tab:" -ForegroundColor Yellow
+Write-Host "  File > Options > Trust Center > Trust Center Settings" -ForegroundColor Gray
+Write-Host "  > Trusted Add-in Catalogs > Add: \\localhost\$catalogShare" -ForegroundColor Cyan
+Write-Host "  > Check 'Show in Menu' > OK > Restart Excel" -ForegroundColor Gray
 Write-Host ""
 Write-Host "Press any key to exit..." -ForegroundColor Gray
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
