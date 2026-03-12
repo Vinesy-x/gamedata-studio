@@ -459,8 +459,9 @@ export class StudioConfigStore {
     }
     sheet.getRangeByIndexes(1, 0, 1, totalCols).values = [descRow];
 
-    // 数据行（所有roads列填版本控制值1）
+    // 数据行（版本行属 + 所有roads列都填1）
     const dataRow: (string | number)[] = new Array(totalCols).fill('');
+    dataRow[0] = 1;
     for (let i = 0; i < roadsCount; i++) {
       dataRow[1 + i] = 1;
     }
