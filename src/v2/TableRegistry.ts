@@ -122,7 +122,7 @@ export class TableRegistry {
         const currentName = String(snap.values[r]?.[pos.col + 1] ?? '').trim();
         if (currentName !== chineseName) continue;
         const sheet = context.workbook.worksheets.getItem(LEGACY_MAPPING);
-        sheet.getRangeByIndexes(r + snap.startRow, pos.col + snap.startCol, 1, 4).clear(Excel.ClearApplyTo.contents);
+        sheet.getRangeByIndexes(r + snap.startRow, 0, 1, 1).getEntireRow().delete(Excel.DeleteShiftDirection.up);
         await context.sync();
         found = true;
         break;
