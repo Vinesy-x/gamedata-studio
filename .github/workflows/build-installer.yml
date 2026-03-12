@@ -35,7 +35,7 @@ jobs:
       - name: Prepare installer files
         run: |
           mkdir installer\files
-          copy manifest-local.xml installer\files\manifest.xml
+          copy manifest-online.xml installer\files\manifest.xml
         shell: cmd
 
       - name: Compile installer with Inno Setup

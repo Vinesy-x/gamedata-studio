@@ -2,7 +2,7 @@
 ; Build: iscc setup.iss
 
 #define MyAppName "GameData Studio"
-#define MyAppVersion "1.1.41"
+#define MyAppVersion "1.1.42"
 #define MyAppPublisher "Vinesy"
 #define MyAppURL "https://github.com/Vinesy-x/gamedata-studio"
 #define MyAddinID "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -29,7 +29,7 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-; Manifest (HTTP version for Windows, pre-patched in CI)
+; Manifest (online version with HTTPS GitHub Pages URLs)
 Source: "files\manifest.xml"; DestDir: "{app}"; Flags: ignoreversion
 
 ; File server scripts
@@ -72,5 +72,5 @@ Filename: "taskkill.exe"; Parameters: "/F /IM powershell.exe /FI ""WINDOWTITLE e
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\web"
 
-; Note: manifest https→http patching is done at CI build time (UTF-8 safe)
-; Do NOT patch manifest here — Inno Setup AnsiString corrupts Chinese characters
+; Note: Uses manifest-online.xml (HTTPS GitHub Pages) — no patching needed
+; Modern Office requires HTTPS SourceLocation for web add-ins

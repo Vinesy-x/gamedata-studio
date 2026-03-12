@@ -7,10 +7,10 @@ echo   GameData Studio Installer
 echo =========================================
 echo.
 
-set MANIFEST_URL=https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/manifest-local.xml
+set MANIFEST_URL=https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/manifest-online.xml
 set SERVER_URL=https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/scripts/file-server.ps1
 set STARTER_URL=https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/scripts/start-file-server.bat
-set ADDIN_DIR=%LOCALAPPDATA%\GameDataStudio
+set ADDIN_DIR=%APPDATA%\GameDataStudio
 set DATA_DIR=%USERPROFILE%\.gamedata-studio
 set MANIFEST_FILE=%ADDIN_DIR%\manifest.xml
 set ADDIN_ID=a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -20,9 +20,9 @@ if not exist "%ADDIN_DIR%" mkdir "%ADDIN_DIR%"
 if not exist "%DATA_DIR%" mkdir "%DATA_DIR%"
 echo [1/4] Directories OK
 
-:: Step 2: Download manifest (patch to HTTP for Windows - no dev certs)
+:: Step 2: Download manifest (online version with HTTPS GitHub Pages URLs)
 echo [2/4] Downloading manifest...
-powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%MANIFEST_URL%' -OutFile '%MANIFEST_FILE%' -UseBasicParsing; (Get-Content '%MANIFEST_FILE%') -replace 'https://localhost:9876','http://localhost:9876' | Set-Content '%MANIFEST_FILE%' -Encoding UTF8"
+powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%MANIFEST_URL%' -OutFile '%MANIFEST_FILE%' -UseBasicParsing"
 if not exist "%MANIFEST_FILE%" (
     echo ERROR: Download failed. Check your network.
     pause
@@ -36,9 +36,10 @@ powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.Security
 powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%STARTER_URL%' -OutFile '%DATA_DIR%\start-file-server.bat' -UseBasicParsing"
 echo       OK
 
-:: Step 4: Register add-in
+:: Step 4: Register add-in (both WEF\Developer and TrustedCatalogs methods)
 echo [4/4] Registering add-in...
 reg add "HKCU\Software\Microsoft\Office\16.0\WEF\Developer\%ADDIN_ID%" /ve /t REG_SZ /d "%MANIFEST_FILE%" /f >nul 2>&1
+reg add "HKCU\Software\Microsoft\Office\15.0\WEF\Developer\%ADDIN_ID%" /ve /t REG_SZ /d "%MANIFEST_FILE%" /f >nul 2>&1
 echo       OK
 
 echo.
@@ -52,6 +53,11 @@ echo      %DATA_DIR%\start-file-server.bat
 echo.
 echo   2. Restart Excel
 echo   3. GameData Studio appears in Home tab
+echo.
+echo If add-in does not appear, try:
+echo   Excel ^> File ^> Options ^> Trust Center ^> Trust Center Settings
+echo   ^> Trusted Add-in Catalogs ^> add: http://localhost:9876
+echo   Then: Insert ^> Get Add-ins ^> Shared Folder
 echo.
 echo To uninstall:
 echo   reg delete "HKCU\Software\Microsoft\Office\16.0\WEF\Developer\%ADDIN_ID%" /f

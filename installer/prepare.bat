@@ -7,11 +7,11 @@ echo   Prepare Installer Files
 echo =========================================
 echo.
 
-:: Step 1: Copy manifest-local.xml as manifest template
+:: Step 1: Copy manifest-online.xml (HTTPS GitHub Pages - required by modern Office)
 echo [1/3] Copying manifest...
-copy /Y "..\manifest-local.xml" "files\manifest.xml" >nul
+copy /Y "..\manifest-online.xml" "files\manifest.xml" >nul
 if errorlevel 1 (
-    echo ERROR: manifest-local.xml not found
+    echo ERROR: manifest-online.xml not found
     pause
     exit /b 1
 )

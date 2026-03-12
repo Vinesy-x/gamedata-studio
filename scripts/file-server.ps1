@@ -3,6 +3,15 @@
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+# Log to file for debugging (hidden window has no console output)
+$logFile = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "server.log"
+function Write-Log($msg) {
+    $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $line = "[$ts] $msg"
+    Write-Host $line
+    Add-Content -Path $logFile -Value $line -ErrorAction SilentlyContinue
+}
+
 $port = 9876
 # Auto-detect: if web/ exists next to this script, use script directory; otherwise use ~/.gamedata-studio
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -74,9 +83,13 @@ function Update-WebFiles {
 }
 
 # Check and update
-Write-Host "GameData Studio File Server"
-Write-Host ""
-if (-not (Update-WebFiles)) { exit 1 }
+Write-Log "GameData Studio File Server starting..."
+Write-Log "Data dir: $dataDir"
+Write-Log "Web dir: $webDir"
+if (-not (Update-WebFiles)) {
+    Write-Log "ERROR: Update-WebFiles failed, exiting"
+    exit 1
+}
 
 # Chunked upload storage
 $script:chunks = @{}
@@ -86,12 +99,16 @@ Add-Type -AssemblyName System.Web
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$port/")
 $listener.Prefixes.Add("http://127.0.0.1:$port/")
-$listener.Start()
+try {
+    $listener.Start()
+} catch {
+    Write-Log "ERROR: Failed to start listener on port $port - $($_.Exception.Message)"
+    Write-Log "Another process may be using port $port, or firewall is blocking it."
+    exit 1
+}
 
-Write-Host ""
-Write-Host "Ready! http://localhost:$port"
-Write-Host "Keep this window open while using Excel."
-Write-Host ""
+Write-Log "Ready! http://localhost:$port"
+Write-Log "Keep this window open while using Excel."
 
 $mimeTypes = @{
     ".html" = "text/html; charset=utf-8"
