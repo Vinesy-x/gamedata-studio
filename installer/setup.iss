@@ -2,7 +2,7 @@
 ; Build: iscc setup.iss
 
 #define MyAppName "GameData Studio"
-#define MyAppVersion "1.1.23"
+#define MyAppVersion "1.1.24"
 #define MyAppPublisher "Vinesy"
 #define MyAppURL "https://github.com/Vinesy-x/gamedata-studio"
 #define MyAddinID "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -26,7 +26,6 @@ DisableProgramGroupPage=yes
 WizardStyle=modern
 
 [Languages]
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
