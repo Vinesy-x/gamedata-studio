@@ -217,22 +217,8 @@ export class ExportJob {
   }
 
   private async detectWriteMode(_outputDir: string): Promise<void> {
-    const host = typeof window !== 'undefined' ? window.location.hostname : '';
-    logger.info(`detectWriteMode: hostname=${host}, origin=${typeof window !== 'undefined' ? window.location.origin : ''}`);
-
-    // 1. 同源请求（始终尝试，不判断 hostname — Office webview 可能返回非标准值）
-    try {
-      const resp = await this.fetchWithTimeout('/api/read-file?directory=.&fileName=_probe');
-      if (resp.ok || resp.status === 404) {
-        this.fileServerBase = '';
-        logger.info('使用本地文件服务（同源）写入文件');
-        return;
-      }
-    } catch (e) {
-      logger.info(`同源检测失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
-
-    // 2. 显式地址回退
+    // Office webview 通过内部代理加载页面，同源请求不可靠
+    // 始终使用显式地址连接本地文件服务
     for (const base of ['http://localhost:9876', 'http://127.0.0.1:9876']) {
       try {
         const resp = await this.fetchWithTimeout(`${base}/api/read-file?directory=.&fileName=_probe`);
@@ -244,7 +230,7 @@ export class ExportJob {
       } catch { /* continue */ }
     }
 
-    throw new Error(`无法连接本地文件服务 (host=${host})。请先启动文件服务再导出。`);
+    throw new Error('无法连接本地文件服务。请先启动文件服务再导出。');
   }
 
   /**
