@@ -179,8 +179,18 @@ class FileHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        length = int(self.headers.get('Content-Length', 0))
-        body = json.loads(self.rfile.read(length))
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            raw = self.rfile.read(length)
+            body = json.loads(raw)
+        except Exception as e:
+            print(f'  ERROR: Failed to parse POST body: {e}')
+            self.send_response(400)
+            self._cors()
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": f"parse error: {e}"}).encode())
+            return
+
         directory = body.get('directory', '')
         fileName = body.get('fileName', '')
         data_b64 = body.get('data', '')
@@ -192,12 +202,20 @@ class FileHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'{"error":"missing params"}')
             return
 
-        os.makedirs(directory, exist_ok=True)
-        filepath = os.path.join(directory, fileName)
-        with open(filepath, 'wb') as f:
-            f.write(base64.b64decode(data_b64))
+        try:
+            os.makedirs(directory, exist_ok=True)
+            filepath = os.path.join(directory, fileName)
+            with open(filepath, 'wb') as f:
+                f.write(base64.b64decode(data_b64))
+            print(f'  -> {filepath} ({os.path.getsize(filepath)} bytes)')
+        except Exception as e:
+            print(f'  ERROR: Write failed: {e}')
+            self.send_response(500)
+            self._cors()
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode())
+            return
 
-        print(f'  -> {filepath} ({os.path.getsize(filepath)} bytes)')
         self.send_response(200)
         self._cors()
         self.send_header('Content-Type', 'application/json')

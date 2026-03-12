@@ -217,20 +217,22 @@ export class ExportJob {
   }
 
   private async detectWriteMode(_outputDir: string): Promise<void> {
-    // 同源请求（加载项和文件服务在同一个 localhost:9876）
     const host = typeof window !== 'undefined' ? window.location.hostname : '';
-    if (host === 'localhost' || host === '127.0.0.1') {
-      try {
-        const resp = await this.fetchWithTimeout('/api/read-file?directory=.&fileName=_probe');
-        if (resp.ok || resp.status === 404) {
-          this.fileServerBase = '';
-          logger.info('使用本地文件服务（同源）写入文件');
-          return;
-        }
-      } catch { /* fall through */ }
+    logger.info(`detectWriteMode: hostname=${host}, origin=${typeof window !== 'undefined' ? window.location.origin : ''}`);
+
+    // 1. 同源请求（始终尝试，不判断 hostname — Office webview 可能返回非标准值）
+    try {
+      const resp = await this.fetchWithTimeout('/api/read-file?directory=.&fileName=_probe');
+      if (resp.ok || resp.status === 404) {
+        this.fileServerBase = '';
+        logger.info('使用本地文件服务（同源）写入文件');
+        return;
+      }
+    } catch (e) {
+      logger.info(`同源检测失败: ${e instanceof Error ? e.message : String(e)}`);
     }
 
-    // 跨域回退（GitHub Pages 等场景）
+    // 2. 显式地址回退
     for (const base of ['http://localhost:9876', 'http://127.0.0.1:9876']) {
       try {
         const resp = await this.fetchWithTimeout(`${base}/api/read-file?directory=.&fileName=_probe`);
@@ -242,7 +244,7 @@ export class ExportJob {
       } catch { /* continue */ }
     }
 
-    throw new Error('无法连接本地文件服务。请先启动文件服务再导出。');
+    throw new Error(`无法连接本地文件服务 (host=${host})。请先启动文件服务再导出。`);
   }
 
   /**
@@ -254,14 +256,16 @@ export class ExportJob {
     buffer: ArrayBuffer
   ): Promise<void> {
     const base64 = this.arrayBufferToBase64(buffer);
+    const body = JSON.stringify({ directory, fileName, data: base64 });
+    logger.info(`writeFile: ${directory}/${fileName} (${body.length} bytes payload)`);
     const resp = await fetch(`${this.fileServerBase}/api/write-file`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ directory, fileName, data: base64 }),
+      body,
     });
     if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ error: resp.statusText }));
-      throw new Error(`写入文件失败: ${err.error}`);
+      const text = await resp.text().catch(() => resp.statusText);
+      throw new Error(`写入文件失败 (HTTP ${resp.status}): ${text}`);
     }
   }
 
