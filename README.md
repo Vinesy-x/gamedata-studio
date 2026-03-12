@@ -2,41 +2,87 @@
 
 RPG/MMO 游戏数值管理工具 — Excel Add-in
 
-## 项目概述
+---
 
-GameData Studio 是一个 Excel 加载项（Add-in），为游戏数值策划团队提供数据管理、版本控制、AI 辅助设计等能力。策划在 Excel 中编辑游戏数值数据，Add-in 侧边栏提供导出、校验、预览、AI 分析等增强功能。
+## 安装教程
 
-## 版本路线图
+### Mac
 
-| 版本 | 定位 | 状态 |
-|------|------|------|
-| v1.0 | 导出工具 — 完整替代 VBA 宏 | 🔨 开发中 |
-| v2.0 | 工作台 — 控制迁移 + 校验 + AI + 远程协作 | 📋 方案已确认 |
-| v3.0 | 数值设计平台 — 规则引擎 + AI 执行者 | 📋 方案已确认 |
+**第一步：安装加载项**
 
-## 文档目录
+打开终端，运行：
 
+```bash
+bash -c "$(curl -sL https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/scripts/install-mac.sh)"
 ```
-docs/
-├── v1.0_产品方案.docx          # v1.0 产品功能方案
-├── v1.0_技术规格.md            # v1.0 技术规格（供 Claude Code 开发参考）
-├── v2.0_产品功能方案.docx      # v2.0 产品功能方案（已确认终版）
-├── v2.0_技术规格.md            # v2.0 技术规格（供 Claude Code 开发参考）
-└── v3.0_产品功能方案.docx      # v3.0 产品功能方案（已确认版）
+
+或手动下载 [`install-mac.sh`](https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/scripts/install-mac.sh) 后运行 `bash install-mac.sh`。
+
+安装完成后重启 Excel。在「开始」选项卡 →「加载项」→「开发人员加载项」中即可看到 GameData Studio。
+
+**第二步：启动文件服务（导出时需要）**
+
+导出功能需要一个本地文件服务来写入磁盘。Mac 自带 Python，无需额外安装：
+
+```bash
+curl -sL https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/scripts/file-server.py -o ~/file-server.py
+python3 ~/file-server.py
 ```
+
+保持终端窗口开着即可。每次导出前确保服务在运行。
+
+---
+
+### Windows
+
+**第一步：安装加载项**
+
+1. 下载 [`install-windows.bat`](https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/scripts/install-windows.bat)
+2. 双击运行
+3. 重启 Excel
+4. 在「开始」选项卡 →「加载项」→「开发人员加载项」中看到 GameData Studio
+
+**第二步：启动文件服务（导出时需要）**
+
+导出功能需要一个本地文件服务来写入磁盘。Windows 自带 PowerShell，无需额外安装：
+
+1. 下载以下两个文件到同一目录：
+   - [`start-file-server.bat`](https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/scripts/start-file-server.bat)
+   - [`file-server.ps1`](https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/scripts/file-server.ps1)
+2. 双击 `start-file-server.bat`
+
+保持窗口开着即可。每次导出前确保服务在运行。
+
+---
+
+### 卸载
+
+**Mac：**
+```bash
+rm ~/Library/Containers/com.microsoft.Excel/Data/Documents/wef/manifest.xml
+```
+
+**Windows：**
+```cmd
+reg delete "HKCU\Software\Microsoft\Office\16.0\WEF\Developer\a1b2c3d4-e5f6-7890-abcd-ef1234567890" /f
+```
+
+---
+
+## 使用说明
+
+1. 打开 Excel，点击「加载项」→ 选择 GameData Studio
+2. 首次使用点击「初始化工作簿」，自动创建配置表和表名对照
+3. 在「管理」选项卡中添加/管理数据表
+4. 在「导出」选项卡中配置版本参数，点击「开始导出」
+5. 在「校验」选项卡中检查数据格式
+6. 在「预览」选项卡中预览导出结果
+
+---
 
 ## 技术栈
 
-- **Add-in 前端**：React + TypeScript
-- **Excel 交互**：Office JavaScript API
-- **导出引擎**：TypeScript（移植自 VBA）
-- **代理服务**（v2.0+）：Node.js，承担 AI 转发 + 指令中转 + 用户管理
-- **AI**（v2.0+）：Claude API
-
-## 三个版本的演进
-
-```
-v1.0  在 Excel 里用 Add-in 替代 VBA 按钮
-v2.0  在 Add-in 里用 Excel 编辑数据，用云服务连接团队
-v3.0  策划在规则层设计，AI 在数据层执行，Excel 只是呈现结果
-```
+- Office Web Add-in (Excel)
+- React + TypeScript + FluentUI v9
+- Office JavaScript API
+- GitHub Pages 托管
