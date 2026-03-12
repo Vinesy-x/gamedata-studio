@@ -96,6 +96,7 @@ export interface RoadsControlDoc {
   roads0: { role: string; values: string[] };
   roadsN: { role: string; values: string[] };
   filterLogic: string;
+  emptyCellRule: string;
 }
 
 export interface TableExampleDoc {
@@ -181,6 +182,8 @@ export function createTableSchema(): TableSchemaDoc {
           'roads 列为 0/1 或版本区间，控制该行在对应线路下是否导出',
           '#配置区域# 右侧为实际的游戏数据',
           '首行数据从描述行的下一行开始',
+          '【重要】主数据区（#配置区域# 右侧）不允许出现空单元格，空单元格会导致数据边界判定错误或导出数据缺失',
+          '【重要】行列控制区（A列版本区间 + roads列）允许空单元格，空值等同于 0（不导出）',
         ],
       },
 
@@ -248,6 +251,7 @@ export function createTableSchema(): TableSchemaDoc {
         ],
       },
       filterLogic: '行导出条件 = 版本区间通过(A列) AND roads_0通过 AND 当前线路roads_N通过；三个条件全部满足才保留该行',
+      emptyCellRule: '行列控制区的空单元格等同于 0（不导出），允许留空；主数据区（#配置区域# 右侧的实际数值）不允许空单元格',
     },
 
     examples: [
