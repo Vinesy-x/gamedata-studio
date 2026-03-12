@@ -20,7 +20,8 @@ import {
   DataBarVerticalRegular,
   TableSimpleRegular,
 } from '@fluentui/react-icons';
-import { ExportTab, IDLE_TIPS } from './components/ExportTab';
+import { ExportTab } from './components/ExportTab';
+import { IdleAnimation } from './components/IdleAnimation';
 import { ManageTab } from './components/ManageTab';
 import { ValidationPanel } from './components/ValidationPanel';
 import { PreviewPanel } from './components/PreviewPanel';
@@ -74,13 +75,12 @@ const useStyles = makeStyles({
     whiteSpace: 'pre-wrap',
   },
   setupBox: {
-    padding: '32px 20px',
+    padding: '32px 20px 0',
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
     gap: '14px',
     textAlign: 'center' as const,
-    marginTop: '24px',
   },
   setupIcon: {
     width: '64px',
@@ -101,24 +101,6 @@ const useStyles = makeStyles({
     height: '100%',
     gap: '12px',
   },
-  setupTip: {
-    fontSize: '11px',
-    color: tokens.colorNeutralForeground4,
-    textAlign: 'center' as const,
-    padding: '0 20px',
-    lineHeight: '1.6',
-    transition: 'opacity 0.4s ease',
-  },
-  setupFooter: {
-    marginTop: 'auto',
-    textAlign: 'right' as const,
-    padding: '8px 14px',
-    fontSize: '10px',
-    color: tokens.colorNeutralForeground4,
-    letterSpacing: '1px',
-    opacity: 0.45,
-    userSelect: 'none' as const,
-  },
 });
 
 export function App() {
@@ -130,29 +112,10 @@ export function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [initializing, setInitializing] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
-  const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * IDLE_TIPS.length));
-  const [tipVisible, setTipVisible] = useState(true);
 
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
-
-  // Tips 轮播（仅初始化页面）
-  useEffect(() => {
-    if (config) return;
-    const interval = setInterval(() => {
-      setTipVisible(false);
-      setTimeout(() => {
-        setTipIndex(prev => {
-          let next: number;
-          do { next = Math.floor(Math.random() * IDLE_TIPS.length); } while (next === prev && IDLE_TIPS.length > 1);
-          return next;
-        });
-        setTipVisible(true);
-      }, 400);
-    }, 6000);
-    return () => clearInterval(interval);
-  }, [config]);
 
   const handleExportComplete = useCallback((result: ExportResult) => {
     setExportResult(result);
@@ -210,10 +173,7 @@ export function App() {
             </div>
           )}
         </div>
-        <Text className={styles.setupTip} style={{ opacity: tipVisible ? 1 : 0 }}>
-          {IDLE_TIPS[tipIndex]}
-        </Text>
-        <div className={styles.setupFooter}>vin {__APP_VERSION__}</div>
+        <IdleAnimation />
       </div>
     );
   }
