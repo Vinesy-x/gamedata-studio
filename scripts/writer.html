@@ -6,61 +6,53 @@
 <body>
 <p id="status">Initializing...</p>
 <script>
+var FILE_SERVER = 'http://localhost:9876';
 var statusEl = document.getElementById('status');
-var queue = [];
-var processing = false;
 
-async function processQueue() {
-  if (processing || queue.length === 0) return;
-  processing = true;
-  var item = queue.shift();
-  statusEl.textContent = 'Writing: ' + item.fileName;
+async function handleMessage(msg) {
   try {
-    if (item.action === 'write') {
-      var resp = await fetch('/api/write-file', {
+    if (msg.action === 'write') {
+      statusEl.textContent = 'Writing: ' + msg.fileName;
+      var resp = await fetch(FILE_SERVER + '/api/write-file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ directory: item.directory, fileName: item.fileName, data: item.data })
+        body: JSON.stringify({ directory: msg.directory, fileName: msg.fileName, data: msg.data })
       });
       if (!resp.ok) {
         var text = await resp.text();
-        Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: false, error: 'HTTP ' + resp.status + ': ' + text }));
-      } else {
-        Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: true }));
+        return { id: msg.id, ok: false, error: 'HTTP ' + resp.status + ': ' + text };
       }
-    } else if (item.action === 'read') {
-      var resp = await fetch('/api/read-file?directory=' + encodeURIComponent(item.directory) + '&fileName=' + encodeURIComponent(item.fileName));
+      return { id: msg.id, ok: true };
+
+    } else if (msg.action === 'read') {
+      var resp = await fetch(FILE_SERVER + '/api/read-file?directory=' + encodeURIComponent(msg.directory) + '&fileName=' + encodeURIComponent(msg.fileName));
       if (!resp.ok) {
-        Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: false, error: 'not found' }));
-      } else {
-        var buf = await resp.arrayBuffer();
-        var bytes = new Uint8Array(buf);
-        var binary = '';
-        for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-        var b64 = btoa(binary);
-        Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: true, data: b64 }));
+        return { id: msg.id, ok: false, error: 'not found' };
       }
-    } else if (item.action === 'ping') {
-      Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: true }));
+      var buf = await resp.arrayBuffer();
+      var bytes = new Uint8Array(buf);
+      var binary = '';
+      for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      return { id: msg.id, ok: true, data: btoa(binary) };
+
+    } else if (msg.action === 'ping') {
+      return { id: msg.id, ok: true };
     }
   } catch (err) {
-    Office.context.ui.messageParent(JSON.stringify({ id: item.id, ok: false, error: err.message }));
+    return { id: msg.id, ok: false, error: err.message };
   }
-  processing = false;
-  if (queue.length > 0) processQueue();
 }
 
 Office.onReady(function() {
-  statusEl.textContent = 'Ready - waiting for commands...';
+  statusEl.textContent = 'Ready';
   Office.context.ui.addHandlerAsync(
     Office.EventType.DialogParentMessageReceived,
-    function(arg) {
+    async function(arg) {
       var msg = JSON.parse(arg.message);
-      queue.push(msg);
-      processQueue();
+      var result = await handleMessage(msg);
+      Office.context.ui.messageParent(JSON.stringify(result));
     }
   );
-  // Signal ready
   Office.context.ui.messageParent(JSON.stringify({ id: '__ready__', ok: true }));
 });
 </script>

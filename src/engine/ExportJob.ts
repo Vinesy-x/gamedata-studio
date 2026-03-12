@@ -216,6 +216,7 @@ export class ExportJob {
   private dialogCallbacks = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   private dialogIdCounter = 0;
   private fileServerBase = 'http://localhost:9876';
+  private writerUrl = 'https://vinesy-x.github.io/gamedata-studio/writer.html';
 
   private openWriterDialog(): Promise<void> {
     if (this.dialogReady && this.dialog) return Promise.resolve();
@@ -224,7 +225,7 @@ export class ExportJob {
       const timeout = setTimeout(() => reject(new Error('无法连接本地文件服务。请先启动文件服务再导出。')), 10000);
 
       Office.context.ui.displayDialogAsync(
-        `${this.fileServerBase}/writer.html`,
+        this.writerUrl,
         { width: 15, height: 10, displayInIframe: false },
         (result) => {
           if (result.status !== Office.AsyncResultStatus.Succeeded) {
