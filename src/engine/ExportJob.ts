@@ -23,7 +23,7 @@ export class ExportJob {
   private dataLoader: DataLoader;
   private exportWriter: ExportWriter;
   private onProgress: ProgressCallback;
-  private fileServerBase = '';  // '' = same origin, or 'http://localhost:9876'
+  private fileServerBase = '';  // '' = same origin
 
   constructor(onProgress: ProgressCallback) {
     this.errorHandler = new ErrorHandler();
@@ -195,7 +195,6 @@ export class ExportJob {
 
       return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables);
     } catch (err) {
-      this.closeDialog();
       logger.error('导出失败', err);
       this.errorHandler.logError({
         code: ErrorCode.FILE_WRITE_FAILED,
@@ -208,8 +207,6 @@ export class ExportJob {
     }
   }
 
-  private fileServerBase = '';  // '' = same origin
-
   private fetchWithTimeout(url: string, timeoutMs = 3000): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -217,24 +214,25 @@ export class ExportJob {
   }
 
   /**
-   * 检测文件服务（同源 HTTPS，和 dev server 一样的模式）
+   * 检测文件服务（直接连接 https://localhost:9876，绕过 Office 代理）
    */
   private async detectWriteMode(_outputDir: string): Promise<void> {
-    // 同源: 加载项和文件服务都在 https://localhost:9876
-    try {
-      const resp = await this.fetchWithTimeout('/api/read-file?directory=.&fileName=_probe');
-      if (resp.ok || resp.status === 404) {
-        this.fileServerBase = '';
-        logger.info('使用本地文件服务（同源 HTTPS）');
-        return;
-      }
-    } catch { /* fall through */ }
-
+    const bases = ['https://localhost:9876', 'http://localhost:9876'];
+    for (const base of bases) {
+      try {
+        const resp = await this.fetchWithTimeout(`${base}/api/read-file?directory=.&fileName=_probe`);
+        if (resp.ok || resp.status === 404) {
+          this.fileServerBase = base;
+          logger.info(`使用本地文件服务: ${base}`);
+          return;
+        }
+      } catch { /* try next */ }
+    }
     throw new Error('无法连接文件服务。请先启动：python3 ~/.gamedata-studio/file-server.py');
   }
 
   /**
-   * 写入文件到磁盘
+   * 写入文件到磁盘（GET 分片上传，绕过 Office 代理的 POST 405 限制）
    */
   private async writeFileToServer(
     directory: string,
@@ -242,14 +240,38 @@ export class ExportJob {
     buffer: ArrayBuffer
   ): Promise<void> {
     const base64 = this.arrayBufferToBase64(buffer);
-    const resp = await fetch(`${this.fileServerBase}/api/write-file`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ directory, fileName, data: base64 }),
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => resp.statusText);
-      throw new Error(`写入文件失败 (HTTP ${resp.status}): ${text}`);
+    const base = this.fileServerBase;
+
+    // 1. 开始写入会话
+    const startResp = await this.fetchWithTimeout(
+      `${base}/api/write-start?directory=${encodeURIComponent(directory)}&fileName=${encodeURIComponent(fileName)}`
+    );
+    if (!startResp.ok) {
+      throw new Error(`写入文件失败 (write-start HTTP ${startResp.status})`);
+    }
+    const { id } = await startResp.json();
+
+    // 2. 分片发送 base64 数据（每片 ~32KB，URL 安全长度）
+    const CHUNK_SIZE = 32000;
+    const totalChunks = Math.ceil(base64.length / CHUNK_SIZE) || 1;
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+      const chunkResp = await this.fetchWithTimeout(
+        `${base}/api/write-chunk?id=${encodeURIComponent(id)}&index=${i}&data=${encodeURIComponent(chunk)}`,
+        10000
+      );
+      if (!chunkResp.ok) {
+        throw new Error(`写入文件失败 (write-chunk ${i}/${totalChunks} HTTP ${chunkResp.status})`);
+      }
+    }
+
+    // 3. 完成写入
+    const finishResp = await this.fetchWithTimeout(
+      `${base}/api/write-finish?id=${encodeURIComponent(id)}`
+    );
+    if (!finishResp.ok) {
+      const text = await finishResp.text().catch(() => finishResp.statusText);
+      throw new Error(`写入文件失败 (write-finish HTTP ${finishResp.status}): ${text}`);
     }
   }
 

@@ -20,9 +20,9 @@ if not exist "%ADDIN_DIR%" mkdir "%ADDIN_DIR%"
 if not exist "%DATA_DIR%" mkdir "%DATA_DIR%"
 echo [1/4] Directories OK
 
-:: Step 2: Download manifest
+:: Step 2: Download manifest (patch to HTTP for Windows - no dev certs)
 echo [2/4] Downloading manifest...
-powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%MANIFEST_URL%' -OutFile '%MANIFEST_FILE%' -UseBasicParsing"
+powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%MANIFEST_URL%' -OutFile '%MANIFEST_FILE%' -UseBasicParsing; (Get-Content '%MANIFEST_FILE%') -replace 'https://localhost:9876','http://localhost:9876' | Set-Content '%MANIFEST_FILE%' -Encoding UTF8"
 if not exist "%MANIFEST_FILE%" (
     echo ERROR: Download failed. Check your network.
     pause

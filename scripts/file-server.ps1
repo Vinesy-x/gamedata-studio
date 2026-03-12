@@ -72,7 +72,11 @@ Write-Host "GameData Studio File Server"
 Write-Host ""
 if (-not (Update-WebFiles)) { exit 1 }
 
+# Chunked upload storage
+$script:chunks = @{}
+
 # Start HTTP listener
+Add-Type -AssemblyName System.Web
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$port/")
 $listener.Prefixes.Add("http://127.0.0.1:$port/")
@@ -130,7 +134,7 @@ while ($listener.IsListening) {
         continue
     }
 
-    # API: write file
+    # API: write file (POST - kept for dev mode compatibility)
     if ($req.HttpMethod -eq "POST" -and $urlPath -eq "/api/write-file") {
         $reader = New-Object System.IO.StreamReader($req.InputStream)
         $body = $reader.ReadToEnd() | ConvertFrom-Json
@@ -150,6 +154,75 @@ while ($listener.IsListening) {
         $res.ContentType = "application/json"
         $msg = [System.Text.Encoding]::UTF8.GetBytes('{"ok":true}')
         $res.OutputStream.Write($msg, 0, $msg.Length)
+        $res.Close()
+        continue
+    }
+
+    # API: GET-based chunked write (bypass Office proxy POST block)
+    if ($req.HttpMethod -eq "GET" -and $urlPath -eq "/api/write-start") {
+        $params = [System.Web.HttpUtility]::ParseQueryString($req.Url.Query)
+        $dir = $params["directory"]
+        $fileName = $params["fileName"]
+        $id = [Guid]::NewGuid().ToString()
+        $script:chunks[$id] = @{ directory = $dir; fileName = $fileName; parts = @{} }
+        $res.ContentType = "application/json"
+        $msg = [System.Text.Encoding]::UTF8.GetBytes("{`"id`":`"$id`"}")
+        $res.OutputStream.Write($msg, 0, $msg.Length)
+        $res.Close()
+        continue
+    }
+
+    if ($req.HttpMethod -eq "GET" -and $urlPath -eq "/api/write-chunk") {
+        $params = [System.Web.HttpUtility]::ParseQueryString($req.Url.Query)
+        $id = $params["id"]
+        $index = [int]$params["index"]
+        $chunkData = $params["data"]
+        if ($script:chunks.ContainsKey($id)) {
+            $script:chunks[$id].parts[$index] = $chunkData
+            $res.ContentType = "application/json"
+            $msg = [System.Text.Encoding]::UTF8.GetBytes('{"ok":true}')
+            $res.OutputStream.Write($msg, 0, $msg.Length)
+        } else {
+            $res.StatusCode = 400
+            $msg = [System.Text.Encoding]::UTF8.GetBytes('{"error":"invalid id"}')
+            $res.OutputStream.Write($msg, 0, $msg.Length)
+        }
+        $res.Close()
+        continue
+    }
+
+    if ($req.HttpMethod -eq "GET" -and $urlPath -eq "/api/write-finish") {
+        $params = [System.Web.HttpUtility]::ParseQueryString($req.Url.Query)
+        $id = $params["id"]
+        if ($script:chunks.ContainsKey($id)) {
+            $info = $script:chunks[$id]
+            $script:chunks.Remove($id)
+            $sorted = $info.parts.GetEnumerator() | Sort-Object Key
+            $fullB64 = ($sorted | ForEach-Object { $_.Value }) -join ""
+            $dir = $info.directory
+            $fileName = $info.fileName
+            try {
+                if (-not (Test-Path $dir)) {
+                    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+                }
+                $filePath = Join-Path $dir $fileName
+                $data = [Convert]::FromBase64String($fullB64)
+                [System.IO.File]::WriteAllBytes($filePath, $data)
+                Write-Host "  -> $filePath ($($data.Length) bytes)"
+                $res.ContentType = "application/json"
+                $msg = [System.Text.Encoding]::UTF8.GetBytes('{"ok":true}')
+                $res.OutputStream.Write($msg, 0, $msg.Length)
+            } catch {
+                $res.StatusCode = 500
+                $errMsg = $_.Exception.Message -replace '"', '\"'
+                $msg = [System.Text.Encoding]::UTF8.GetBytes("{`"error`":`"$errMsg`"}")
+                $res.OutputStream.Write($msg, 0, $msg.Length)
+            }
+        } else {
+            $res.StatusCode = 400
+            $msg = [System.Text.Encoding]::UTF8.GetBytes('{"error":"invalid id"}')
+            $res.OutputStream.Write($msg, 0, $msg.Length)
+        }
         $res.Close()
         continue
     }

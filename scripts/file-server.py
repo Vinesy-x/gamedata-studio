@@ -9,10 +9,14 @@ import ssl
 import json
 import base64
 import socket
+import uuid
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from urllib.request import urlopen, Request
 from urllib.error import URLError
+
+# Temporary storage for chunked uploads
+_chunks = {}  # id -> { 'directory': str, 'fileName': str, 'parts': [str] }
 
 PORT = 9876
 DATA_DIR = os.path.join(os.path.expanduser('~'), '.gamedata-studio')
@@ -25,8 +29,6 @@ REMOTE_VERSION_URL = f'{GITHUB_PAGES}/version.txt'
 # Files to download from GitHub Pages
 DIST_FILES = [
     'taskpane.html',
-    'bridge.html',
-    'writer.html',
     'taskpane.bundle.js',
     'taskpane.bundle.js.LICENSE.txt',
     'assets/gds-16.png',
@@ -123,6 +125,17 @@ class FileHandler(BaseHTTPRequestHandler):
             self._handle_read(parsed)
             return
 
+        # API: write file via GET (Office webview blocks POST)
+        if path == '/api/write-start':
+            self._handle_write_start(parsed)
+            return
+        if path == '/api/write-chunk':
+            self._handle_write_chunk(parsed)
+            return
+        if path == '/api/write-finish':
+            self._handle_write_finish(parsed)
+            return
+
         # Static files
         if path == '/':
             path = '/taskpane.html'
@@ -134,6 +147,80 @@ class FileHandler(BaseHTTPRequestHandler):
         self.send_response(404)
         self._cors()
         self.end_headers()
+
+    # ── GET-based chunked write (bypass Office proxy POST block) ──
+
+    def _handle_write_start(self, parsed):
+        params = parse_qs(parsed.query)
+        directory = params.get('directory', [''])[0]
+        fileName = params.get('fileName', [''])[0]
+        if not directory or not fileName:
+            self.send_response(400)
+            self._cors()
+            self.end_headers()
+            self.wfile.write(b'{"error":"missing params"}')
+            return
+        cid = str(uuid.uuid4())
+        _chunks[cid] = {'directory': directory, 'fileName': fileName, 'parts': []}
+        self.send_response(200)
+        self._cors()
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({'id': cid}).encode())
+
+    def _handle_write_chunk(self, parsed):
+        params = parse_qs(parsed.query)
+        cid = params.get('id', [''])[0]
+        data = params.get('data', [''])[0]
+        index = int(params.get('index', ['0'])[0])
+        if not cid or cid not in _chunks:
+            self.send_response(400)
+            self._cors()
+            self.end_headers()
+            self.wfile.write(b'{"error":"invalid id"}')
+            return
+        parts = _chunks[cid]['parts']
+        # Extend list if needed
+        while len(parts) <= index:
+            parts.append('')
+        parts[index] = data
+        self.send_response(200)
+        self._cors()
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(b'{"ok":true}')
+
+    def _handle_write_finish(self, parsed):
+        params = parse_qs(parsed.query)
+        cid = params.get('id', [''])[0]
+        if not cid or cid not in _chunks:
+            self.send_response(400)
+            self._cors()
+            self.end_headers()
+            self.wfile.write(b'{"error":"invalid id"}')
+            return
+        info = _chunks.pop(cid)
+        directory = info['directory']
+        fileName = info['fileName']
+        full_b64 = ''.join(info['parts'])
+        try:
+            os.makedirs(directory, exist_ok=True)
+            filepath = os.path.join(directory, fileName)
+            with open(filepath, 'wb') as f:
+                f.write(base64.b64decode(full_b64))
+            print(f'  -> {filepath} ({os.path.getsize(filepath)} bytes)')
+        except Exception as e:
+            print(f'  ERROR: Write failed: {e}')
+            self.send_response(500)
+            self._cors()
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode())
+            return
+        self.send_response(200)
+        self._cors()
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(b'{"ok":true}')
 
     def _serve_static(self, local_path):
         ext = os.path.splitext(local_path)[1].lower()
