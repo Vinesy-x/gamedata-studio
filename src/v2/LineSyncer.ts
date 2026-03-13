@@ -81,13 +81,29 @@ export class LineSyncer {
       let vrPos = this.findMarker(snap.values, 'version_r');
       if (!vrPos) return;
 
-      // 1a. 收集 version_r 行现有的 roads 列
-      const existingCols = this.collectRoadsCols(snap.values, vrPos);
+      // 1a. 收集 roads 列并检测重复（单次扫描）
+      const { cols: _, duplicates: dupCols } = this.collectRoadsColsWithDuplicates(snap.values, vrPos);
+      if (dupCols.length > 0) {
+        const sortedDupCols = dupCols.sort((a, b) => b - a); // 从右往左删
+        for (const c of sortedDupCols) {
+          sheet.getRangeByIndexes(0, c + snap.startCol, 1, 1).getEntireColumn().delete(Excel.DeleteShiftDirection.left);
+        }
+        await context.sync();
+        logger.info(`表「${sheetName}」删除 ${dupCols.length} 个重复 roads 列`);
+        // reload
+        snap = await excelHelper.loadSheetSnapshot(context, sheetName);
+        if (!snap) return;
+        vrPos = this.findMarker(snap.values, 'version_r');
+        if (!vrPos) return;
+      }
+
+      // 重新收集去重后的列
+      const dedupedCols = this.collectRoadsCols(snap.values, vrPos);
 
       // 1b. 删除多余的列（从右往左，整列删除）
-      const extraFields = Array.from(existingCols.keys()).filter(f => !requiredRoads.includes(f));
+      const extraFields = Array.from(dedupedCols.keys()).filter(f => !requiredRoads.includes(f));
       if (extraFields.length > 0) {
-        const cols = extraFields.map(f => existingCols.get(f)!).sort((a, b) => b - a);
+        const cols = extraFields.map(f => dedupedCols.get(f)!).sort((a, b) => b - a);
         for (const c of cols) {
           sheet.getRangeByIndexes(0, c + snap.startCol, 1, 1).getEntireColumn().delete(Excel.DeleteShiftDirection.left);
         }
@@ -170,16 +186,33 @@ export class LineSyncer {
       if (!vcPos) {
         // 没有 version_c，跳过第二阶段
       } else {
-        // 收集 version_c 区域中现有的 roads 行
-        const existingRows = this.collectRoadsRows(snap.values, vcPos, vrPos);
+        // 收集 roads 行并检测重复（单次扫描）
+        const { duplicates: dupRows } = this.collectRoadsRowsWithDuplicates(snap.values, vcPos, vrPos);
+        if (dupRows.length > 0) {
+          const sortedDupRows = dupRows.sort((a, b) => b - a); // 从下往上删
+          for (const r of sortedDupRows) {
+            sheet.getRangeByIndexes(r + snap.startRow, 0, 1, 1).getEntireRow().delete(Excel.DeleteShiftDirection.up);
+          }
+          await context.sync();
+          logger.info(`表「${sheetName}」删除 ${dupRows.length} 个重复 roads 行`);
+          // reload
+          snap = await excelHelper.loadSheetSnapshot(context, sheetName);
+          if (!snap) return;
+          vrPos = this.findMarker(snap.values, 'version_r');
+          vcPos = this.findMarker(snap.values, 'version_c');
+          if (!vrPos || !vcPos) return;
+        }
 
-        if (existingRows.size > 0) {
+        // 重新收集去重后的行
+        const dedupedRows = this.collectRoadsRows(snap.values, vcPos, vrPos);
+
+        if (dedupedRows.size > 0) {
           // 有 roads 行 → R+C 模式，需要同步
 
           // 2a. 删除多余的 roads 行（从下往上，整行删除）
-          const extraRowFields = Array.from(existingRows.keys()).filter(f => !requiredRoads.includes(f));
+          const extraRowFields = Array.from(dedupedRows.keys()).filter(f => !requiredRoads.includes(f));
           if (extraRowFields.length > 0) {
-            const rows = extraRowFields.map(f => existingRows.get(f)!).sort((a, b) => b - a);
+            const rows = extraRowFields.map(f => dedupedRows.get(f)!).sort((a, b) => b - a);
             for (const r of rows) {
               sheet.getRangeByIndexes(r + snap.startRow, 0, 1, 1).getEntireRow().delete(Excel.DeleteShiftDirection.up);
             }
@@ -317,37 +350,69 @@ export class LineSyncer {
 
   // ─── 工具方法 ───────────────────────────────────────────
 
-  /** 在 version_r 行中收集 roads 列：field → colIndex */
-  private collectRoadsCols(
+  /** 在 version_r 行中收集 roads 列（单次扫描，同时返回去重 map 和重复列索引） */
+  private collectRoadsColsWithDuplicates(
     data: (string | number | boolean | null)[][],
     vrPos: { row: number; col: number }
-  ): Map<string, number> {
-    const map = new Map<string, number>();
+  ): { cols: Map<string, number>; duplicates: number[] } {
+    const cols = new Map<string, number>();
+    const duplicates: number[] = [];
     for (let c = vrPos.col + 1; c < (data[vrPos.row]?.length || 0); c++) {
       const v = String(data[vrPos.row][c] ?? '').trim();
       if (v.startsWith('roads_')) {
-        map.set(v, c);
+        if (cols.has(v)) {
+          duplicates.push(c); // 保留首次出现，删除后续重复
+        } else {
+          cols.set(v, c);
+        }
       } else if (v === '' || v === '#配置区域#') {
         break;
       }
     }
-    return map;
+    return { cols, duplicates };
   }
 
-  /** 在 version_c 和 version_r 之间收集 roads 行：field → rowIndex */
+  /** 在 version_r 行中收集 roads 列：field → colIndex（去重后 reload 使用） */
+  private collectRoadsCols(
+    data: (string | number | boolean | null)[][],
+    vrPos: { row: number; col: number }
+  ): Map<string, number> {
+    return this.collectRoadsColsWithDuplicates(data, vrPos).cols;
+  }
+
+  /** 在 version_c~version_r 之间收集 roads 行（单次扫描，同时返回去重 map 和重复行索引） */
+  private collectRoadsRowsWithDuplicates(
+    data: (string | number | boolean | null)[][],
+    vcPos: { row: number; col: number },
+    vrPos: { row: number; col: number }
+  ): { rows: Map<string, number>; duplicates: number[] } {
+    const fieldRows = new Map<string, number[]>();
+    for (let r = vcPos.row + 1; r < vrPos.row; r++) {
+      const v = String(data[r]?.[vcPos.col] ?? '').trim();
+      if (v.startsWith('roads_')) {
+        if (!fieldRows.has(v)) fieldRows.set(v, []);
+        fieldRows.get(v)!.push(r);
+      }
+    }
+    // 保留最后一个（后面的），标记前面的为待删除
+    const rows = new Map<string, number>();
+    const duplicates: number[] = [];
+    for (const [field, indices] of fieldRows) {
+      rows.set(field, indices[indices.length - 1]); // 保留最后一个
+      for (let i = 0; i < indices.length - 1; i++) {
+        duplicates.push(indices[i]);
+      }
+    }
+    return { rows, duplicates };
+  }
+
+  /** 在 version_c~version_r 之间收集 roads 行：field → rowIndex（去重后 reload 使用） */
   private collectRoadsRows(
     data: (string | number | boolean | null)[][],
     vcPos: { row: number; col: number },
     vrPos: { row: number; col: number }
   ): Map<string, number> {
-    const map = new Map<string, number>();
-    for (let r = vcPos.row + 1; r < vrPos.row; r++) {
-      const v = String(data[r]?.[vcPos.col] ?? '').trim();
-      if (v.startsWith('roads_')) {
-        map.set(v, r);
-      }
-    }
-    return map;
+    return this.collectRoadsRowsWithDuplicates(data, vcPos, vrPos).rows;
   }
 
   /** 查找标记文字位置（前30行） */

@@ -138,10 +138,38 @@ export class DataLoader {
     const dataStartCol = configAreaCol >= 0 ? configAreaCol + 1 : 0;
     // 当 version_r 存在时：从其所在行开始；否则从第0行开始（整个工作表）
     const dataStartRow = versionRRow >= 0 ? versionRRow : 0;
-    const mainData: CellValue[][] = [];
-    for (let r = dataStartRow; r < totalRows; r++) {
-      const row: CellValue[] = [];
+
+    // 确定数据区右边界：从 #配置区域# 后的表头行扫描连续非空单元格
+    // 只导出 currentRegion 内的列，避免备注等额外内容被导出
+    let dataEndCol = totalCols;
+    if (configAreaCol >= 0 && versionRRow >= 0) {
+      dataEndCol = dataStartCol;
       for (let c = dataStartCol; c < totalCols; c++) {
+        const val = String(allValues[versionRRow][c] ?? '').trim();
+        if (val === '') break;
+        dataEndCol = c + 1;
+      }
+    }
+
+    // 确定数据区下边界：表头2行（version_r + 描述行）始终保留，
+    // 数据行从第3行起，首列为空即停止，与校验引擎一致
+    const dataRowOffset = dataStartRow + 2; // 跳过表头2行
+    let dataEndRow = totalRows;
+    if (configAreaCol >= 0 && versionRRow >= 0) {
+      dataEndRow = dataRowOffset;
+      for (let r = dataRowOffset; r < totalRows; r++) {
+        const firstCell = allValues[r]?.[dataStartCol];
+        if (firstCell == null || String(firstCell).trim() === '') break;
+        dataEndRow = r + 1;
+      }
+      // 表头行始终包含
+      dataEndRow = Math.max(dataEndRow, dataRowOffset);
+    }
+
+    const mainData: CellValue[][] = [];
+    for (let r = dataStartRow; r < dataEndRow; r++) {
+      const row: CellValue[] = [];
+      for (let c = dataStartCol; c < dataEndCol; c++) {
         row.push(allValues[r][c] ?? null);
       }
       mainData.push(row);
@@ -151,7 +179,7 @@ export class DataLoader {
     // 当 #配置区域# 不存在时，没有版本行数据列可提取
     const versionRowData: CellValue[][] = [];
     const versionRowEndCol = configAreaCol >= 0 ? configAreaCol : 0;
-    for (let r = dataStartRow; r < totalRows; r++) {
+    for (let r = dataStartRow; r < dataEndRow; r++) {
       const row: CellValue[] = [];
       for (let c = 0; c < versionRowEndCol; c++) {
         row.push(allValues[r][c] ?? null);
@@ -166,11 +194,12 @@ export class DataLoader {
       versionColData = [];
       // 提取各行左侧标签（version_c 所在列的值，用于识别 roads_0/roads_X）
       versionColLabels = [];
+      const vcDataCols = dataEndCol - dataStartCol;
       for (let r = versionCRow; r < versionRRow; r++) {
         // 标签在 version_c 所在列（第一行是 "version_c" 本身，后续行可能有 roads_0 等）
         versionColLabels.push(allValues[r][versionCCol] ?? null);
         const row: CellValue[] = [];
-        for (let c = versionCCol + 1; c < versionCCol + 1 + (totalCols - dataStartCol); c++) {
+        for (let c = versionCCol + 1; c < versionCCol + 1 + vcDataCols; c++) {
           row.push(c < totalCols ? (allValues[r][c] ?? null) : null);
         }
         versionColData.push(row);
