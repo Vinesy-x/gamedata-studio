@@ -119,12 +119,6 @@ const useStyles = makeStyles({
     overflow: 'hidden' as const,
     textOverflow: 'ellipsis' as const,
   },
-  // 操作按钮组
-  actionBtnGroup: {
-    display: 'flex',
-    gap: '8px',
-    padding: '0 14px 12px',
-  },
   // 颜色图例
   legendSection: {
     padding: '0 14px 14px',
@@ -313,9 +307,6 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
       // ignore
     }
   }, [selectedTableIdx, results]);
-
-  const selectedResult =
-    selectedTableIdx !== null ? results[selectedTableIdx] : null;
 
   return (
     <div className={styles.container}>

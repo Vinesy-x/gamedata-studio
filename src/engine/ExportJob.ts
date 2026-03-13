@@ -1,15 +1,15 @@
 /* global Excel */
 
 import { Config } from '../types/config';
-import { ExportResult, ExportProgress, InMemoryTableData } from '../types/table';
+import { ExportResult, ExportProgress, InMemoryTableData, TableDiff } from '../types/table';
 import { ErrorCode } from '../types/errors';
 import { ConfigLoader } from './ConfigLoader';
 import { VersionFilter } from './VersionFilter';
 import { DataLoader } from './DataLoader';
 import { DataFilter } from './DataFilter';
-import { ExportWriter, HashManifest } from './ExportWriter';
+import { ExportWriter, HashManifest, getManifestRows } from './ExportWriter';
 import { ErrorHandler } from '../utils/ErrorHandler';
-import { excelHelper } from '../utils/ExcelHelper';
+import { excelHelper, isExcelError } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
 import { StudioConfigStore } from '../v2/StudioConfigStore';
 
@@ -41,15 +41,19 @@ export class ExportJob {
     this.errorHandler.clear();
 
     const modifiedFiles: string[] = [];
+    const tableDiffs: TableDiff[] = [];
     let totalTables = 0;
     let changedTables = 0;
 
     try {
+      // 初始阶段 totalSteps 未知，先用估计值；加载数据后重新计算
+      let totalSteps = 10;
+
       // 步骤1: 加载配置
-      this.emitProgress(1, 10, '正在加载配置...');
+      this.emitProgress(1, totalSteps, '正在加载配置...');
       const config = await this.configLoader.loadConfig();
       if (!config) {
-        return this.buildResult(false, modifiedFiles, startTime, 0, 0);
+        return this.buildResult(false, modifiedFiles, startTime, 0, 0, tableDiffs);
       }
 
       const outputDir = config.outputSettings.outputDirectory;
@@ -61,14 +65,14 @@ export class ExportJob {
           message: '输出目录为空，无法导出。请检查配置设置表中的版本模板目录。',
           procedure: 'ExportJob.runExport',
         });
-        return this.buildResult(false, modifiedFiles, startTime, 0, 0);
+        return this.buildResult(false, modifiedFiles, startTime, 0, 0, tableDiffs);
       }
 
       // 检测写入模式：优先用 dev server API，不可用时切换到 File System Access API
       await this.detectWriteMode(outputDir);
 
       // 步骤2: 创建版本筛选器
-      this.emitProgress(2, 10, '正在初始化筛选器...');
+      this.emitProgress(2, totalSteps, '正在初始化筛选器...');
       const lineField = this.configLoader.determineOutputLineField(config);
       const versionFilter = new VersionFilter(
         config.outputSettings.versionNumber,
@@ -79,22 +83,24 @@ export class ExportJob {
       logger.info(`输出目录: ${outputDir}`);
 
       // 步骤3: 加载所有源数据到内存
-      this.emitProgress(3, 10, '正在加载数据表...');
+      this.emitProgress(3, totalSteps, '正在加载数据表...');
       const inMemoryData = await this.dataLoader.loadAll(config, versionFilter);
 
       if (inMemoryData.size === 0) {
         logger.warn('没有表需要处理');
-        return this.buildResult(true, modifiedFiles, startTime, 0, 0);
+        return this.buildResult(true, modifiedFiles, startTime, 0, 0, tableDiffs);
       }
 
       totalTables = inMemoryData.size;
+      // 重新计算总步数: 5 setup + N tables + 2 finalize
+      totalSteps = 5 + totalTables + 2;
 
       // 步骤4: 导出前校验
-      this.emitProgress(4, 10, '正在执行校验...');
+      this.emitProgress(4, totalSteps, '正在执行校验...');
       this.runValidation(inMemoryData, versionFilter);
 
       // 步骤5: 加载哈希清单（用于差异对比）
-      this.emitProgress(5, 10, '正在准备输出...');
+      this.emitProgress(5, totalSteps, '正在准备输出...');
       let manifest: HashManifest = {};
 
       try {
@@ -108,7 +114,7 @@ export class ExportJob {
         logger.info('创建新的哈希清单');
       }
 
-      // 步骤6-8: 逐表处理
+      // 逐表处理（每张表占一个进度步骤）
       const dataFilter = new DataFilter(versionFilter);
       let tableIndex = 0;
 
@@ -118,7 +124,7 @@ export class ExportJob {
         if (!tableInfo) continue;
 
         const englishName = tableInfo.englishName;
-        this.emitProgress(6, 10, `正在处理 ${chineseName} (${tableIndex}/${totalTables})...`, chineseName);
+        this.emitProgress(5 + tableIndex, totalSteps, `正在处理 ${chineseName} (${tableIndex}/${totalTables})...`, chineseName);
 
         try {
           // 筛选
@@ -141,6 +147,22 @@ export class ExportJob {
             continue;
           }
 
+          // 当前行数（减去表头行）
+          const currentRows = Math.max(0, filtered.data.length - 1);
+          // 上次导出的行数
+          const oldEntry = manifest[englishName];
+          const previousRows = oldEntry ? getManifestRows(oldEntry) : 0;
+          const isNew = !oldEntry;
+
+          // 记录 diff 信息
+          tableDiffs.push({
+            tableName: englishName,
+            chineseName,
+            totalRows: currentRows,
+            previousRows,
+            status: isNew ? 'new' : 'modified',
+          });
+
           // 生成独立 xlsx
           const fileBuffer = await this.exportWriter.writeIndividualFile(
             filtered.data, englishName, config
@@ -150,8 +172,11 @@ export class ExportJob {
           const fileName = `${englishName}.xlsx`;
           await this.writeFileToServer(outputDir, fileName, fileBuffer);
 
-          // 更新哈希清单
-          manifest[englishName] = this.exportWriter.computeDataHash(filtered.data);
+          // 更新哈希清单（新格式：包含行数）
+          manifest[englishName] = {
+            hash: this.exportWriter.computeDataHash(filtered.data),
+            rows: currentRows,
+          };
 
           modifiedFiles.push(fileName);
           changedTables++;
@@ -169,8 +194,8 @@ export class ExportJob {
         }
       }
 
-      // 步骤9: 保存哈希清单
-      this.emitProgress(9, 10, '正在保存清单...');
+      // 保存哈希清单
+      this.emitProgress(totalSteps - 1, totalSteps, '正在保存清单...');
       if (changedTables > 0) {
         try {
           const manifestJson = JSON.stringify(manifest, null, 2);
@@ -188,14 +213,14 @@ export class ExportJob {
         }
       }
 
-      // 步骤10: 收尾
-      this.emitProgress(10, 10, '正在更新状态...');
+      // 收尾
+      this.emitProgress(totalSteps, totalSteps, '正在更新状态...');
       if (changedTables > 0) {
         await this.configLoader.incrementSequence(config);
       }
       await this.updateExportResults(modifiedFiles);
 
-      return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables);
+      return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables, tableDiffs);
     } catch (err) {
       logger.error('导出失败', err);
       this.errorHandler.logError({
@@ -205,7 +230,7 @@ export class ExportJob {
         message: err instanceof Error ? err.message : String(err),
         procedure: 'ExportJob.runExport',
       });
-      return this.buildResult(false, modifiedFiles, startTime, totalTables, changedTables);
+      return this.buildResult(false, modifiedFiles, startTime, totalTables, changedTables, tableDiffs);
     }
   }
 
@@ -326,18 +351,6 @@ export class ExportJob {
     return btoa(binary);
   }
 
-  /**
-   * 导出前校验
-   */
-  /** 检测单元格值是否为 Excel 错误值 */
-  private isExcelError(val: unknown): boolean {
-    if (val == null) return false;
-    const s = String(val).trim();
-    return s === '#N/A' || s === '#REF!' || s === '#VALUE!'
-      || s === '#DIV/0!' || s === '#NAME?' || s === '#NULL!'
-      || s === '#NUM!' || s === '#GETTING_DATA' || s === '#SPILL!';
-  }
-
   private runValidation(
     inMemoryData: Map<string, InMemoryTableData>,
     versionFilter: VersionFilter,
@@ -351,7 +364,7 @@ export class ExportJob {
             const raw = row[c];
             const loc = { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') };
 
-            if (this.isExcelError(raw)) {
+            if (isExcelError(raw)) {
               this.errorHandler.logError({
                 code: ErrorCode.CELL_EXCEL_ERROR,
                 severity: 'warning',
@@ -388,7 +401,7 @@ export class ExportJob {
             const raw = tableData.versionColData[r][c];
             const loc = { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') };
 
-            if (this.isExcelError(raw)) {
+            if (isExcelError(raw)) {
               this.errorHandler.logError({
                 code: ErrorCode.CELL_EXCEL_ERROR,
                 severity: 'warning',
@@ -438,7 +451,7 @@ export class ExportJob {
             const raw = tableData.mainData[r][c];
             const loc = { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') };
 
-            if (this.isExcelError(raw)) {
+            if (isExcelError(raw)) {
               this.errorHandler.logError({
                 code: ErrorCode.CELL_EXCEL_ERROR,
                 severity: 'warning',
@@ -466,9 +479,6 @@ export class ExportJob {
     }
   }
 
-  /**
-   * 更新导出结果到「表格输出」工作表
-   */
   /**
    * 更新导出状态到「表格输出」工作表（仅更新工作状态和结果计数，列表和报错已在UI中展示）
    */
@@ -517,7 +527,8 @@ export class ExportJob {
     modifiedFiles: string[],
     startTime: number,
     totalTables: number,
-    changedTables: number
+    changedTables: number,
+    tableDiffs: TableDiff[] = []
   ): ExportResult {
     return {
       success,
@@ -526,6 +537,7 @@ export class ExportJob {
       duration: (Date.now() - startTime) / 1000,
       totalTables,
       changedTables,
+      tableDiffs,
     };
   }
 

@@ -3,9 +3,22 @@ import { CellValue } from '../types/table';
 import { Config } from '../types/config';
 import { logger } from '../utils/Logger';
 
+/** 哈希清单条目：支持旧格式(纯字符串)和新格式(含行数) */
+export type HashManifestEntry = string | { hash: string; rows: number };
+
 /** 哈希清单：记录每张表的数据哈希 */
 export interface HashManifest {
-  [englishName: string]: string;
+  [englishName: string]: HashManifestEntry;
+}
+
+/** 从清单条目中提取哈希值（兼容旧格式） */
+export function getManifestHash(entry: HashManifestEntry): string {
+  return typeof entry === 'string' ? entry : entry.hash;
+}
+
+/** 从清单条目中提取行数（旧格式返回 0） */
+export function getManifestRows(entry: HashManifestEntry): number {
+  return typeof entry === 'string' ? 0 : entry.rows;
 }
 
 export class ExportWriter {
@@ -40,9 +53,10 @@ export class ExportWriter {
     // GameConfig 总是判定为变更（含动态版本号注入）
     if (englishName === 'GameConfig') return true;
 
-    const oldHash = manifest[englishName];
-    if (!oldHash) return true;
+    const oldEntry = manifest[englishName];
+    if (!oldEntry) return true;
 
+    const oldHash = getManifestHash(oldEntry);
     const newHash = this.computeDataHash(filteredData);
     return newHash !== oldHash;
   }

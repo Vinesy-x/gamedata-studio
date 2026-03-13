@@ -9,7 +9,7 @@
  */
 
 import { VersionFilter } from '../engine/VersionFilter';
-import { excelHelper, SheetData } from '../utils/ExcelHelper';
+import { excelHelper, SheetData, isExcelError } from '../utils/ExcelHelper';
 import { ValidationResult, TableValidationData } from '../types/validation';
 import { ValidationConfig, TypeDelimiterConfig } from '../v2/StudioConfigStore';
 import { logger } from '../utils/Logger';
@@ -32,8 +32,11 @@ export class ValidationEngine {
   async runValidation(tableNames: Set<string>): Promise<ValidationResult[]> {
     const results: ValidationResult[] = [];
 
+    // Batch load all tables in a single Excel.run to reduce context switching overhead
+    const dataMap = await this.loadAllTableData(tableNames);
+
     for (const tableName of tableNames) {
-      const data = await this.loadTableData(tableName);
+      const data = dataMap.get(tableName);
       if (!data) continue;
 
       results.push(...this.validateExcelErrors(tableName, data));
@@ -51,15 +54,6 @@ export class ValidationEngine {
 
   // ──────────── Excel 错误值校验 ────────────
 
-  /** 检测 Excel 错误值 (#REF!, #N/A, #VALUE! 等) */
-  private isExcelError(val: unknown): boolean {
-    if (val == null) return false;
-    const s = String(val).trim();
-    return s === '#N/A' || s === '#REF!' || s === '#VALUE!'
-      || s === '#DIV/0!' || s === '#NAME?' || s === '#NULL!'
-      || s === '#NUM!' || s === '#GETTING_DATA' || s === '#SPILL!';
-  }
-
   /**
    * 规则0：Excel 错误值检查
    * 检测数据区域中的 #REF!, #N/A 等引用错误
@@ -71,7 +65,7 @@ export class ValidationEngine {
     for (let row = 0; row < data.dataValues.length; row++) {
       for (let col = 0; col < data.dataValues[row].length; col++) {
         const value = data.dataValues[row][col];
-        if (this.isExcelError(value)) {
+        if (isExcelError(value)) {
           results.push({
             severity: 'error',
             ruleName: '数据类型',
@@ -89,7 +83,7 @@ export class ValidationEngine {
 
     // 检查版本区间列
     for (let i = 0; i < data.versionValues.length; i++) {
-      if (this.isExcelError(data.versionValues[i])) {
+      if (isExcelError(data.versionValues[i])) {
         results.push({
           severity: 'error',
           ruleName: '版本区间格式',
@@ -193,13 +187,6 @@ export class ValidationEngine {
   }
 
   /**
-   * 转义正则特殊字符
-   */
-  private escapeRegex(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  /**
    * 类型检查辅助方法
    * 返回错误描述，null 表示通过
    */
@@ -217,7 +204,6 @@ export class ValidationEngine {
       const baseType = type.slice(0, -2); // "int", "float", "string"
       const delim = this.getDelimiters(type);
       const sep = delim?.primary || '|';
-      const escapedSep = this.escapeRegex(sep);
 
       if (baseType === 'string') return null; // string[] 只检查分隔符存在性
 
@@ -450,6 +436,29 @@ export class ValidationEngine {
   }
 
   // ──────────── 数据加载 ────────────
+
+  /**
+   * 批量加载多表的校验数据（单次 Excel.run）
+   * 避免每张表各开一次 Excel.run，减少上下文切换开销
+   */
+  async loadAllTableData(tableNames: Set<string>): Promise<Map<string, TableValidationData>> {
+    const dataMap = new Map<string, TableValidationData>();
+
+    await Excel.run(async (context) => {
+      for (const tableName of tableNames) {
+        const snap = await excelHelper.loadSheetSnapshot(context, tableName);
+        if (!snap || snap.values.length === 0) {
+          logger.warn(`校验：找不到工作表「${tableName}」或数据为空`);
+          continue;
+        }
+
+        const data = this.parseValidationData(snap.values, tableName, snap.startRow, snap.startCol);
+        if (data) dataMap.set(tableName, data);
+      }
+    });
+
+    return dataMap;
+  }
 
   /**
    * 加载单表的校验数据

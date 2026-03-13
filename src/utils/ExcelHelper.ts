@@ -138,3 +138,14 @@ export class ExcelHelper {
 }
 
 export const excelHelper = new ExcelHelper();
+
+/**
+ * 检测单元格值是否为 Excel 错误值 (#REF!, #N/A, #VALUE! 等)
+ */
+export function isExcelError(val: unknown): boolean {
+  if (val == null) return false;
+  const s = String(val).trim();
+  return s === '#N/A' || s === '#REF!' || s === '#VALUE!'
+    || s === '#DIV/0!' || s === '#NAME?' || s === '#NULL!'
+    || s === '#NUM!' || s === '#GETTING_DATA' || s === '#SPILL!';
+}

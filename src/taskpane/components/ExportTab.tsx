@@ -213,6 +213,37 @@ const useStyles = makeStyles({
     wordBreak: 'break-all',
     lineHeight: '1.4',
   },
+  diffInfo: {
+    fontSize: '10px',
+    color: tokens.colorNeutralForeground3,
+    marginLeft: 'auto',
+    whiteSpace: 'nowrap' as const,
+    flexShrink: 0,
+  },
+  diffPositive: {
+    color: tokens.colorPaletteGreenForeground1,
+    fontWeight: 600,
+  },
+  diffNegative: {
+    color: tokens.colorPaletteRedForeground1,
+    fontWeight: 600,
+  },
+  diffNewBadge: {
+    fontSize: '10px',
+    color: tokens.colorPaletteGreenForeground1,
+    fontWeight: 600,
+  },
+  fileNameGroup: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '1px',
+    minWidth: 0,
+    flex: 1,
+  },
+  chineseName: {
+    fontSize: '10px',
+    color: tokens.colorNeutralForeground3,
+  },
   // 警告/错误
   warningCard: {
     backgroundColor: '#FFF8E1',
@@ -680,12 +711,37 @@ export function ExportTab({
             {visibleResult.modifiedFiles.length > 0 && (
               <div className={styles.resultCard}>
                 <div className={styles.fileList}>
-                  {visibleResult.modifiedFiles.map((file, i) => (
-                    <div key={i} className={styles.fileItem}>
-                      <DocumentRegular className={styles.fileIcon} fontSize={13} />
-                      <span className={styles.filePath}>{file}</span>
-                    </div>
-                  ))}
+                  {visibleResult.modifiedFiles.map((file, i) => {
+                    const diff = visibleResult.tableDiffs?.find(d => d.tableName + '.xlsx' === file);
+                    const rowDelta = diff ? diff.totalRows - diff.previousRows : 0;
+                    return (
+                      <div key={i} className={styles.fileItem}>
+                        <DocumentRegular className={styles.fileIcon} fontSize={13} />
+                        <div className={styles.fileNameGroup}>
+                          <span className={styles.filePath}>{file}</span>
+                          {diff && <span className={styles.chineseName}>{diff.chineseName}</span>}
+                        </div>
+                        {diff && (
+                          <span className={styles.diffInfo}>
+                            {diff.status === 'new' ? (
+                              <span className={styles.diffNewBadge}>{diff.totalRows} 行</span>
+                            ) : diff.previousRows > 0 ? (
+                              <>
+                                {diff.previousRows} → {diff.totalRows} 行{' '}
+                                {rowDelta !== 0 && (
+                                  <span className={rowDelta > 0 ? styles.diffPositive : styles.diffNegative}>
+                                    ({rowDelta > 0 ? '+' : ''}{rowDelta})
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <>{diff.totalRows} 行</>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

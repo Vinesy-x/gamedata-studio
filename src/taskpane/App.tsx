@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import {
   makeStyles,
   tokens,
@@ -18,7 +18,10 @@ import {
   NumberSymbolRegular,
   DataBarVerticalRegular,
   TableSimpleRegular,
+  WeatherMoonRegular,
+  WeatherSunnyRegular,
 } from '@fluentui/react-icons';
+import { ThemeContext } from './index';
 import { ExportTab } from './components/ExportTab';
 import { IdleAnimation } from './components/IdleAnimation';
 import { ManageTab } from './components/ManageTab';
@@ -42,7 +45,7 @@ const useStyles = makeStyles({
     minWidth: '280px',
     boxSizing: 'border-box',
     fontFamily: tokens.fontFamilyBase,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: tokens.colorNeutralBackground2,
     overflow: 'hidden',
   },
   banner: {
@@ -81,6 +84,19 @@ const useStyles = makeStyles({
     borderRadius: '50%',
     backgroundColor: 'rgba(255,255,255,0.25)',
     position: 'relative' as const,
+  },
+  themeToggle: {
+    position: 'absolute' as const,
+    right: '8px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    minWidth: 'auto',
+    padding: '4px',
+    color: 'rgba(255,255,255,0.7)',
+    ':hover': {
+      color: 'rgba(255,255,255,1)',
+      backgroundColor: 'rgba(255,255,255,0.1)',
+    },
   },
   tabBar: {
     backgroundColor: tokens.colorNeutralBackground1,
@@ -144,6 +160,7 @@ const useStyles = makeStyles({
 
 export function App() {
   const styles = useStyles();
+  const { mode, toggle: toggleTheme } = useContext(ThemeContext);
   const { config, loading, error, loadConfig } = useConfig();
   const [selectedTab, setSelectedTab] = useState<string>('export');
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
@@ -346,6 +363,14 @@ export function App() {
         <DataBarVerticalRegular className={styles.bannerIcon} />
         <span className={styles.bannerDot} />
         <TableSimpleRegular className={styles.bannerIcon} />
+        <Button
+          appearance="transparent"
+          size="small"
+          className={styles.themeToggle}
+          icon={mode === 'light' ? <WeatherMoonRegular /> : <WeatherSunnyRegular />}
+          onClick={toggleTheme}
+          title={mode === 'light' ? '切换到深色模式' : '切换到浅色模式'}
+        />
       </div>
 
       <div className={styles.tabBar}>
