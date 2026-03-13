@@ -625,6 +625,15 @@ export class StudioConfigStore {
     if (configData.tables.length > 0) {
       const rows = configData.tables.map(t => [t.versionRange, t.chineseName, t.englishName, t.shouldOutput]);
       sheet.getRangeByIndexes(1, 0, rows.length, 4).values = rows;
+
+      // 为功能表名列添加超链接（跳转到对应工作表）
+      for (let i = 0; i < configData.tables.length; i++) {
+        const cellRange = sheet.getRangeByIndexes(1 + i, 1, 1, 1);
+        cellRange.hyperlink = {
+          documentReference: `'${configData.tables[i].chineseName}'!A1`,
+          screenTip: `跳转到「${configData.tables[i].chineseName}」`,
+        };
+      }
     }
 
     // 列宽

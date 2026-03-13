@@ -70,6 +70,14 @@ export class TableRegistry {
       await excelHelper.writeValues(context, LEGACY_MAPPING, newRowIndex, startCol,
         [[info.versionRange, info.chineseName, info.englishName, info.shouldOutput]]);
 
+      // 为功能表名添加超链接（跳转到对应工作表）
+      const mappingSheet = context.workbook.worksheets.getItem(LEGACY_MAPPING);
+      const hyperlinkCell = mappingSheet.getRangeByIndexes(newRowIndex, startCol + 1, 1, 1);
+      hyperlinkCell.hyperlink = {
+        documentReference: `'${info.chineseName}'!A1`,
+        screenTip: `跳转到「${info.chineseName}」`,
+      };
+
       // 同步到 StudioConfig JSON
       await this.syncToStudioConfig(context);
       logger.info(`已注册表「${info.chineseName}」→「${info.englishName}」`);
