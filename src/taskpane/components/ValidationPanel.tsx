@@ -337,6 +337,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
   // 运行状态
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<ValidationResult[] | null>(null);
+  const [showDelimiters, setShowDelimiters] = useState(false);
 
   // 校验配置（分隔符）
   const [valConfig, setValConfig] = useState<ValidationConfig>(createDefaultValidationConfig);
@@ -607,53 +608,58 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
         </div>
         <div className={styles.rulesGrid}>
           {VALIDATION_RULES.map((rule) => (
-            <Checkbox
-              key={rule.key}
-              className={styles.ruleCheckbox}
-              label={rule.label}
-              checked={enabledRules.has(rule.key)}
-              onChange={() => toggleRule(rule.key)}
-              disabled={isRunning}
-              size="medium"
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className={styles.divider} />
-
-      {/* 分隔符配置 */}
-      <div className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <SettingsRegular fontSize={14} />
-          <Text className={styles.sectionTitle}>类型分隔符</Text>
-        </div>
-        <div className={styles.delimiterGrid}>
-          {Object.entries(valConfig.typeDelimiters).map(([type, delim]) => (
-            <div key={type} className={styles.delimiterRow}>
-              <span className={styles.delimiterType}>{type}</span>
-              <Input
-                className={styles.delimiterInput}
-                size="small"
-                value={delim.primary}
-                onChange={(_, d) => updateDelimiter(type, 'primary', d.value)}
-                onBlur={saveDelimiters}
+            <div key={rule.key} style={{ display: 'flex', alignItems: 'center' }}>
+              <Checkbox
+                className={styles.ruleCheckbox}
+                label={rule.label}
+                checked={enabledRules.has(rule.key)}
+                onChange={() => toggleRule(rule.key)}
+                disabled={isRunning}
+                size="medium"
               />
-              {delim.secondary !== undefined && (
-                <>
-                  <span className={styles.delimiterLabel}>二维</span>
-                  <Input
-                    className={styles.delimiterInput}
-                    size="small"
-                    value={delim.secondary}
-                    onChange={(_, d) => updateDelimiter(type, 'secondary', d.value)}
-                    onBlur={saveDelimiters}
-                  />
-                </>
+              {rule.key === 'dataType' && (
+                <Button
+                  appearance="transparent"
+                  size="small"
+                  icon={<SettingsRegular fontSize={12} />}
+                  onClick={() => setShowDelimiters(prev => !prev)}
+                  style={{ minWidth: 'auto', padding: '0 2px', color: showDelimiters ? tokens.colorBrandForeground1 : tokens.colorNeutralForeground4 }}
+                  title="配置类型分隔符"
+                />
               )}
             </div>
           ))}
         </div>
+
+        {/* 分隔符配置（折叠） */}
+        {showDelimiters && (
+          <div className={styles.delimiterGrid} style={{ marginTop: '6px', marginLeft: '28px' }}>
+            {Object.entries(valConfig.typeDelimiters).map(([type, delim]) => (
+              <div key={type} className={styles.delimiterRow}>
+                <span className={styles.delimiterType}>{type}</span>
+                <Input
+                  className={styles.delimiterInput}
+                  size="small"
+                  value={delim.primary}
+                  onChange={(_, d) => updateDelimiter(type, 'primary', d.value)}
+                  onBlur={saveDelimiters}
+                />
+                {delim.secondary !== undefined && (
+                  <>
+                    <span className={styles.delimiterLabel}>二维</span>
+                    <Input
+                      className={styles.delimiterInput}
+                      size="small"
+                      value={delim.secondary}
+                      onChange={(_, d) => updateDelimiter(type, 'secondary', d.value)}
+                      onBlur={saveDelimiters}
+                    />
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className={styles.divider} />
