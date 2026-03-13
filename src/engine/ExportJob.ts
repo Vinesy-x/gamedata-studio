@@ -266,18 +266,29 @@ export class ExportJob {
     }
     const { id } = await startResp.json();
 
-    // 2. 分片发送 base64 数据（每片 ~16KB，避免 URL 过长）
+    // 2. 分片发送 base64 数据（每片 ~16KB，最多 4 路并行）
     const CHUNK_SIZE = 16000;
+    const CONCURRENCY = 4;
     const totalChunks = Math.ceil(base64.length / CHUNK_SIZE) || 1;
-    for (let i = 0; i < totalChunks; i++) {
+
+    const sendChunk = async (i: number) => {
       const chunk = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
       const chunkResp = await this.fetchWithRetry(
         `${base}/api/write-chunk?id=${encodeURIComponent(id)}&index=${i}&data=${encodeURIComponent(chunk)}`,
-        10000
+        15000
       );
       if (!chunkResp.ok) {
         throw new Error(`写入文件失败 (write-chunk ${i}/${totalChunks} HTTP ${chunkResp.status})`);
       }
+    };
+
+    // 并行上传，每批 CONCURRENCY 个
+    for (let start = 0; start < totalChunks; start += CONCURRENCY) {
+      const batch = [];
+      for (let j = start; j < Math.min(start + CONCURRENCY, totalChunks); j++) {
+        batch.push(sendChunk(j));
+      }
+      await Promise.all(batch);
     }
 
     // 3. 完成写入
