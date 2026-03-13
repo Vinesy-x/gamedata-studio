@@ -448,44 +448,45 @@ export class ExportJob {
 
       // ── 3. 校验主数据区（mainData）── 只检测有字段定义的列 + 有Key的行（Ctrl+A 有效区域）
       if (tableData.mainData.length > 2) {
-        // 确定有效列数：字段定义行（row 0）中非空的列
         const fieldRow = tableData.mainData[0];
         let validColCount = 0;
         for (let c = 0; c < fieldRow.length; c++) {
           const val = String(fieldRow[c] ?? '').trim();
-          if (!val) break; // 遇到空字段定义即为数据区右边界
+          if (!val) break;
           validColCount = c + 1;
         }
 
-        // 从第3行（索引2）开始检测数据行，遇到首列为空即停止（数据区下边界）
-        for (let r = 2; r < tableData.mainData.length; r++) {
+        let cellErrors = 0;
+        const MAX_CELL_ERRORS = 100;
+        for (let r = 2; r < tableData.mainData.length && cellErrors < MAX_CELL_ERRORS; r++) {
           const firstCell = tableData.mainData[r][0];
           if (firstCell == null || String(firstCell).trim() === '') break;
 
-          for (let c = 0; c < validColCount; c++) {
+          for (let c = 0; c < validColCount && cellErrors < MAX_CELL_ERRORS; c++) {
             const raw = tableData.mainData[r][c];
-            const loc = { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') };
 
             if (isExcelError(raw)) {
+              cellErrors++;
               this.errorHandler.logError({
                 code: ErrorCode.CELL_EXCEL_ERROR,
                 severity: 'warning',
                 tableName: chineseName,
                 message: `数据区域单元格包含错误值「${raw}」`,
                 procedure: 'ExportJob.runValidation',
-                location: loc,
+                location: { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') },
               });
               continue;
             }
 
             if (raw != null && typeof raw === 'string' && raw.length > 0 && raw.trim() === '') {
+              cellErrors++;
               this.errorHandler.logError({
                 code: ErrorCode.CELL_WHITESPACE_ONLY,
                 severity: 'warning',
                 tableName: chineseName,
                 message: '数据区域单元格仅包含空格',
                 procedure: 'ExportJob.runValidation',
-                location: loc,
+                location: { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') },
               });
             }
           }
