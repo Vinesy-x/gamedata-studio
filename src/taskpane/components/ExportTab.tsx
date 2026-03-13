@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { IdleAnimation } from './IdleAnimation';
 import { HelpPanel } from './HelpPanel';
 import {
@@ -28,7 +28,10 @@ import {
   PersonRegular,
   FolderOpenRegular,
   QuestionCircleRegular,
+  WeatherMoonRegular,
+  WeatherSunnyRegular,
 } from '@fluentui/react-icons';
+import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
 import { ExportJob } from '../../engine/ExportJob';
 import { GitHandler } from '../../git/GitHandler';
@@ -399,6 +402,7 @@ export function ExportTab({
   onNavigateToManage,
 }: ExportTabProps) {
   const styles = useStyles();
+  const { mode, toggle: toggleTheme } = useContext(ThemeContext);
   const [changingVersion, setChangingVersion] = useState(false);
   // 版本号本地输入状态（受控模式，确保点导出时能拿到最新值）
   const [localVersionNumber, setLocalVersionNumber] = useState(String(config.outputSettings.versionNumber));
@@ -805,6 +809,14 @@ export function ExportTab({
           size="small"
           icon={<QuestionCircleRegular fontSize={16} />}
           onClick={() => setHelpOpen(true)}
+        />
+        <Button
+          className={styles.helpBtn}
+          appearance="transparent"
+          size="small"
+          icon={mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
+          onClick={toggleTheme}
+          title={mode === 'light' ? '切换到深色模式' : '切换到浅色模式'}
         />
         <span style={{ opacity: 0.35 }}>vin {__APP_VERSION__}</span>
       </div>
