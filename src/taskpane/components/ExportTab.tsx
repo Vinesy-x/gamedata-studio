@@ -369,6 +369,8 @@ export function ExportTab({
 }: ExportTabProps) {
   const styles = useStyles();
   const [changingVersion, setChangingVersion] = useState(false);
+  // 版本号本地输入状态（受控模式，确保点导出时能拿到最新值）
+  const [localVersionNumber, setLocalVersionNumber] = useState(String(config.outputSettings.versionNumber));
   // 本地状态：Git 上传后隐藏导出结果，恢复空闲界面
   const [resultDismissed, setResultDismissed] = useState(false);
   // 跟踪导出完成动画的触发时机
@@ -390,6 +392,11 @@ export function ExportTab({
     }
     prevExportingRef.current = isExporting;
   }, [isExporting, exportResult]);
+
+  // config 更新时同步本地版本号
+  useEffect(() => {
+    setLocalVersionNumber(String(config.outputSettings.versionNumber));
+  }, [config.outputSettings.versionNumber]);
 
   const currentOperator = operatorIdentity.get();
   const versionNames = useMemo(
@@ -419,13 +426,20 @@ export function ExportTab({
 
 
   const handleExport = useCallback(async () => {
+    // 导出前先同步本地版本号（用户可能输入了但没按 Enter/blur）
+    const num = parseFloat(localVersionNumber);
+    if (!isNaN(num) && num !== config.outputSettings.versionNumber) {
+      await configManager.setOutputVersionNumber(num);
+      onReloadConfig();
+    }
+
     onClearResult();
     setResultDismissed(false);
     onExportStart();
     const job = new ExportJob(onProgress);
     const result = await job.runExport();
     onExportComplete(result);
-  }, [onClearResult, onExportStart, onExportComplete, onProgress]);
+  }, [localVersionNumber, config.outputSettings.versionNumber, onReloadConfig, onClearResult, onExportStart, onExportComplete, onProgress]);
 
   const gitHandler = useMemo(
     () => new GitHandler(config.outputSettings.outputDirectory || ''),
@@ -520,7 +534,8 @@ export function ExportTab({
             <span className={styles.configLabel}>版本号</span>
             <Input
               size="small"
-              defaultValue={String(config.outputSettings.versionNumber)}
+              value={localVersionNumber}
+              onChange={(_, d) => setLocalVersionNumber(d.value)}
               onBlur={(e) => handleVersionNumberChange(e.target.value)}
               disabled={isExporting}
               style={{ width: 80 }}
