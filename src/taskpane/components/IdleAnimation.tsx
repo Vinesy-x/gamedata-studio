@@ -67,8 +67,8 @@ const useStyles = makeStyles({
     justifyContent: 'center',
     padding: '20px 16px 8px',
     flex: 1,
-    minHeight: '260px',
     gap: '14px',
+    overflow: 'hidden',
   },
   animStage: {
     position: 'relative' as const,
@@ -249,18 +249,6 @@ const useStyles = makeStyles({
     transitionTimingFunction: 'ease',
     letterSpacing: '-0.2px',
   },
-  watermark: {
-    textAlign: 'right' as const,
-    padding: '8px 14px',
-    fontSize: '10px',
-    color: tokens.colorNeutralForeground4,
-    letterSpacing: '1.5px',
-    opacity: 0.35,
-    userSelect: 'none' as const,
-    marginTop: 'auto',
-    fontFamily: '"Cascadia Code", "Fira Code", Consolas, monospace',
-    textTransform: 'uppercase' as const,
-  },
 });
 
 interface IdleAnimationProps {
@@ -293,7 +281,6 @@ export function IdleAnimation({ active = true }: IdleAnimationProps) {
   }, [active]);
 
   return (
-    <>
       <div className={styles.idleArea}>
         <div className={`${styles.animStage} ${styles.sceneFadeIn}`} key={`scene-${animScene}`}>
           {animScene === 0 && (
@@ -373,7 +360,5 @@ export function IdleAnimation({ active = true }: IdleAnimationProps) {
           </Text>
         </div>
       </div>
-      <div className={styles.watermark}>vin {__APP_VERSION__}</div>
-    </>
   );
 }

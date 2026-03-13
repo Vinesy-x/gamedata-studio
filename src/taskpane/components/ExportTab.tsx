@@ -19,7 +19,6 @@ import {
 } from '@fluentui/react-components';
 import {
   ArrowExportRegular,
-  ArrowSyncRegular,
   ArrowUploadRegular,
   CheckmarkCircleRegular,
   DismissCircleRegular,
@@ -50,19 +49,6 @@ const useStyles = makeStyles({
   // 当前配置区域
   configSection: {
     padding: '14px 14px 10px',
-  },
-  configHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    marginBottom: '10px',
-  },
-  configTitle: {
-    fontSize: '12px',
-    fontWeight: 600,
-    color: tokens.colorNeutralForeground3,
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.5px',
   },
   configCard: {
     backgroundColor: tokens.colorNeutralBackground1,
@@ -515,16 +501,6 @@ export function ExportTab({
     <div className={styles.container}>
       {/* 当前配置 */}
       <div className={styles.configSection}>
-        <div className={styles.configHeader}>
-          <Text className={styles.configTitle}>当前配置</Text>
-          <Button
-            icon={<ArrowSyncRegular />}
-            appearance="transparent"
-            size="small"
-            onClick={onReloadConfig}
-            style={{ minWidth: 'auto', padding: '0 4px' }}
-          />
-        </div>
         <div className={styles.configCard}>
           <div className={styles.configRow}>
             <span className={styles.configLabel}>输出版本</span>
