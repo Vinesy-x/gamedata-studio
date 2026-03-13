@@ -51,6 +51,7 @@ export class ExportJob {
 
       // 步骤1: 加载配置
       this.emitProgress(1, totalSteps, '正在加载配置...');
+      const t0 = Date.now();
       const config = await this.configLoader.loadConfig();
       if (!config) {
         return this.buildResult(false, modifiedFiles, startTime, 0, 0, tableDiffs);
@@ -68,8 +69,12 @@ export class ExportJob {
         return this.buildResult(false, modifiedFiles, startTime, 0, 0, tableDiffs);
       }
 
+      logger.info(`⏱ 加载配置: ${Date.now() - t0}ms`);
+
       // 检测写入模式：优先用 dev server API，不可用时切换到 File System Access API
+      const t1 = Date.now();
       await this.detectWriteMode(outputDir);
+      logger.info(`⏱ 检测写入模式: ${Date.now() - t1}ms`);
 
       // 步骤2: 创建版本筛选器
       this.emitProgress(2, totalSteps, '正在初始化筛选器...');
@@ -84,7 +89,9 @@ export class ExportJob {
 
       // 步骤3: 加载所有源数据到内存
       this.emitProgress(3, totalSteps, '正在加载数据表...');
+      const t2 = Date.now();
       const inMemoryData = await this.dataLoader.loadAll(config, versionFilter);
+      logger.info(`⏱ 加载数据表: ${Date.now() - t2}ms (${inMemoryData.size} 张表)`);
 
       if (inMemoryData.size === 0) {
         logger.warn('没有表需要处理');
@@ -97,7 +104,9 @@ export class ExportJob {
 
       // 步骤4: 导出前校验
       this.emitProgress(4, totalSteps, '正在执行校验...');
+      const t3 = Date.now();
       this.runValidation(inMemoryData, versionFilter);
+      logger.info(`⏱ 导出前校验: ${Date.now() - t3}ms`);
 
       // 步骤5: 加载哈希清单（用于差异对比）
       this.emitProgress(5, totalSteps, '正在准备输出...');
@@ -115,6 +124,7 @@ export class ExportJob {
       }
 
       // ── 阶段A：筛选 + 哈希对比（纯 CPU，同步完成）
+      const t4 = Date.now();
       const dataFilter = new DataFilter(versionFilter);
       let tableIndex = 0;
 
@@ -170,7 +180,10 @@ export class ExportJob {
         }
       }
 
+      logger.info(`⏱ 阶段A筛选+哈希: ${Date.now() - t4}ms (${pendingWrites.length} 张表需写入)`);
+
       // ── 阶段B：并行生成 xlsx + 写入文件（I/O 密集，4 路并发）
+      const t5 = Date.now();
       const WRITE_CONCURRENCY = 4;
       const writeTable = async (pw: PendingWrite) => {
         const fileBuffer = await this.exportWriter.writeIndividualFile(
@@ -220,6 +233,8 @@ export class ExportJob {
           }
         }
       }
+
+      logger.info(`⏱ 阶段B写入文件: ${Date.now() - t5}ms`);
 
       // 保存哈希清单
       this.emitProgress(totalSteps - 1, totalSteps, '正在保存清单...');
