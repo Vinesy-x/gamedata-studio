@@ -184,13 +184,16 @@ export class ExportJob {
 
       // ── 阶段B：并行生成 xlsx + 写入文件（I/O 密集，4 路并发）
       const t5 = Date.now();
-      const WRITE_CONCURRENCY = 4;
+      const WRITE_CONCURRENCY = 8;
       const writeTable = async (pw: PendingWrite) => {
+        const tw = Date.now();
         const fileBuffer = await this.exportWriter.writeIndividualFile(
           pw.filteredData, pw.englishName, config
         );
+        const genMs = Date.now() - tw;
         const fileName = `${pw.englishName}.xlsx`;
         await this.writeFileToServer(outputDir, fileName, fileBuffer);
+        const totalMs = Date.now() - tw;
 
         tableDiffs.push({
           tableName: pw.englishName,
@@ -203,7 +206,7 @@ export class ExportJob {
         manifest[pw.englishName] = { hash: pw.newHash, rows: pw.currentRows };
         modifiedFiles.push(fileName);
         changedTables++;
-        logger.info(`表 ${pw.chineseName} → ${fileName} 已导出`);
+        logger.info(`表 ${pw.chineseName} → ${fileName} (${pw.currentRows}行, 生成${genMs}ms, 写入${totalMs}ms)`);
       };
 
       // 分批并行写入

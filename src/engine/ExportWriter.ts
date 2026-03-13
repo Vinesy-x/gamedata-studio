@@ -83,25 +83,19 @@ export class ExportWriter {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet(englishName);
 
-    for (let r = 0; r < filteredData.length; r++) {
-      const row = sheet.getRow(r + 1);
-      for (let c = 0; c < filteredData[r].length; c++) {
-        const cell = row.getCell(c + 1);
-        let value = filteredData[r][c];
-
-        // GameConfig 特殊处理：第3行第3列替换为版本号.序列号
-        if (
-          englishName === 'GameConfig' &&
-          r === 2 && c === 2
-        ) {
-          value = `${config.outputSettings.versionNumber}.${config.outputSettings.versionSequence}`;
-        }
-
-        cell.value = value as ExcelJS.CellValue;
-        cell.numFmt = '@'; // 文本格式
-      }
-      row.commit();
+    // 整列设置文本格式（避免逐单元格设置 numFmt）
+    const colCount = filteredData[0]?.length ?? 0;
+    for (let c = 1; c <= colCount; c++) {
+      sheet.getColumn(c).numFmt = '@';
     }
+
+    // GameConfig 特殊处理：第3行第3列替换为版本号.序列号
+    if (englishName === 'GameConfig' && filteredData.length > 2 && filteredData[2].length > 2) {
+      filteredData[2][2] = `${config.outputSettings.versionNumber}.${config.outputSettings.versionSequence}`;
+    }
+
+    // 批量添加行（比逐行 getRow/getCell 快很多）
+    sheet.addRows(filteredData as ExcelJS.CellValue[][]);
 
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as ArrayBuffer;

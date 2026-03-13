@@ -544,6 +544,7 @@ export function ExportTab({
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [devLogOpen, setDevLogOpen] = useState(false);
+  const [devLogTab, setDevLogTab] = useState<'key' | 'all'>('key');
 
   // 当结果被用户（Git 上传后）主动隐藏时，不显示导出结果
   const visibleResult = resultDismissed ? null : exportResult;
@@ -852,7 +853,10 @@ export function ExportTab({
           <DialogBody style={{ padding: 0 }}>
             <DialogContent style={{ padding: '12px', overflow: 'auto', maxHeight: '80vh' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <Text weight="semibold" size={300}>开发者日志</Text>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <Button size="small" appearance={devLogTab === 'key' ? 'primary' : 'subtle'} onClick={() => setDevLogTab('key')}>关键进度</Button>
+                  <Button size="small" appearance={devLogTab === 'all' ? 'primary' : 'subtle'} onClick={() => setDevLogTab('all')}>全部日志</Button>
+                </div>
                 <Button size="small" appearance="subtle" onClick={() => { logger.clear(); setDevLogOpen(false); setTimeout(() => setDevLogOpen(true), 0); }}>清空</Button>
               </div>
               <pre style={{
@@ -864,7 +868,7 @@ export function ExportTab({
                 margin: 0,
                 color: tokens.colorNeutralForeground1,
               }}>
-                {logger.getLogs().join('\n') || '（暂无日志）'}
+                {(devLogTab === 'key' ? logger.getKeyLogs() : logger.getLogs()).join('\n') || '（暂无日志）'}
               </pre>
             </DialogContent>
           </DialogBody>
