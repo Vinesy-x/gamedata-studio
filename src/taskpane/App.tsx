@@ -191,7 +191,7 @@ export function App() {
       // 准备状态文本
       let statusText = result.success ? '导出完成' : '导出失败';
       const resultText = result.success
-        ? `${result.changedTables} 张表已更新`
+        ? (result.changedTables > 0 ? `${result.changedTables} 张表已更新` : '无任何修改')
         : `错误: ${result.errors.filter(e => e.severity === 'error').map(e => e.message).join('; ')}`;
 
       // 自动 Git push

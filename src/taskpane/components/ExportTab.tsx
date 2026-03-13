@@ -684,7 +684,9 @@ export function ExportTab({
                 <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
               )}
               <span className={styles.resultStatusText}>
-                {visibleResult.success ? '导出成功' : '导出失败'}
+                {visibleResult.success
+                  ? (visibleResult.changedTables > 0 ? '导出成功' : '无任何修改')
+                  : '导出失败'}
               </span>
               <span className={styles.resultDuration}>
                 {visibleResult.duration.toFixed(1)}s
