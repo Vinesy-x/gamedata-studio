@@ -22,7 +22,7 @@ export class ValidationEngine {
   constructor(versionFilter: VersionFilter, validationConfig?: ValidationConfig) {
     this.versionFilter = versionFilter;
     this.validationConfig = validationConfig;
-    this.nullEquivalentSet = new Set(validationConfig?.nullEquivalents ?? []);
+    this.nullEquivalentSet = new Set((validationConfig?.nullEquivalents ?? []).map(s => s.toLowerCase()));
   }
 
   // ──────────── 公开接口 ────────────
@@ -78,8 +78,8 @@ export class ValidationEngine {
       for (let col = 0; col < data.dataValues[row].length; col++) {
         const value = data.dataValues[row][col];
 
-        // 空值等价（如 "null"）直接跳过所有检查
-        if (value != null && this.nullEquivalentSet.has(String(value))) continue;
+        // 空值等价（如 "null"/"Null"/"NULL"）直接跳过所有检查，大小写不敏感
+        if (value != null && this.nullEquivalentSet.has(String(value).toLowerCase())) continue;
 
         // 规则0: Excel 错误值
         if (isExcelError(value)) {
@@ -366,7 +366,7 @@ export class ValidationEngine {
         const value = data.dataValues[row][col];
         if (value === '' || value === null || value === undefined) continue;
         const strValue = String(value);
-        if (this.nullEquivalentSet.has(strValue)) continue;
+        if (this.nullEquivalentSet.has(strValue.toLowerCase())) continue;
 
         // 数据类型检查
         if (checkTypes) {
