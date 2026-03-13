@@ -28,25 +28,124 @@ export class ValidationEngine {
   /**
    * 运行全部规则校验
    * 仅手动触发（点击「校验」按钮）
+   * @param onProgress 进度回调（tableName, index, total）
    */
-  async runValidation(tableNames: Set<string>): Promise<ValidationResult[]> {
+  async runValidation(
+    tableNames: Set<string>,
+    onProgress?: (tableName: string, index: number, total: number) => void,
+  ): Promise<ValidationResult[]> {
     const results: ValidationResult[] = [];
+    const total = tableNames.size;
 
     // Batch load all tables in a single Excel.run to reduce context switching overhead
+    onProgress?.('加载数据...', 0, total);
     const dataMap = await this.loadAllTableData(tableNames);
 
+    let index = 0;
     for (const tableName of tableNames) {
+      index++;
       const data = dataMap.get(tableName);
       if (!data) continue;
 
-      results.push(...this.validateExcelErrors(tableName, data));
+      onProgress?.(tableName, index, total);
+
+      // 合并单遍历：Excel错误 + 数据类型 + 数组分隔符 + 必填字段
+      results.push(...this.validateCellsOnePass(tableName, data));
       results.push(...this.validateVersionFormat(tableName, data));
-      // 规则2+3 合并为单次遍历
-      results.push(...this.validateDataTypesAndArrayFormats(tableName, data, true, true));
       // 规则4+5 共享分组
       results.push(...this.validateVersionCoverageAndOrder(tableName, data));
-      results.push(...this.validateRequiredFields(tableName, data));
       results.push(...this.validateRoadsConsistency(tableName, data));
+
+      // 每10张表 yield 一次，让 UI 更新进度
+      if (index % 10 === 0) {
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * 合并单次遍历：Excel错误值 + 数据类型 + 数组分隔符 + 必填字段
+   * 将4个规则的 O(rows×cols) 遍历合并为1次，减少3/4的迭代开销
+   */
+  private validateCellsOnePass(tableName: string, data: TableValidationData): ValidationResult[] {
+    const results: ValidationResult[] = [];
+
+    // 数据区域 - 单次遍历检查所有单元格级规则
+    for (let row = 0; row < data.dataValues.length; row++) {
+      for (let col = 0; col < data.dataValues[row].length; col++) {
+        const value = data.dataValues[row][col];
+        const loc = {
+          sheetName: tableName,
+          row: data.dataRowStart + row,
+          column: data.dataColStart + col,
+        };
+
+        // 规则0: Excel 错误值
+        if (isExcelError(value)) {
+          results.push({
+            severity: 'error',
+            ruleName: '数据类型',
+            tableName,
+            location: loc,
+            message: `单元格包含 Excel 错误值「${value}」`,
+          });
+          continue; // 错误值不再做类型/空值检查
+        }
+
+        // 规则6: 必填字段
+        if (value === '' || value === null || value === undefined) {
+          results.push({
+            severity: 'warning',
+            ruleName: '必填字段',
+            tableName,
+            location: loc,
+            message: `第 ${data.dataRowStart + row} 行 "${data.fieldNames[col] ?? ''}" 字段为空`,
+          });
+          continue; // 空值不做类型检查
+        }
+
+        // 规则2+3: 数据类型 + 数组分隔符
+        const expectedType = data.fieldTypes[col];
+        if (expectedType) {
+          const strValue = String(value);
+          const error = this.checkType(strValue, expectedType);
+          if (error) {
+            results.push({
+              severity: 'warning',
+              ruleName: '数据类型',
+              tableName,
+              location: loc,
+              message: `字段 "${data.fieldNames[col]}" 定义为 ${expectedType}，但值 "${value}" ${error}`,
+            });
+          }
+
+          // 数组分隔符检查
+          if (expectedType.includes('[]') && strValue.includes(',') && !strValue.includes('|')) {
+            results.push({
+              severity: 'warning',
+              ruleName: '数组分隔符',
+              tableName,
+              location: loc,
+              message: `字段 "${data.fieldNames[col]}" 使用了逗号分隔，应使用 | 和 ; 分隔`,
+            });
+          }
+        }
+      }
+    }
+
+    // 版本区间列的 Excel 错误值检查
+    for (let i = 0; i < data.versionValues.length; i++) {
+      if (isExcelError(data.versionValues[i])) {
+        results.push({
+          severity: 'error',
+          ruleName: '版本区间格式',
+          tableName,
+          location: { sheetName: tableName, row: data.versionRowStart + i, column: data.versionColStart },
+          message: `版本区间单元格包含 Excel 错误值「${data.versionValues[i]}」`,
+        });
+      }
     }
 
     return results;

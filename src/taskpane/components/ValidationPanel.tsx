@@ -336,6 +336,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
 
   // 运行状态
   const [isRunning, setIsRunning] = useState(false);
+  const [progressText, setProgressText] = useState('');
   const [results, setResults] = useState<ValidationResult[] | null>(null);
   const [showDelimiters, setShowDelimiters] = useState(false);
 
@@ -435,7 +436,9 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       );
       const engine = new ValidationEngine(versionFilter, valConfig);
 
-      const allResults = await engine.runValidation(tables);
+      const allResults = await engine.runValidation(tables, (tableName, index, total) => {
+        setProgressText(`${tableName} (${index}/${total})`);
+      });
 
       // 按启用的规则过滤
       const ruleNameMap: Record<string, string> = {
@@ -662,7 +665,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       {isRunning && (
         <div className={styles.spinnerArea}>
           <Spinner size="small" />
-          <Text className={styles.spinnerText}>正在校验数据表...</Text>
+          <Text className={styles.spinnerText}>正在校验 {progressText}</Text>
         </div>
       )}
 
