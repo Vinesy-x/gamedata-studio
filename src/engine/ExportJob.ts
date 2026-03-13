@@ -209,10 +209,23 @@ export class ExportJob {
     }
   }
 
-  private fetchWithTimeout(url: string, timeoutMs = 3000): Promise<Response> {
+  private async fetchWithTimeout(url: string, timeoutMs = 5000): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+  }
+
+  private async fetchWithRetry(url: string, timeoutMs = 10000, retries = 2): Promise<Response> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await this.fetchWithTimeout(url, timeoutMs);
+      } catch (err) {
+        if (attempt === retries) throw err;
+        logger.warn(`请求失败，重试 ${attempt + 1}/${retries}: ${err instanceof Error ? err.message : err}`);
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
+    throw new Error('unreachable');
   }
 
   /**
@@ -253,12 +266,12 @@ export class ExportJob {
     }
     const { id } = await startResp.json();
 
-    // 2. 分片发送 base64 数据（每片 ~32KB，URL 安全长度）
-    const CHUNK_SIZE = 32000;
+    // 2. 分片发送 base64 数据（每片 ~16KB，避免 URL 过长）
+    const CHUNK_SIZE = 16000;
     const totalChunks = Math.ceil(base64.length / CHUNK_SIZE) || 1;
     for (let i = 0; i < totalChunks; i++) {
       const chunk = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-      const chunkResp = await this.fetchWithTimeout(
+      const chunkResp = await this.fetchWithRetry(
         `${base}/api/write-chunk?id=${encodeURIComponent(id)}&index=${i}&data=${encodeURIComponent(chunk)}`,
         10000
       );
@@ -268,7 +281,7 @@ export class ExportJob {
     }
 
     // 3. 完成写入
-    const finishResp = await this.fetchWithTimeout(
+    const finishResp = await this.fetchWithRetry(
       `${base}/api/write-finish?id=${encodeURIComponent(id)}`
     );
     if (!finishResp.ok) {
