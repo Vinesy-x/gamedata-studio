@@ -58,6 +58,8 @@ export interface TableValidationData {
   fieldTypes: string[];
   /** 数据区域值（不含表头，从 version_r+2 开始） */
   dataValues: (string | number | boolean | null)[][];
+  /** 版本区间列号（1-indexed，通常为 A 列） */
+  versionColStart: number;
   /** version_c 列版本区间值（每列一个值，仅在有 version_c 时存在） */
   versionCValues?: string[];
   /** version_c 所在行号（1-indexed，仅在有 version_c 时存在） */

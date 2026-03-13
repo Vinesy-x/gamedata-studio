@@ -39,6 +39,23 @@ export interface StudioConfigData {
    * 供 AI 或外部工具按照此规范自动生成数据表
    */
   tableSchema?: TableSchemaDoc;
+
+  /** 校验配置 */
+  validationConfig?: ValidationConfig;
+}
+
+/** 校验自定义配置 */
+export interface ValidationConfig {
+  /** 各数组类型的分隔符配置 */
+  typeDelimiters: Record<string, TypeDelimiterConfig>;
+}
+
+/** 单个类型的分隔符定义 */
+export interface TypeDelimiterConfig {
+  /** 一维分隔符 (如 "|") */
+  primary: string;
+  /** 二维分隔符 (如 ";")，仅 [][] 类型使用 */
+  secondary?: string;
 }
 
 // ─── 表格格式说明文档 ────────────────────────────────────
@@ -133,6 +150,7 @@ export function createDefaultConfig(): StudioConfigData {
     switches: { '自动弹出路径': false },
     tables: [],
     tableSchema: createTableSchema(),
+    validationConfig: createDefaultValidationConfig(),
   };
 }
 
@@ -141,6 +159,19 @@ export function createDefaultConfig(): StudioConfigData {
  * 此数据为纯文档性质，描述数据表工作表的完整布局规范。
  * AI 或外部工具可根据此说明自动生成符合规范的数据表。
  */
+export function createDefaultValidationConfig(): ValidationConfig {
+  return {
+    typeDelimiters: {
+      'int[]': { primary: '|' },
+      'float[]': { primary: '|' },
+      'string[]': { primary: '|' },
+      'int[][]': { primary: '|', secondary: ';' },
+      'float[][]': { primary: '|', secondary: ';' },
+      'string[][]': { primary: '|', secondary: ';' },
+    },
+  };
+}
+
 export function createTableSchema(): TableSchemaDoc {
   return {
     _description: '游戏数据表工作表格式规范。每张数据表是一个 Excel 工作表，包含版本控制区和主数据区。此说明为纯文档，不参与业务逻辑。',

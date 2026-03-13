@@ -8,6 +8,7 @@ import {
   Checkbox,
   Spinner,
   Text,
+  Input,
 } from '@fluentui/react-components';
 import {
   CheckmarkCircleRegular,
@@ -16,12 +17,15 @@ import {
   InfoRegular,
   PlayRegular,
   SearchRegular,
+  SettingsRegular,
 } from '@fluentui/react-icons';
 import { Config } from '../../types/config';
 import { ValidationResult, ValidationSeverity } from '../../types/validation';
 import { ValidationEngine } from '../../v3/ValidationEngine';
 import { ValidationNavigator } from '../../v3/ValidationNavigator';
 import { VersionFilter } from '../../engine/VersionFilter';
+import { StudioConfigStore, ValidationConfig, createDefaultValidationConfig } from '../../v2/StudioConfigStore';
+import { configManager } from '../../v2/ConfigManager';
 
 // ─── 校验规则定义 ───────────────────────────────────────
 
@@ -271,6 +275,32 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
   },
 
+  // 分隔符配置
+  delimiterGrid: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  delimiterRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '12px',
+  },
+  delimiterType: {
+    minWidth: '60px',
+    fontFamily: 'Consolas, monospace',
+    fontSize: '11px',
+    color: tokens.colorNeutralForeground2,
+  },
+  delimiterInput: {
+    width: '36px',
+  },
+  delimiterLabel: {
+    fontSize: '10px',
+    color: tokens.colorNeutralForeground4,
+  },
+
   // 淡入动画
   fadeIn: {
     animationName: {
@@ -308,6 +338,19 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<ValidationResult[] | null>(null);
 
+  // 校验配置（分隔符）
+  const [valConfig, setValConfig] = useState<ValidationConfig>(createDefaultValidationConfig);
+
+  // 初始加载校验配置
+  useState(() => {
+    Excel.run(async (context) => {
+      const data = await StudioConfigStore.load(context);
+      if (data?.validationConfig) {
+        setValConfig(data.validationConfig);
+      }
+    }).catch(() => { /* use default */ });
+  });
+
   // Navigator 实例（单例复用）
   const navigator = useMemo(() => new ValidationNavigator(), []);
 
@@ -333,6 +376,25 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       return new Set(VALIDATION_RULES.map((r) => r.key));
     });
   }, []);
+
+  // ─── 更新分隔符配置 ─────────────────────────
+  const updateDelimiter = useCallback((type: string, field: 'primary' | 'secondary', value: string) => {
+    setValConfig(prev => {
+      const next = { ...prev, typeDelimiters: { ...prev.typeDelimiters } };
+      next.typeDelimiters[type] = { ...next.typeDelimiters[type], [field]: value };
+      return next;
+    });
+  }, []);
+
+  const saveDelimiters = useCallback(async () => {
+    try {
+      await Excel.run(async (context) => {
+        await StudioConfigStore.update(context, (data) => {
+          data.validationConfig = valConfig;
+        });
+      });
+    } catch { /* ignore */ }
+  }, [valConfig]);
 
   // ─── 获取校验范围表名 ─────────────────────
 
@@ -381,7 +443,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
         config.outputSettings.versionNumber,
         'roads_0'
       );
-      const engine = new ValidationEngine(versionFilter);
+      const engine = new ValidationEngine(versionFilter, valConfig);
 
       const allResults = await engine.runValidation(tables);
 
@@ -415,7 +477,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
     } finally {
       setIsRunning(false);
     }
-  }, [getSelectedTables, config.outputSettings.versionNumber, enabledRules]);
+  }, [getSelectedTables, config.outputSettings.versionNumber, enabledRules, valConfig]);
 
   // ─── 点击结果跳转 ─────────────────────────
 
@@ -554,6 +616,42 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
               disabled={isRunning}
               size="medium"
             />
+          ))}
+        </div>
+      </div>
+
+      <div className={styles.divider} />
+
+      {/* 分隔符配置 */}
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <SettingsRegular fontSize={14} />
+          <Text className={styles.sectionTitle}>类型分隔符</Text>
+        </div>
+        <div className={styles.delimiterGrid}>
+          {Object.entries(valConfig.typeDelimiters).map(([type, delim]) => (
+            <div key={type} className={styles.delimiterRow}>
+              <span className={styles.delimiterType}>{type}</span>
+              <Input
+                className={styles.delimiterInput}
+                size="small"
+                value={delim.primary}
+                onChange={(_, d) => updateDelimiter(type, 'primary', d.value)}
+                onBlur={saveDelimiters}
+              />
+              {delim.secondary !== undefined && (
+                <>
+                  <span className={styles.delimiterLabel}>二维</span>
+                  <Input
+                    className={styles.delimiterInput}
+                    size="small"
+                    value={delim.secondary}
+                    onChange={(_, d) => updateDelimiter(type, 'secondary', d.value)}
+                    onBlur={saveDelimiters}
+                  />
+                </>
+              )}
+            </div>
           ))}
         </div>
       </div>

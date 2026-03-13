@@ -11,13 +11,16 @@
 import { VersionFilter } from '../engine/VersionFilter';
 import { excelHelper, SheetData } from '../utils/ExcelHelper';
 import { ValidationResult, TableValidationData } from '../types/validation';
+import { ValidationConfig, TypeDelimiterConfig } from '../v2/StudioConfigStore';
 import { logger } from '../utils/Logger';
 
 export class ValidationEngine {
   private versionFilter: VersionFilter;
+  private validationConfig?: ValidationConfig;
 
-  constructor(versionFilter: VersionFilter) {
+  constructor(versionFilter: VersionFilter, validationConfig?: ValidationConfig) {
     this.versionFilter = versionFilter;
+    this.validationConfig = validationConfig;
   }
 
   // ──────────── 公开接口 ────────────
@@ -33,6 +36,7 @@ export class ValidationEngine {
       const data = await this.loadTableData(tableName);
       if (!data) continue;
 
+      results.push(...this.validateExcelErrors(tableName, data));
       results.push(...this.validateVersionFormat(tableName, data));
       results.push(...this.validateDataTypes(tableName, data));
       results.push(...this.validateArrayFormats(tableName, data));
@@ -40,6 +44,60 @@ export class ValidationEngine {
       results.push(...this.validateKeyVersionOrder(tableName, data));
       results.push(...this.validateRequiredFields(tableName, data));
       results.push(...this.validateRoadsConsistency(tableName, data));
+    }
+
+    return results;
+  }
+
+  // ──────────── Excel 错误值校验 ────────────
+
+  /** 检测 Excel 错误值 (#REF!, #N/A, #VALUE! 等) */
+  private isExcelError(val: unknown): boolean {
+    if (val == null) return false;
+    const s = String(val).trim();
+    return s === '#N/A' || s === '#REF!' || s === '#VALUE!'
+      || s === '#DIV/0!' || s === '#NAME?' || s === '#NULL!'
+      || s === '#NUM!' || s === '#GETTING_DATA' || s === '#SPILL!';
+  }
+
+  /**
+   * 规则0：Excel 错误值检查
+   * 检测数据区域中的 #REF!, #N/A 等引用错误
+   */
+  validateExcelErrors(tableName: string, data: TableValidationData): ValidationResult[] {
+    const results: ValidationResult[] = [];
+
+    // 检查数据区域
+    for (let row = 0; row < data.dataValues.length; row++) {
+      for (let col = 0; col < data.dataValues[row].length; col++) {
+        const value = data.dataValues[row][col];
+        if (this.isExcelError(value)) {
+          results.push({
+            severity: 'error',
+            ruleName: '数据类型',
+            tableName,
+            location: {
+              sheetName: tableName,
+              row: data.dataRowStart + row,
+              column: data.dataColStart + col,
+            },
+            message: `单元格包含 Excel 错误值「${value}」`,
+          });
+        }
+      }
+    }
+
+    // 检查版本区间列
+    for (let i = 0; i < data.versionValues.length; i++) {
+      if (this.isExcelError(data.versionValues[i])) {
+        results.push({
+          severity: 'error',
+          ruleName: '版本区间格式',
+          tableName,
+          location: { sheetName: tableName, row: data.versionRowStart + i, column: data.versionColStart },
+          message: `版本区间单元格包含 Excel 错误值「${data.versionValues[i]}」`,
+        });
+      }
     }
 
     return results;
@@ -65,7 +123,7 @@ export class ValidationEngine {
           severity: 'error',
           ruleName: validation.errorCode === 2101 ? '版本区间分隔符' : '版本区间格式',
           tableName,
-          location: { sheetName: tableName, row: data.versionRowStart + i, column: 1 },
+          location: { sheetName: tableName, row: data.versionRowStart + i, column: data.versionColStart },
           message: validation.message || `行版本区间 "${value}" 格式无效`,
         });
       }
@@ -128,21 +186,86 @@ export class ValidationEngine {
   }
 
   /**
+   * 获取类型的分隔符配置
+   */
+  private getDelimiters(type: string): TypeDelimiterConfig | undefined {
+    return this.validationConfig?.typeDelimiters?.[type];
+  }
+
+  /**
+   * 转义正则特殊字符
+   */
+  private escapeRegex(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
    * 类型检查辅助方法
    * 返回错误描述，null 表示通过
    */
   checkType(value: string, type: string): string | null {
-    switch (type) {
-      case 'int':
-        return /^-?\d+$/.test(value) ? null : '不是有效整数';
-      case 'float':
-        return isNaN(Number(value)) ? '不是有效数字' : null;
-      case 'int[]':
-        return /^-?\d+(\|-?\d+)*$/.test(value) ? null : '格式应为 N|N|N';
-      case 'int[][]':
-        return /^-?\d+(\|-?\d+)*(;-?\d+(\|-?\d+)*)*$/.test(value) ? null : '格式应为 N|N;N|N';
+    // 基础类型
+    if (type === 'int') {
+      return /^-?\d+$/.test(value) ? null : '不是有效整数';
     }
-    return null; // string 等类型不做校验
+    if (type === 'float') {
+      return isNaN(Number(value)) ? '不是有效数字' : null;
+    }
+
+    // 一维数组类型 (int[], float[], string[])
+    if (type.endsWith('[]') && !type.endsWith('[][]')) {
+      const baseType = type.slice(0, -2); // "int", "float", "string"
+      const delim = this.getDelimiters(type);
+      const sep = delim?.primary || '|';
+      const escapedSep = this.escapeRegex(sep);
+
+      if (baseType === 'string') return null; // string[] 只检查分隔符存在性
+
+      const parts = value.split(sep);
+      for (const part of parts) {
+        const trimmed = part.trim();
+        if (trimmed === '') continue;
+        if (baseType === 'int' && !/^-?\d+$/.test(trimmed)) {
+          return `格式应为 N${sep}N${sep}N（分隔符: ${sep}）`;
+        }
+        if (baseType === 'float' && isNaN(Number(trimmed))) {
+          return `格式应为 N${sep}N${sep}N（分隔符: ${sep}）`;
+        }
+      }
+      // 检查是否误用了其他分隔符
+      if (sep !== ',' && value.includes(',') && !value.includes(sep)) {
+        return `使用了逗号分隔，应使用 "${sep}" 分隔`;
+      }
+      return null;
+    }
+
+    // 二维数组类型 (int[][], float[][], string[][])
+    if (type.endsWith('[][]')) {
+      const baseType = type.slice(0, -4);
+      const delim = this.getDelimiters(type);
+      const sep1 = delim?.primary || '|';
+      const sep2 = delim?.secondary || ';';
+
+      if (baseType === 'string') return null;
+
+      const groups = value.split(sep2);
+      for (const group of groups) {
+        const parts = group.split(sep1);
+        for (const part of parts) {
+          const trimmed = part.trim();
+          if (trimmed === '') continue;
+          if (baseType === 'int' && !/^-?\d+$/.test(trimmed)) {
+            return `格式应为 N${sep1}N${sep2}N${sep1}N（一维: ${sep1}, 二维: ${sep2}）`;
+          }
+          if (baseType === 'float' && isNaN(Number(trimmed))) {
+            return `格式应为 N${sep1}N${sep2}N${sep1}N（一维: ${sep1}, 二维: ${sep2}）`;
+          }
+        }
+      }
+      return null;
+    }
+
+    return null; // 未知类型不做校验
   }
 
   /**
@@ -226,7 +349,7 @@ export class ValidationEngine {
             severity: 'error',
             ruleName: '版本覆盖完整性',
             tableName,
-            location: { sheetName: tableName, row: curr.row, column: 1 },
+            location: { sheetName: tableName, row: curr.row, column: data.versionColStart },
             message: `Key=${key} 在版本 ${prev.max}~${curr.min} 之间无配置数据，导出该区间版本时此 Key 将不存在`,
           });
         }
@@ -262,7 +385,7 @@ export class ValidationEngine {
             severity: 'warning',
             ruleName: '同Key版本顺序',
             tableName,
-            location: { sheetName: tableName, row: rows[i].row, column: 1 },
+            location: { sheetName: tableName, row: rows[i].row, column: data.versionColStart },
             message: `Key=${key} 第 ${rows[i].row} 行的版本号比第 ${rows[i - 1].row} 行小，简写模式下可能导致覆盖逻辑异常`,
           });
         }
@@ -315,7 +438,7 @@ export class ValidationEngine {
               severity: 'warning',
               ruleName: 'Roads一致性',
               tableName,
-              location: { sheetName: tableName, row: data.versionRowStart + i + 2, column: 2 },
+              location: { sheetName: tableName, row: data.versionRowStart + i + 2, column: data.versionColStart + 1 },
               message: `第 ${data.versionRowStart + i + 2} 行 roads_0=0（总线路禁用），但 roads_${j}=1，该行在所有版本中都不会导出`,
             });
             break; // 每行只报一次
@@ -342,7 +465,7 @@ export class ValidationEngine {
         return;
       }
 
-      result = this.parseValidationData(snap.values, tableName, snap.startRow);
+      result = this.parseValidationData(snap.values, tableName, snap.startRow, snap.startCol);
     });
 
     return result;
@@ -355,7 +478,8 @@ export class ValidationEngine {
   parseValidationData(
     allValues: SheetData,
     tableName: string,
-    startRow: number = 0
+    startRow: number = 0,
+    startCol: number = 0
   ): TableValidationData | null {
     // 定位 version_r 标记
     const versionRPos = excelHelper.findMarkerInData(allValues, 'version_r');
@@ -383,7 +507,7 @@ export class ValidationEngine {
     // 数据从 version_r + 2 行开始（跳过字段定义行和中文描述行）
     const dataRowStart = versionRowStart + 2;
     // 数据列起始（1-indexed）
-    const dataColStart = dataStartCol + 1 + startRow; // 注意：实际只需列偏移
+    const dataColStart = dataStartCol + 1 + startCol;
 
     // 确定数据区域的实际行范围（到首列空单元格为止，与导出逻辑一致）
     // version_r 行 + 字段定义行 + 描述行 = 表头，之后为数据行
@@ -461,7 +585,8 @@ export class ValidationEngine {
     return {
       versionRowStart,
       dataRowStart,
-      dataColStart: dataStartCol + 1, // 转为 1-indexed
+      dataColStart: dataStartCol + 1 + startCol, // 转为 1-indexed，加上工作表起始列偏移
+      versionColStart: 1 + startCol, // 版本区间列（1-indexed）
       versionValues,
       roadsValues,
       fieldNames,
