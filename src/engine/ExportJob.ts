@@ -135,12 +135,9 @@ export class ExportJob {
             continue;
           }
 
-          // 哈希对比
-          const hasChanged = this.exportWriter.hasDataChanged(
-            filtered.data,
-            manifest,
-            englishName
-          );
+          // 哈希对比（计算一次，复用于清单更新）
+          const newHash = this.exportWriter.computeDataHash(filtered.data);
+          const hasChanged = this.exportWriter.hasHashChanged(newHash, manifest, englishName);
 
           if (!hasChanged) {
             logger.info(`表 ${chineseName} 无变化，跳过`);
@@ -172,9 +169,9 @@ export class ExportJob {
           const fileName = `${englishName}.xlsx`;
           await this.writeFileToServer(outputDir, fileName, fileBuffer);
 
-          // 更新哈希清单（新格式：包含行数）
+          // 更新哈希清单（复用已计算的哈希）
           manifest[englishName] = {
-            hash: this.exportWriter.computeDataHash(filtered.data),
+            hash: newHash,
             rows: currentRows,
           };
 

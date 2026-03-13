@@ -41,10 +41,10 @@ export class ValidationEngine {
 
       results.push(...this.validateExcelErrors(tableName, data));
       results.push(...this.validateVersionFormat(tableName, data));
-      results.push(...this.validateDataTypes(tableName, data));
-      results.push(...this.validateArrayFormats(tableName, data));
-      results.push(...this.validateVersionCoverage(tableName, data));
-      results.push(...this.validateKeyVersionOrder(tableName, data));
+      // 规则2+3 合并为单次遍历
+      results.push(...this.validateDataTypesAndArrayFormats(tableName, data, true, true));
+      // 规则4+5 共享分组
+      results.push(...this.validateVersionCoverageAndOrder(tableName, data));
       results.push(...this.validateRequiredFields(tableName, data));
       results.push(...this.validateRoadsConsistency(tableName, data));
     }
@@ -150,33 +150,7 @@ export class ValidationEngine {
    * 按字段定义的类型（int/float/string/int[]/int[][]）校验数据值
    */
   validateDataTypes(tableName: string, data: TableValidationData): ValidationResult[] {
-    const results: ValidationResult[] = [];
-
-    for (let col = 0; col < data.fieldTypes.length; col++) {
-      const expectedType = data.fieldTypes[col];
-      if (!expectedType) continue;
-
-      for (let row = 0; row < data.dataValues.length; row++) {
-        const value = data.dataValues[row][col];
-        if (value === '' || value === null || value === undefined) continue;
-
-        const error = this.checkType(String(value), expectedType);
-        if (error) {
-          results.push({
-            severity: 'warning',
-            ruleName: '数据类型',
-            tableName,
-            location: {
-              sheetName: tableName,
-              row: data.dataRowStart + row,
-              column: data.dataColStart + col,
-            },
-            message: `字段 "${data.fieldNames[col]}" 定义为 ${expectedType}，但值 "${value}" ${error}`,
-          });
-        }
-      }
-    }
-    return results;
+    return this.validateDataTypesAndArrayFormats(tableName, data, true, false);
   }
 
   /**
@@ -259,29 +233,56 @@ export class ValidationEngine {
    * 数组类型字段中使用逗号分隔的，应改用 | 和 ;
    */
   validateArrayFormats(tableName: string, data: TableValidationData): ValidationResult[] {
+    return this.validateDataTypesAndArrayFormats(tableName, data, false, true);
+  }
+
+  /**
+   * 合并执行数据类型和数组分隔符检查（单次遍历）
+   */
+  private validateDataTypesAndArrayFormats(
+    tableName: string,
+    data: TableValidationData,
+    checkTypes: boolean,
+    checkArraySep: boolean
+  ): ValidationResult[] {
     const results: ValidationResult[] = [];
 
     for (let col = 0; col < data.fieldTypes.length; col++) {
-      const type = data.fieldTypes[col];
-      if (!type || !type.includes('[]')) continue;
+      const expectedType = data.fieldTypes[col];
+      if (!expectedType) continue;
+
+      const isArray = expectedType.includes('[]');
 
       for (let row = 0; row < data.dataValues.length; row++) {
-        const value = String(data.dataValues[row][col] ?? '');
-        if (value === '') continue;
+        const value = data.dataValues[row][col];
+        if (value === '' || value === null || value === undefined) continue;
+        const strValue = String(value);
 
-        // 使用了逗号且没有使用竖线 → 可能误用分隔符
-        if (value.includes(',') && !value.includes('|')) {
-          results.push({
-            severity: 'warning',
-            ruleName: '数组分隔符',
-            tableName,
-            location: {
-              sheetName: tableName,
-              row: data.dataRowStart + row,
-              column: data.dataColStart + col,
-            },
-            message: `字段 "${data.fieldNames[col]}" 使用了逗号分隔，应使用 | 和 ; 分隔`,
-          });
+        // 数据类型检查
+        if (checkTypes) {
+          const error = this.checkType(strValue, expectedType);
+          if (error) {
+            results.push({
+              severity: 'warning',
+              ruleName: '数据类型',
+              tableName,
+              location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
+              message: `字段 "${data.fieldNames[col]}" 定义为 ${expectedType}，但值 "${value}" ${error}`,
+            });
+          }
+        }
+
+        // 数组分隔符检查
+        if (checkArraySep && isArray) {
+          if (strValue.includes(',') && !strValue.includes('|')) {
+            results.push({
+              severity: 'warning',
+              ruleName: '数组分隔符',
+              tableName,
+              location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
+              message: `字段 "${data.fieldNames[col]}" 使用了逗号分隔，应使用 | 和 ; 分隔`,
+            });
+          }
         }
       }
     }
@@ -291,92 +292,70 @@ export class ValidationEngine {
   // ──────────── 逻辑校验 ────────────
 
   /**
-   * 规则4：版本覆盖完整性检查（核心功能）
-   * 对同一 Key 的所有行，检查版本区间是否连续无间隙
+   * 规则4：版本覆盖完整性检查（独立入口，供测试调用）
    */
   validateVersionCoverage(tableName: string, data: TableValidationData): ValidationResult[] {
-    const results: ValidationResult[] = [];
-
-    // 按 Key（第一数据列）分组，跳过 roads 不匹配的行
-    const keyGroups = new Map<string, { row: number; versionRange: string }[]>();
-    const targetRoadIdx = this.resolveTargetRoadIdx(data);
-
-    for (let i = 0; i < data.dataValues.length; i++) {
-      if (!this.isRowInScope(data, i, targetRoadIdx)) continue;
-      const key = String(data.dataValues[i][0] ?? '');
-      // versionValues 索引 i+2 对应数据行（跳过两行表头）
-      const version = String(data.versionValues[i + 2] ?? '');
-      if (!key) continue;
-      if (!keyGroups.has(key)) keyGroups.set(key, []);
-      keyGroups.get(key)!.push({ row: data.dataRowStart + i, versionRange: version });
-    }
-
-    // 对多行 Key 检查覆盖
-    for (const [key, rows] of keyGroups) {
-      if (rows.length <= 1) continue;
-
-      const ranges: { row: number; min: number; max: number }[] = [];
-      for (const r of rows) {
-        const parsed = this.versionFilter.parseRange(r.versionRange);
-        if (parsed) {
-          ranges.push({ row: r.row, min: parsed.min, max: parsed.max });
-        }
-      }
-      if (ranges.length <= 1) continue;
-
-      // 按最小版本号排序
-      ranges.sort((a, b) => a.min - b.min);
-
-      for (let i = 1; i < ranges.length; i++) {
-        const prev = ranges[i - 1];
-        const curr = ranges[i];
-
-        if (curr.min > prev.max) {
-          // 有间隙
-          results.push({
-            severity: 'error',
-            ruleName: '版本覆盖完整性',
-            tableName,
-            location: { sheetName: tableName, row: curr.row, column: data.versionColStart },
-            message: `Key=${key} 在版本 ${prev.max}~${curr.min} 之间无配置数据，导出该区间版本时此 Key 将不存在`,
-          });
-        }
-        // 重叠是正常设计（同Key多版本覆盖），不需要提示
-      }
-    }
-    return results;
+    return this.validateVersionCoverageAndOrder(tableName, data).filter(
+      r => r.ruleName === '版本覆盖完整性'
+    );
   }
 
   /**
-   * 规则5：同Key版本顺序检查
-   * 多行同Key是否按版本号递增排列
+   * 规则5：同Key版本顺序检查（独立入口，供测试调用）
    */
   validateKeyVersionOrder(tableName: string, data: TableValidationData): ValidationResult[] {
+    return this.validateVersionCoverageAndOrder(tableName, data).filter(
+      r => r.ruleName === '同Key版本顺序'
+    );
+  }
+
+  /**
+   * 规则4+5 合并：单次分组 + 单次 parseRange，同时检查覆盖完整性和版本顺序
+   */
+  private validateVersionCoverageAndOrder(tableName: string, data: TableValidationData): ValidationResult[] {
     const results: ValidationResult[] = [];
-    const keyGroups = new Map<string, { row: number; version: number }[]>();
     const targetRoadIdx = this.resolveTargetRoadIdx(data);
+
+    // 单次遍历构建分组，同时解析版本区间
+    const keyGroups = new Map<string, { row: number; min: number; max: number }[]>();
 
     for (let i = 0; i < data.dataValues.length; i++) {
       if (!this.isRowInScope(data, i, targetRoadIdx)) continue;
       const key = String(data.dataValues[i][0] ?? '');
-      const verStr = String(data.versionValues[i + 2] ?? '');
       if (!key) continue;
+      const verStr = String(data.versionValues[i + 2] ?? '');
       const parsed = this.versionFilter.parseRange(verStr);
       if (!parsed) continue;
       if (!keyGroups.has(key)) keyGroups.set(key, []);
-      keyGroups.get(key)!.push({ row: data.dataRowStart + i, version: parsed.min });
+      keyGroups.get(key)!.push({ row: data.dataRowStart + i, min: parsed.min, max: parsed.max });
     }
 
     for (const [key, rows] of keyGroups) {
       if (rows.length <= 1) continue;
+
+      // 规则5：检查原始顺序是否递增
       for (let i = 1; i < rows.length; i++) {
-        if (rows[i].version < rows[i - 1].version) {
+        if (rows[i].min < rows[i - 1].min) {
           results.push({
             severity: 'warning',
             ruleName: '同Key版本顺序',
             tableName,
             location: { sheetName: tableName, row: rows[i].row, column: data.versionColStart },
             message: `Key=${key} 第 ${rows[i].row} 行的版本号比第 ${rows[i - 1].row} 行小，简写模式下可能导致覆盖逻辑异常`,
+          });
+        }
+      }
+
+      // 规则4：按版本号排序后检查间隙
+      const sorted = [...rows].sort((a, b) => a.min - b.min);
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i].min > sorted[i - 1].max) {
+          results.push({
+            severity: 'error',
+            ruleName: '版本覆盖完整性',
+            tableName,
+            location: { sheetName: tableName, row: sorted[i].row, column: data.versionColStart },
+            message: `Key=${key} 在版本 ${sorted[i - 1].max}~${sorted[i].min} 之间无配置数据，导出该区间版本时此 Key 将不存在`,
           });
         }
       }

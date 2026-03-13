@@ -50,6 +50,18 @@ export class ExportWriter {
     manifest: HashManifest,
     englishName: string
   ): boolean {
+    const newHash = this.computeDataHash(filteredData);
+    return this.hasHashChanged(newHash, manifest, englishName);
+  }
+
+  /**
+   * 基于预计算的哈希值判断是否有变更（避免重复计算哈希）
+   */
+  hasHashChanged(
+    newHash: string,
+    manifest: HashManifest,
+    englishName: string
+  ): boolean {
     // GameConfig 总是判定为变更（含动态版本号注入）
     if (englishName === 'GameConfig') return true;
 
@@ -57,7 +69,6 @@ export class ExportWriter {
     if (!oldEntry) return true;
 
     const oldHash = getManifestHash(oldEntry);
-    const newHash = this.computeDataHash(filteredData);
     return newHash !== oldHash;
   }
 
