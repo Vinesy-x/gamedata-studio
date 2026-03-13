@@ -44,6 +44,54 @@ export class ExcelHelper {
   }
 
   /**
+   * 批量读取多张工作表的 UsedRange（仅 2 次 context.sync）
+   */
+  async loadSheetSnapshotsBatch(
+    context: Excel.RequestContext,
+    sheetNames: string[]
+  ): Promise<Map<string, SheetSnapshot>> {
+    const result = new Map<string, SheetSnapshot>();
+    if (sheetNames.length === 0) return result;
+
+    // 第1次 sync：批量检查工作表是否存在
+    const sheetObjects: { name: string; sheet: Excel.Worksheet }[] = [];
+    for (const name of sheetNames) {
+      const sheet = context.workbook.worksheets.getItemOrNullObject(name);
+      sheet.load('isNullObject');
+      sheetObjects.push({ name, sheet });
+    }
+    await context.sync();
+
+    // 第2次 sync：批量加载存在的工作表的 usedRange
+    const rangeObjects: { name: string; range: Excel.Range }[] = [];
+    for (const { name, sheet } of sheetObjects) {
+      if (sheet.isNullObject) continue;
+      const range = sheet.getUsedRangeOrNullObject(true);
+      range.load('values,rowCount,columnCount,rowIndex,columnIndex');
+      rangeObjects.push({ name, range });
+    }
+    await context.sync();
+
+    // 组装结果
+    for (const { name, range } of rangeObjects) {
+      if (range.isNullObject) {
+        result.set(name, { name, values: [], rowCount: 0, colCount: 0, startRow: 0, startCol: 0 });
+      } else {
+        result.set(name, {
+          name,
+          values: range.values,
+          rowCount: range.rowCount,
+          colCount: range.columnCount,
+          startRow: range.rowIndex,
+          startCol: range.columnIndex,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * 在内存数据中查找标记文字，返回 {row, col} (0-indexed)
    */
   findMarkerInData(

@@ -459,10 +459,14 @@ export class ValidationEngine {
    */
   async loadAllTableData(tableNames: Set<string>): Promise<Map<string, TableValidationData>> {
     const dataMap = new Map<string, TableValidationData>();
+    const nameList = Array.from(tableNames);
 
+    // 批量加载所有工作表（仅 2 次 context.sync，而非 2N 次）
     await Excel.run(async (context) => {
-      for (const tableName of tableNames) {
-        const snap = await excelHelper.loadSheetSnapshot(context, tableName);
+      const snapshots = await excelHelper.loadSheetSnapshotsBatch(context, nameList);
+
+      for (const tableName of nameList) {
+        const snap = snapshots.get(tableName);
         if (!snap || snap.values.length === 0) {
           logger.warn(`校验：找不到工作表「${tableName}」或数据为空`);
           continue;

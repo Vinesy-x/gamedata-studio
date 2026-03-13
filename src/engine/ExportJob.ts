@@ -114,9 +114,20 @@ export class ExportJob {
         logger.info('创建新的哈希清单');
       }
 
-      // 逐表处理（每张表占一个进度步骤）
+      // ── 阶段A：筛选 + 哈希对比（纯 CPU，同步完成）
       const dataFilter = new DataFilter(versionFilter);
       let tableIndex = 0;
+
+      interface PendingWrite {
+        chineseName: string;
+        englishName: string;
+        filteredData: CellValue[][];
+        newHash: string;
+        currentRows: number;
+        previousRows: number;
+        isNew: boolean;
+      }
+      const pendingWrites: PendingWrite[] = [];
 
       for (const [chineseName, tableData] of inMemoryData) {
         tableIndex++;
@@ -124,60 +135,28 @@ export class ExportJob {
         if (!tableInfo) continue;
 
         const englishName = tableInfo.englishName;
-        this.emitProgress(5 + tableIndex, totalSteps, `正在处理 ${chineseName} (${tableIndex}/${totalTables})...`, chineseName);
+        this.emitProgress(5 + tableIndex, totalSteps, `正在筛选 ${chineseName} (${tableIndex}/${totalTables})...`, chineseName);
 
         try {
-          // 筛选
           const filtered = dataFilter.applyFilters(tableData);
-
           if (!filtered.shouldOutput) {
             logger.info(`表 ${chineseName} 筛选后无数据，跳过`);
             continue;
           }
 
-          // 哈希对比（计算一次，复用于清单更新）
           const newHash = this.exportWriter.computeDataHash(filtered.data);
           const hasChanged = this.exportWriter.hasHashChanged(newHash, manifest, englishName);
-
           if (!hasChanged) {
             logger.info(`表 ${chineseName} 无变化，跳过`);
             continue;
           }
 
-          // 当前行数（减去表头行）
           const currentRows = Math.max(0, filtered.data.length - 1);
-          // 上次导出的行数
           const oldEntry = manifest[englishName];
           const previousRows = oldEntry ? getManifestRows(oldEntry) : 0;
           const isNew = !oldEntry;
 
-          // 记录 diff 信息
-          tableDiffs.push({
-            tableName: englishName,
-            chineseName,
-            totalRows: currentRows,
-            previousRows,
-            status: isNew ? 'new' : 'modified',
-          });
-
-          // 生成独立 xlsx
-          const fileBuffer = await this.exportWriter.writeIndividualFile(
-            filtered.data, englishName, config
-          );
-
-          // 写入输出目录
-          const fileName = `${englishName}.xlsx`;
-          await this.writeFileToServer(outputDir, fileName, fileBuffer);
-
-          // 更新哈希清单（复用已计算的哈希）
-          manifest[englishName] = {
-            hash: newHash,
-            rows: currentRows,
-          };
-
-          modifiedFiles.push(fileName);
-          changedTables++;
-          logger.info(`表 ${chineseName} → ${fileName} 已导出`);
+          pendingWrites.push({ chineseName, englishName, filteredData: filtered.data, newHash, currentRows, previousRows, isNew });
         } catch (err) {
           const errDetail = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
           logger.error(`处理表「${chineseName}」失败`, err);
@@ -188,6 +167,57 @@ export class ExportJob {
             message: `处理表「${chineseName}」失败: ${errDetail}`,
             procedure: 'ExportJob.processTable',
           });
+        }
+      }
+
+      // ── 阶段B：并行生成 xlsx + 写入文件（I/O 密集，4 路并发）
+      const WRITE_CONCURRENCY = 4;
+      const writeTable = async (pw: PendingWrite) => {
+        const fileBuffer = await this.exportWriter.writeIndividualFile(
+          pw.filteredData, pw.englishName, config
+        );
+        const fileName = `${pw.englishName}.xlsx`;
+        await this.writeFileToServer(outputDir, fileName, fileBuffer);
+
+        tableDiffs.push({
+          tableName: pw.englishName,
+          chineseName: pw.chineseName,
+          totalRows: pw.currentRows,
+          previousRows: pw.previousRows,
+          status: pw.isNew ? 'new' : 'modified',
+        });
+
+        manifest[pw.englishName] = { hash: pw.newHash, rows: pw.currentRows };
+        modifiedFiles.push(fileName);
+        changedTables++;
+        logger.info(`表 ${pw.chineseName} → ${fileName} 已导出`);
+      };
+
+      // 分批并行写入
+      for (let i = 0; i < pendingWrites.length; i += WRITE_CONCURRENCY) {
+        const batch = pendingWrites.slice(i, i + WRITE_CONCURRENCY);
+        const batchNames = batch.map(pw => pw.chineseName).join('、');
+        this.emitProgress(
+          5 + totalTables + Math.floor(i / WRITE_CONCURRENCY),
+          totalSteps,
+          `正在写入 ${batchNames}...`
+        );
+
+        const results = await Promise.allSettled(batch.map(pw => writeTable(pw)));
+        for (let j = 0; j < results.length; j++) {
+          if (results[j].status === 'rejected') {
+            const err = (results[j] as PromiseRejectedResult).reason;
+            const pw = batch[j];
+            const errDetail = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+            logger.error(`写入表「${pw.chineseName}」失败`, err);
+            this.errorHandler.logError({
+              code: ErrorCode.FILE_WRITE_FAILED,
+              severity: 'warning',
+              tableName: pw.chineseName,
+              message: `写入表「${pw.chineseName}」失败: ${errDetail}`,
+              procedure: 'ExportJob.writeTable',
+            });
+          }
         }
       }
 

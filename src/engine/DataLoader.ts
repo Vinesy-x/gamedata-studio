@@ -24,28 +24,37 @@ export class DataLoader {
   ): Promise<Map<string, InMemoryTableData>> {
     const result = new Map<string, InMemoryTableData>();
 
-    await Excel.run(async (context) => {
-      for (const [chineseName, tableInfo] of config.tablesToProcess) {
-        if (!tableInfo.shouldOutput) {
-          logger.info(`跳过表 ${chineseName}: 输出开关关闭`);
-          continue;
-        }
+    // 预筛选需要加载的表名
+    const tableNames: string[] = [];
+    for (const [chineseName, tableInfo] of config.tablesToProcess) {
+      if (!tableInfo.shouldOutput) {
+        logger.info(`跳过表 ${chineseName}: 输出开关关闭`);
+        continue;
+      }
+      if (tableInfo.versionRange && !versionFilter.isVersionInRange(tableInfo.versionRange)) {
+        logger.info(`跳过表 ${chineseName}: 版本不在区间 ${tableInfo.versionRange} 内`);
+        continue;
+      }
+      tableNames.push(chineseName);
+    }
 
-        if (tableInfo.versionRange && !versionFilter.isVersionInRange(tableInfo.versionRange)) {
-          logger.info(`跳过表 ${chineseName}: 版本不在区间 ${tableInfo.versionRange} 内`);
+    if (tableNames.length === 0) return result;
+
+    // 批量加载所有工作表（仅 2 次 context.sync，而非 2N 次）
+    await Excel.run(async (context) => {
+      const snapshots = await excelHelper.loadSheetSnapshotsBatch(context, tableNames);
+
+      for (const chineseName of tableNames) {
+        const snap = snapshots.get(chineseName);
+        if (!snap || snap.values.length === 0) {
+          this.errorHandler.log(
+            ErrorCode.SOURCE_SHEET_NOT_FOUND, 'warning', chineseName,
+            `找不到工作表「${chineseName}」`, 'DataLoader.loadAll'
+          );
           continue;
         }
 
         try {
-          const snap = await excelHelper.loadSheetSnapshot(context, chineseName);
-          if (!snap || snap.values.length === 0) {
-            this.errorHandler.log(
-              ErrorCode.SOURCE_SHEET_NOT_FOUND, 'warning', chineseName,
-              `找不到工作表「${chineseName}」`, 'DataLoader.loadAll'
-            );
-            continue;
-          }
-
           const tableData = this.parseTableData(snap.values, chineseName);
           if (tableData) {
             result.set(chineseName, tableData);
