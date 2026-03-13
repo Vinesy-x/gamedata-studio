@@ -69,7 +69,8 @@ const useStyles = makeStyles({
   },
   content: {
     flex: 1,
-    overflow: 'auto',
+    overflowY: 'auto',
+    overflowX: 'hidden',
     padding: '12px 14px',
   },
   section: {
@@ -95,11 +96,13 @@ const useStyles = makeStyles({
     marginBottom: '8px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
     border: `1px solid ${tokens.colorNeutralStroke2}`,
+    overflow: 'hidden',
   },
   table: {
     fontSize: '11px',
     borderCollapse: 'collapse',
     width: '100%',
+    tableLayout: 'fixed' as const,
   },
   th: {
     textAlign: 'left',
@@ -115,6 +118,9 @@ const useStyles = makeStyles({
   td: {
     padding: '5px 6px',
     borderBottom: `1px solid ${tokens.colorNeutralStroke3}`,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    wordBreak: 'break-all' as const,
   },
   badge: {
     display: 'inline-block',
@@ -462,7 +468,7 @@ function ConfigSubPage({ config, onReload, styles }: {
             size="small"
             value={operator}
             onOptionSelect={(_, d) => handleSaveOperator(d.optionValue || '')}
-            style={{ width: '100%' }}
+            style={{ width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}
           >
             {staffList.map(s => (
               <Option key={s.name} value={s.name} text={s.name}>{s.name} ({s.code})</Option>
@@ -503,10 +509,10 @@ function ConfigSubPage({ config, onReload, styles }: {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th className={styles.th}>版本名</th>
-                <th className={styles.th}>线路</th>
-                <th className={styles.th}>Git 目录</th>
-                <th className={styles.th}></th>
+                <th className={styles.th} style={{ width: '28%' }}>版本名</th>
+                <th className={styles.th} style={{ width: '24%' }}>线路</th>
+                <th className={styles.th} style={{ width: '38%' }}>Git 目录</th>
+                <th className={styles.th} style={{ width: '10%' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -516,7 +522,7 @@ function ConfigSubPage({ config, onReload, styles }: {
                     <strong>{vt.name}</strong>
                   </td>
                   <td className={styles.td}>{roadsDisplayName(vt.lineField)}</td>
-                  <td className={styles.td} style={{ wordBreak: 'break-all', maxWidth: 120, fontSize: '10px' }}>
+                  <td className={styles.td} style={{ fontSize: '10px' }}>
                     {editingGitDir === vt.name ? (
                       <div>
                         <Input
@@ -1085,11 +1091,11 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
         <table className={styles.table}>
           <thead>
             <tr>
-              <th className={styles.th}>中文名</th>
-              <th className={styles.th}>英文名</th>
-              <th className={styles.th}>版本</th>
-              <th className={styles.th}>控制</th>
-              <th className={styles.th}></th>
+              <th className={styles.th} style={{ width: '24%' }}>中文名</th>
+              <th className={styles.th} style={{ width: '28%' }}>英文名</th>
+              <th className={styles.th} style={{ width: '16%' }}>版本</th>
+              <th className={styles.th} style={{ width: '20%' }}>控制</th>
+              <th className={styles.th} style={{ width: '12%' }}></th>
             </tr>
           </thead>
           <tbody>
