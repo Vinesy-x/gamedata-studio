@@ -138,7 +138,7 @@ export function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [initializing, setInitializing] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
-  const [monitorEnabled, setMonitorEnabled] = useState(false);
+  const [monitorEnabled, setMonitorEnabled] = useState(true);
   const [monitorStatus, setMonitorStatus] = useState<'idle' | 'watching' | 'exporting'>('idle');
   const monitorRef = useRef<CollaborationMonitor | null>(null);
   const isExportingRef = useRef(false);
@@ -251,6 +251,13 @@ export function App() {
       setMonitorStatus('idle');
     }
   }, [handleCollabTrigger]);
+
+  // 配置加载后自动启动协同监听
+  useEffect(() => {
+    if (config && monitorEnabled && !monitorRef.current) {
+      handleToggleMonitor(true);
+    }
+  }, [config, monitorEnabled, handleToggleMonitor]);
 
   // 清理 monitor
   useEffect(() => {

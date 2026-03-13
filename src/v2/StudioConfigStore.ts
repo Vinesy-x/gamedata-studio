@@ -487,6 +487,8 @@ export class StudioConfigStore {
     sheet.getRange('A1').values = [[JSON.stringify(configData)]];
     // 表可见，供网页端用户查看协同导出区域
     sheet.visibility = Excel.SheetVisibility.visible;
+    // StudioConfig 放在最前面
+    sheet.position = 0;
 
     // 写入协同导出区域 A3:B8
     this.writeCollabArea(sheet, configData);
@@ -568,7 +570,6 @@ export class StudioConfigStore {
       sheet.getRangeByIndexes(0, dataStartCol + i, 1, 1).format.columnWidth = 160;
     }
 
-    sheet.activate();
     await context.sync();
     logger.info('已创建「配置表」(GameConfig) — R控制方式');
   }
@@ -605,8 +606,8 @@ export class StudioConfigStore {
     } else {
       sheet = context.workbook.worksheets.add('表名对照');
     }
-    // 移到最前面
-    sheet.position = 0;
+    // 移到 StudioConfig 后面（第二位）
+    sheet.position = 1;
 
     // 表头行：蓝色背景白色文字
     const headerRange = sheet.getRangeByIndexes(0, 0, 1, 4);
@@ -631,6 +632,9 @@ export class StudioConfigStore {
     sheet.getRangeByIndexes(0, 1, 1, 1).format.columnWidth = 140;
     sheet.getRangeByIndexes(0, 2, 1, 1).format.columnWidth = 160;
     sheet.getRangeByIndexes(0, 3, 1, 1).format.columnWidth = 100;
+
+    // 初始化后默认显示表名对照
+    sheet.activate();
 
     await context.sync();
     logger.info('已创建「表名对照」工作表');
