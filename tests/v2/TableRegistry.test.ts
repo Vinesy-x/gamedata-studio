@@ -25,9 +25,16 @@ function makeMockSheet() {
       const call: RangeCall = { row, col, rowCount, colCount };
       const rangeObj = {
         values: null as unknown[][] | null,
+        hyperlink: null as unknown,
+        format: { font: { color: '', underline: '' } },
         clear(applyTo?: string) {
           call.cleared = true;
           void applyTo;
+        },
+        getEntireRow() {
+          return {
+            delete(_shift?: unknown) { void _shift; },
+          };
         },
       };
       const proxy = new Proxy(rangeObj, {
@@ -73,6 +80,7 @@ function makeMockContext() {
     return callback(ctx);
   }),
   ClearApplyTo: { contents: 'contents' },
+  DeleteShiftDirection: { up: 'up' },
 };
 
 // Mock excelHelper
@@ -371,12 +379,12 @@ describe('TableRegistry', () => {
       await registry.unregisterTable('道具表');
 
       // 道具表在 row 2, col+1 = 1 -> chineseName matches
+      // unregisterTable 使用 getEntireRow().delete() 删除整行
       expect(rangeCalls).toHaveLength(1);
       expect(rangeCalls[0].row).toBe(2);     // r=2 + startRow=0
-      expect(rangeCalls[0].col).toBe(0);     // pos.col(0) + startCol(0)
+      expect(rangeCalls[0].col).toBe(0);
       expect(rangeCalls[0].rowCount).toBe(1);
-      expect(rangeCalls[0].colCount).toBe(4);
-      expect(rangeCalls[0].cleared).toBe(true);
+      expect(rangeCalls[0].colCount).toBe(1);
     });
 
     it('should throw when table not found', async () => {

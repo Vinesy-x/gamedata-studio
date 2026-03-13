@@ -48,6 +48,7 @@ function makeData(overrides: Partial<TableValidationData> = {}): TableValidation
     versionRowStart: 5,      // version_r 在第5行（1-indexed）
     dataRowStart: 7,         // 数据从第7行开始
     dataColStart: 11,        // 数据从第11列开始（1-indexed）
+    versionColStart: 1,      // 版本区间列号（1-indexed）
     versionValues: [],       // A 列版本值
     roadsValues: [],         // roads 值
     fieldNames: [],
@@ -395,9 +396,9 @@ describe('ValidationEngine', () => {
       expect(errors[0].message).toContain('1.5');
     });
 
-    it('有重叠的版本区间应报 info', () => {
+    it('有重叠的版本区间不应报错（正常覆盖设计）', () => {
       // "1~2.0" → [1, 2.0), "1.5" → [1.5, 99)
-      // 重叠：1.5 ~ 2.0
+      // 重叠是正常的同Key多版本覆盖
       const data = makeData({
         versionValues: ['version_r', '描述行', '1~2.0', '1.5'],
         dataValues: [
@@ -407,8 +408,7 @@ describe('ValidationEngine', () => {
       });
       const results = engine.validateVersionCoverage('测试表', data);
       const infos = results.filter(r => r.severity === 'info');
-      expect(infos).toHaveLength(1);
-      expect(infos[0].message).toContain('重叠');
+      expect(infos).toHaveLength(0);
     });
 
     it('空版本值的行不参与覆盖检查', () => {
@@ -773,7 +773,7 @@ describe('ValidationEngine', () => {
     });
 
     it('int[] 逗号分隔不通过', () => {
-      expect(engine.checkType('1,2,3', 'int[]')).toBe('格式应为 N|N|N');
+      expect(engine.checkType('1,2,3', 'int[]')).toBe('格式应为 N|N|N（分隔符: |）');
     });
 
     it('int[][] 分号+竖线分隔通过', () => {
@@ -782,7 +782,7 @@ describe('ValidationEngine', () => {
     });
 
     it('int[][] 逗号分隔不通过', () => {
-      expect(engine.checkType('1,2;3,4', 'int[][]')).toBe('格式应为 N|N;N|N');
+      expect(engine.checkType('1,2;3,4', 'int[][]')).toBe('格式应为 N|N;N|N（一维: |, 二维: ;）');
     });
 
     it('未知类型返回 null（不校验）', () => {
