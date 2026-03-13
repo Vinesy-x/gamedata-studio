@@ -64,7 +64,9 @@ module.exports = async (env, options) => {
     },
     plugins: [
       new webpack.DefinePlugin({
-        __APP_VERSION__: JSON.stringify(require("./package.json").version),
+        __APP_VERSION__: JSON.stringify(
+          require("./package.json").version + (process.env.BUILD_CHANNEL === "dev" ? "-dev" : "")
+        ),
       }),
       new webpack.ProvidePlugin({
         Buffer: ["buffer", "Buffer"],
