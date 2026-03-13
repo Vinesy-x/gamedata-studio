@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IdleAnimation } from './IdleAnimation';
+import { HelpPanel } from './HelpPanel';
 import {
   makeStyles,
   tokens,
@@ -11,6 +12,10 @@ import {
   Input,
   Switch,
   Spinner,
+  Dialog,
+  DialogSurface,
+  DialogBody,
+  DialogContent,
 } from '@fluentui/react-components';
 import {
   ArrowExportRegular,
@@ -23,6 +28,7 @@ import {
   NavigationRegular,
   PersonRegular,
   FolderOpenRegular,
+  QuestionCircleRegular,
 } from '@fluentui/react-icons';
 import { Config } from '../../types/config';
 import { ExportJob } from '../../engine/ExportJob';
@@ -38,7 +44,8 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: '0',
-    minHeight: '100%',
+    height: '100%',
+    overflow: 'hidden',
   },
   // 当前配置区域
   configSection: {
@@ -102,19 +109,6 @@ const useStyles = makeStyles({
     ':hover': {
       textDecorationLine: 'underline',
     },
-  },
-  dirHint: {
-    fontSize: '10px',
-    color: tokens.colorNeutralForeground4,
-    lineHeight: '1.4',
-    marginTop: '2px',
-  },
-  dirInputRow: {
-    display: 'flex',
-    flexDirection: 'column',
-    flex: 1,
-    minWidth: 0,
-    gap: '2px',
   },
   // 操作按钮区域
   actionSection: {
@@ -321,6 +315,39 @@ const useStyles = makeStyles({
     minWidth: '18px',
     marginLeft: '4px',
   },
+  footer: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 14px',
+    marginTop: 'auto',
+    fontSize: '10px',
+    color: tokens.colorNeutralForeground4,
+    fontFamily: '"Cascadia Code", "Fira Code", Consolas, monospace',
+    letterSpacing: '1px',
+    userSelect: 'none' as const,
+  },
+  helpBtn: {
+    minWidth: 'auto',
+    padding: '0',
+    width: '20px',
+    height: '20px',
+    color: tokens.colorNeutralForeground4,
+    ':hover': {
+      color: tokens.colorBrandForeground1,
+    },
+  },
+  helpDialogContent: {
+    maxHeight: '70vh',
+    overflowY: 'auto' as const,
+    padding: '0',
+  },
+  // 结果区域需要可滚动
+  resultScrollArea: {
+    flex: 1,
+    overflowY: 'auto' as const,
+    minHeight: 0,
+  },
 });
 
 interface ExportTabProps {
@@ -336,6 +363,7 @@ interface ExportTabProps {
   monitorEnabled: boolean;
   monitorStatus: 'idle' | 'watching' | 'exporting';
   onToggleMonitor: (enabled: boolean) => void;
+  onNavigateToManage: () => void;
 }
 
 export function ExportTab({
@@ -351,6 +379,7 @@ export function ExportTab({
   monitorEnabled,
   monitorStatus,
   onToggleMonitor,
+  onNavigateToManage,
 }: ExportTabProps) {
   const styles = useStyles();
   const [changingVersion, setChangingVersion] = useState(false);
@@ -402,21 +431,6 @@ export function ExportTab({
     } catch { /* ignore */ }
   }, [config.outputSettings.versionNumber, onReloadConfig]);
 
-  const [editingDir, setEditingDir] = useState(false);
-
-  const handleSaveDirectory = useCallback(async (value: string) => {
-    const dir = value.trim();
-    setEditingDir(false);
-    if (!dir) return;
-    const currentVersion = config.versionTemplates.get(config.outputSettings.versionName);
-    if (currentVersion) {
-      await configManager.updateVersion(currentVersion.name, {
-        ...currentVersion,
-        gitDirectory: dir,
-      });
-      onReloadConfig();
-    }
-  }, [config, onReloadConfig]);
 
   const handleExport = useCallback(async () => {
     onClearResult();
@@ -490,6 +504,8 @@ export function ExportTab({
       );
     }
   };
+
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // 当结果被用户（Git 上传后）主动隐藏时，不显示导出结果
   const visibleResult = resultDismissed ? null : exportResult;
@@ -576,38 +592,16 @@ export function ExportTab({
               )}
             </div>
           </div>
-          <div className={styles.configRow} style={{ alignItems: 'flex-start', borderBottom: 'none' }}>
-            <span className={styles.configLabel} style={{ paddingTop: '4px' }}>导出目录</span>
-            {editingDir ? (
-              <div className={styles.dirInputRow}>
-                <Input
-                  size="small"
-                  placeholder="粘贴目录绝对路径"
-                  defaultValue={outputDir}
-                  autoFocus
-                  style={{ width: '100%' }}
-                  onBlur={(e) => handleSaveDirectory(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveDirectory((e.target as HTMLInputElement).value);
-                    if (e.key === 'Escape') setEditingDir(false);
-                  }}
-                />
-                <span className={styles.dirHint}>
-                  支持变量: {'{0}'}=版本号 {'{1}'}=版本名
-                  <br />
-                  如 /data/{'{1}'}/{'{0}'} → /data/默认/2.1
-                  <br />
-                  Finder 右键文件夹 → 拷贝路径名称
-                </span>
-              </div>
-            ) : outputDir ? (
-              <span className={styles.configValuePath} onClick={() => setEditingDir(true)} style={{ cursor: 'pointer' }}>
+          <div className={styles.configRow} style={{ borderBottom: 'none' }}>
+            <span className={styles.configLabel}>导出目录</span>
+            {outputDir ? (
+              <span className={styles.configValuePath} onClick={onNavigateToManage} style={{ cursor: 'pointer' }}>
                 {outputDir}
               </span>
             ) : (
-              <span className={styles.configValueEmpty} onClick={() => setEditingDir(true)}>
+              <span className={styles.configValueEmpty} onClick={onNavigateToManage}>
                 <FolderOpenRegular fontSize={12} />
-                点击设置导出目录
+                点击前往配置
               </span>
             )}
           </div>
@@ -650,109 +644,134 @@ export function ExportTab({
         )}
       </div>
 
-      {/* 导出结果 / 空闲占位 */}
-      {visibleResult && !isExporting ? (
-        <div className={`${styles.resultSection} ${styles.resultFadeIn}`}>
-          {/* 摘要行：状态 + 耗时 + 统计 */}
-          <div className={styles.resultSummary}>
-            {visibleResult.success ? (
-              <CheckmarkCircleRegular
-                className={`${styles.resultStatusIcon} ${styles.successColor} ${showCompletionAnim ? styles.successCheckAnim : ''}`}
-              />
-            ) : (
-              <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
-            )}
-            <span className={styles.resultStatusText}>
-              {visibleResult.success ? '导出成功' : '导出失败'}
-            </span>
-            <span className={styles.resultDuration}>
-              {visibleResult.duration.toFixed(1)}s
-            </span>
-            <div className={styles.resultStats}>
-              {visibleResult.modifiedFiles.length > 0 && (
-                <span className={`${styles.statItem} ${styles.statFiles}`}>
-                  <DocumentRegular fontSize={13} />
-                  <span className={styles.fileCountBadge}>{visibleResult.modifiedFiles.length}</span>
-                </span>
+      {/* 导出结果 / 空闲占位 — 可滚动区域 */}
+      <div className={styles.resultScrollArea}>
+        {visibleResult && !isExporting ? (
+          <div className={`${styles.resultSection} ${styles.resultFadeIn}`}>
+            {/* 摘要行：状态 + 耗时 + 统计 */}
+            <div className={styles.resultSummary}>
+              {visibleResult.success ? (
+                <CheckmarkCircleRegular
+                  className={`${styles.resultStatusIcon} ${styles.successColor} ${showCompletionAnim ? styles.successCheckAnim : ''}`}
+                />
+              ) : (
+                <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
               )}
-              {warnings.length > 0 && (
-                <span className={`${styles.statItem} ${styles.statWarnings}`}>
-                  <WarningRegular fontSize={13} />
-                  {warnings.length}
-                </span>
-              )}
-              {errors.length > 0 && (
-                <span className={`${styles.statItem} ${styles.statErrors}`}>
-                  <DismissCircleRegular fontSize={13} />
-                  {errors.length}
-                </span>
-              )}
+              <span className={styles.resultStatusText}>
+                {visibleResult.success ? '导出成功' : '导出失败'}
+              </span>
+              <span className={styles.resultDuration}>
+                {visibleResult.duration.toFixed(1)}s
+              </span>
+              <div className={styles.resultStats}>
+                {visibleResult.modifiedFiles.length > 0 && (
+                  <span className={`${styles.statItem} ${styles.statFiles}`}>
+                    <DocumentRegular fontSize={13} />
+                    <span className={styles.fileCountBadge}>{visibleResult.modifiedFiles.length}</span>
+                  </span>
+                )}
+                {warnings.length > 0 && (
+                  <span className={`${styles.statItem} ${styles.statWarnings}`}>
+                    <WarningRegular fontSize={13} />
+                    {warnings.length}
+                  </span>
+                )}
+                {errors.length > 0 && (
+                  <span className={`${styles.statItem} ${styles.statErrors}`}>
+                    <DismissCircleRegular fontSize={13} />
+                    {errors.length}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* 修改文件列表 */}
-          {visibleResult.modifiedFiles.length > 0 && (
-            <div className={styles.resultCard}>
-              <div className={styles.fileList}>
-                {visibleResult.modifiedFiles.map((file, i) => (
-                  <div key={i} className={styles.fileItem}>
-                    <DocumentRegular className={styles.fileIcon} fontSize={13} />
-                    <span className={styles.filePath}>{file}</span>
+            {/* 修改文件列表 */}
+            {visibleResult.modifiedFiles.length > 0 && (
+              <div className={styles.resultCard}>
+                <div className={styles.fileList}>
+                  {visibleResult.modifiedFiles.map((file, i) => (
+                    <div key={i} className={styles.fileItem}>
+                      <DocumentRegular className={styles.fileIcon} fontSize={13} />
+                      <span className={styles.filePath}>{file}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 校验警告 */}
+            {warnings.length > 0 && (
+              <div className={styles.warningCard}>
+                <div className={styles.warningHeader}>
+                  <WarningRegular fontSize={16} />
+                  <span>[dataValidation] 共 {warnings.length} 处警告</span>
+                </div>
+                {warnings.slice(0, 10).map((w, i) => (
+                  <div key={i} className={styles.warningItem}>
+                    [{w.code}] {w.message}
+                    {w.tableName && ` (工作表: ${w.tableName})`}
+                    {w.location && (
+                      <Button
+                        className={styles.navigateLink}
+                        appearance="transparent"
+                        size="small"
+                        icon={<NavigationRegular fontSize={10} />}
+                        onClick={() => handleNavigate(w)}
+                      />
+                    )}
+                  </div>
+                ))}
+                {warnings.length > 10 && (
+                  <div className={styles.warningItem}>
+                    ...等共 {warnings.length} 处
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 错误 */}
+            {errors.length > 0 && (
+              <div className={styles.errorCard}>
+                <div className={styles.errorHeader}>
+                  <DismissCircleRegular fontSize={16} />
+                  <span>错误 ({errors.length})</span>
+                </div>
+                {errors.map((e, i) => (
+                  <div key={i} className={styles.errorItem}>
+                    [{e.code}] {e.message}
+                    {e.tableName && ` (工作表: ${e.tableName})`}
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        ) : !isExporting && (
+          <IdleAnimation active={!isExporting && !(exportResult && !resultDismissed)} />
+        )}
+      </div>
 
-          {/* 校验警告 */}
-          {warnings.length > 0 && (
-            <div className={styles.warningCard}>
-              <div className={styles.warningHeader}>
-                <WarningRegular fontSize={16} />
-                <span>[dataValidation] 共 {warnings.length} 处警告</span>
-              </div>
-              {warnings.slice(0, 10).map((w, i) => (
-                <div key={i} className={styles.warningItem}>
-                  [{w.code}] {w.message}
-                  {w.tableName && ` (工作表: ${w.tableName})`}
-                  {w.location && (
-                    <Button
-                      className={styles.navigateLink}
-                      appearance="transparent"
-                      size="small"
-                      icon={<NavigationRegular fontSize={10} />}
-                      onClick={() => handleNavigate(w)}
-                    />
-                  )}
-                </div>
-              ))}
-              {warnings.length > 10 && (
-                <div className={styles.warningItem}>
-                  ...等共 {warnings.length} 处
-                </div>
-              )}
-            </div>
-          )}
+      {/* 底部签名行 */}
+      <div className={styles.footer}>
+        <Button
+          className={styles.helpBtn}
+          appearance="transparent"
+          size="small"
+          icon={<QuestionCircleRegular fontSize={16} />}
+          onClick={() => setHelpOpen(true)}
+        />
+        <span style={{ opacity: 0.35 }}>vin {__APP_VERSION__}</span>
+      </div>
 
-          {/* 错误 */}
-          {errors.length > 0 && (
-            <div className={styles.errorCard}>
-              <div className={styles.errorHeader}>
-                <DismissCircleRegular fontSize={16} />
-                <span>错误 ({errors.length})</span>
-              </div>
-              {errors.map((e, i) => (
-                <div key={i} className={styles.errorItem}>
-                  [{e.code}] {e.message}
-                  {e.tableName && ` (工作表: ${e.tableName})`}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : !isExporting && (
-        <IdleAnimation active={!isExporting && !(exportResult && !resultDismissed)} />
-      )}
+      {/* 帮助对话框 */}
+      <Dialog open={helpOpen} onOpenChange={(_, data) => setHelpOpen(data.open)}>
+        <DialogSurface style={{ maxWidth: '100%', width: '100%', margin: 0, borderRadius: 0, maxHeight: '100vh' }}>
+          <DialogBody style={{ padding: 0 }}>
+            <DialogContent className={styles.helpDialogContent}>
+              <HelpPanel />
+            </DialogContent>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </div>
   );
 }

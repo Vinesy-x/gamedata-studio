@@ -11,7 +11,6 @@ import {
 import {
   ArrowExportRegular,
   SettingsRegular,
-  QuestionCircleRegular,
   ShieldCheckmarkRegular,
   EyeRegular,
   AddRegular,
@@ -25,7 +24,7 @@ import { IdleAnimation } from './components/IdleAnimation';
 import { ManageTab } from './components/ManageTab';
 import { ValidationPanel } from './components/ValidationPanel';
 import { PreviewPanel } from './components/PreviewPanel';
-import { HelpPanel } from './components/HelpPanel';
+// HelpPanel is now shown via dialog from ExportTab
 import { useConfig } from './hooks/useConfig';
 import { ExportResult, ExportProgress } from '../types/table';
 import { StudioConfigStore } from '../v2/StudioConfigStore';
@@ -91,6 +90,7 @@ const useStyles = makeStyles({
     flex: 1,
     overflow: 'auto',
     padding: '0',
+    minHeight: 0,
   },
   errorBox: {
     padding: '12px',
@@ -337,7 +337,6 @@ export function App() {
           <Tab value="manage" icon={<SettingsRegular fontSize={14} />}>管理</Tab>
           <Tab value="validate" icon={<ShieldCheckmarkRegular fontSize={14} />}>校验</Tab>
           <Tab value="preview" icon={<EyeRegular fontSize={14} />}>预览</Tab>
-          <Tab value="help" icon={<QuestionCircleRegular fontSize={14} />}>帮助</Tab>
         </TabList>
       </div>
 
@@ -356,6 +355,7 @@ export function App() {
             monitorEnabled={monitorEnabled}
             monitorStatus={monitorStatus}
             onToggleMonitor={handleToggleMonitor}
+            onNavigateToManage={() => setSelectedTab('manage')}
           />
         )}
 
@@ -374,7 +374,7 @@ export function App() {
           />
         )}
 
-        {selectedTab === 'help' && <HelpPanel />}
+        {/* help tab removed — ? button is now in ExportTab footer */}
       </div>
     </div>
   );
