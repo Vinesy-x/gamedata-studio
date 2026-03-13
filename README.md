@@ -24,7 +24,7 @@ RPG/MMO 游戏数值管理工具 — Excel Add-in
 
 1. **右键** `GameDataStudio-Setup-x.x.x.exe` → **以管理员身份运行**
 2. 安装完成后**重启 Excel**
-3. **插入** → **我的加载项**（My Add-ins）→ 切换到 **共享文件夹**（SHARED FOLDER）标签页 → 找到 **GameData Studio** → 点击**添加**
+3. **开始** → **加载项** → **更多加载项**（+）→ 切换到 **共享文件夹**（SHARED FOLDER）标签页 → 找到 **GameData Studio** → 点击**添加**
 
 > 安装器会自动完成：
 > - 释放文件到 `%APPDATA%\GameDataStudio\`
@@ -100,10 +100,10 @@ rm -rf ~/.gamedata-studio
 **Windows 安装包用户：**
 
 1. 运行安装包后**重启 Excel**
-2. 点击 **插入** → **我的加载项**（My Add-ins）
+2. 点击 **开始** → **加载项** → **更多加载项**（+）
 3. 切换到 **共享文件夹**（SHARED FOLDER）标签页
 4. 找到 **GameData Studio**，点击 **添加**
-5. 加载项会出现在「开始」选项卡右侧
+5. 加载项会出现在「开始」选项卡的加载项区域
 
 **Mac 用户：**
 
