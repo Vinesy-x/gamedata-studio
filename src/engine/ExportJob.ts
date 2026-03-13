@@ -1,7 +1,7 @@
 /* global Excel */
 
 import { Config } from '../types/config';
-import { ExportResult, ExportProgress, InMemoryTableData, TableDiff } from '../types/table';
+import { CellValue, ExportResult, ExportProgress, InMemoryTableData, TableDiff } from '../types/table';
 import { ErrorCode } from '../types/errors';
 import { ConfigLoader } from './ConfigLoader';
 import { VersionFilter } from './VersionFilter';
@@ -353,75 +353,23 @@ export class ExportJob {
     versionFilter: VersionFilter,
   ): void {
     for (const [chineseName, tableData] of inMemoryData) {
-      // ── 1. 校验配置区域（versionRowData）── 只检查列0（版本区间列），不检查 roads 列
+      // ── 1. 校验行版本区间（versionRowData 列0）
       if (tableData.versionRowData) {
+        const cells: { raw: CellValue; row: number; col: number }[] = [];
         for (let r = 2; r < tableData.versionRowData.length; r++) {
-          const raw = tableData.versionRowData[r][0];
-          const loc = { sheetName: chineseName, row: r + 1, column: 1, cellValue: String(raw ?? '') };
-
-          if (isExcelError(raw)) {
-            this.errorHandler.logError({
-              code: ErrorCode.CELL_EXCEL_ERROR,
-              severity: 'warning',
-              tableName: chineseName,
-              message: `配置区域单元格包含错误值「${raw}」`,
-              procedure: 'ExportJob.runValidation',
-              location: loc,
-            });
-            continue;
-          }
-
-          const cellVal = String(raw ?? '').trim();
-          if (!cellVal) continue; // 空值在配置区域是合法的（等同于0）
-
-          const validation = versionFilter.validateRangeFormat(cellVal);
-          if (!validation.valid && validation.errorCode) {
-            this.errorHandler.logError({
-              code: validation.errorCode,
-              severity: 'warning',
-              tableName: chineseName,
-              message: validation.message || '版本区间格式错误',
-              procedure: 'ExportJob.runValidation',
-              location: loc,
-            });
-          }
+          cells.push({ raw: tableData.versionRowData[r][0], row: r + 1, col: 1 });
         }
+        this.validateVersionCells(cells, chineseName, versionFilter);
       }
 
-      // ── 2. 校验列版本区间（version_c 区域）── 只检查第0行（版本区间行），不检查 roads 行
+      // ── 2. 校验列版本区间（versionColData 第0行）
       if (tableData.versionColData && tableData.versionColData.length > 0) {
+        const cells: { raw: CellValue; row: number; col: number }[] = [];
         const vcRow = tableData.versionColData[0];
         for (let c = 0; c < vcRow.length; c++) {
-          const raw = vcRow[c];
-          const loc = { sheetName: chineseName, row: 1, column: c + 1, cellValue: String(raw ?? '') };
-
-          if (isExcelError(raw)) {
-            this.errorHandler.logError({
-              code: ErrorCode.CELL_EXCEL_ERROR,
-              severity: 'warning',
-              tableName: chineseName,
-              message: `列版本区域单元格包含错误值「${raw}」`,
-              procedure: 'ExportJob.runValidation',
-              location: loc,
-            });
-            continue;
-          }
-
-          const cellVal = String(raw ?? '').trim();
-          if (!cellVal) continue;
-
-          const validation = versionFilter.validateRangeFormat(cellVal);
-          if (!validation.valid && validation.errorCode) {
-            this.errorHandler.logError({
-              code: validation.errorCode,
-              severity: 'warning',
-              tableName: chineseName,
-              message: validation.message || '版本区间格式错误',
-              procedure: 'ExportJob.runValidation',
-              location: loc,
-            });
-          }
+          cells.push({ raw: vcRow[c], row: 1, col: c + 1 });
         }
+        this.validateVersionCells(cells, chineseName, versionFilter);
       }
 
       // ── 3. 校验主数据区（mainData）── 只检测有字段定义的列 + 有Key的行（Ctrl+A 有效区域）
@@ -468,6 +416,46 @@ export class ExportJob {
             }
           }
         }
+      }
+    }
+  }
+
+  /**
+   * 校验版本区间单元格：检查 Excel 错误值和格式合法性
+   */
+  private validateVersionCells(
+    cells: { raw: CellValue; row: number; col: number }[],
+    chineseName: string,
+    versionFilter: VersionFilter,
+  ): void {
+    for (const { raw, row, col } of cells) {
+      const str = String(raw ?? '').trim();
+      if (!str) continue;
+
+      const loc = { sheetName: chineseName, row, column: col, cellValue: str };
+
+      if (isExcelError(raw)) {
+        this.errorHandler.logError({
+          code: ErrorCode.CELL_EXCEL_ERROR,
+          severity: 'warning',
+          tableName: chineseName,
+          message: `版本区间单元格包含错误值「${str}」`,
+          procedure: 'ExportJob.runValidation',
+          location: loc,
+        });
+        continue;
+      }
+
+      const validation = versionFilter.validateRangeFormat(str);
+      if (!validation.valid) {
+        this.errorHandler.logError({
+          code: validation.errorCode ?? ErrorCode.VERSION_DATA_FORMAT_ERROR,
+          severity: 'warning',
+          tableName: chineseName,
+          message: validation.message ?? `版本区间格式不正确「${str}」`,
+          procedure: 'ExportJob.runValidation',
+          location: loc,
+        });
       }
     }
   }
