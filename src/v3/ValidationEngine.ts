@@ -48,6 +48,8 @@ export class ValidationEngine {
       if (!data) continue;
 
       onProgress?.(tableName, index, total);
+      // 每张表前 yield，确保大表不阻塞 UI
+      await new Promise(r => setTimeout(r, 0));
 
       // 合并单遍历：Excel错误 + 数据类型 + 数组分隔符 + 必填字段
       const tableResults = this.validateCellsOnePass(tableName, data);
@@ -55,11 +57,6 @@ export class ValidationEngine {
       tableResults.push(...this.validateVersionCoverageAndOrder(tableName, data));
       tableResults.push(...this.validateRoadsConsistency(tableName, data));
       for (let i = 0; i < tableResults.length; i++) results.push(tableResults[i]);
-
-      // 每10张表 yield 一次，让 UI 更新进度
-      if (index % 10 === 0) {
-        await new Promise(r => setTimeout(r, 0));
-      }
     }
 
     return results;
@@ -71,9 +68,11 @@ export class ValidationEngine {
    */
   private validateCellsOnePass(tableName: string, data: TableValidationData): ValidationResult[] {
     const results: ValidationResult[] = [];
+    const MAX_RESULTS_PER_TABLE = 200; // 避免大表生成海量结果卡死 UI
 
     // 数据区域 - 单次遍历检查所有单元格级规则
     for (let row = 0; row < data.dataValues.length; row++) {
+      if (results.length >= MAX_RESULTS_PER_TABLE) break;
       for (let col = 0; col < data.dataValues[row].length; col++) {
         const value = data.dataValues[row][col];
 
@@ -130,16 +129,28 @@ export class ValidationEngine {
     }
 
     // 版本区间列的 Excel 错误值检查
-    for (let i = 0; i < data.versionValues.length; i++) {
-      if (isExcelError(data.versionValues[i])) {
-        results.push({
-          severity: 'error',
-          ruleName: '版本区间格式',
-          tableName,
-          location: { sheetName: tableName, row: data.versionRowStart + i, column: data.versionColStart },
-          message: `版本区间单元格包含 Excel 错误值「${data.versionValues[i]}」`,
-        });
+    if (results.length < MAX_RESULTS_PER_TABLE) {
+      for (let i = 0; i < data.versionValues.length; i++) {
+        if (isExcelError(data.versionValues[i])) {
+          results.push({
+            severity: 'error',
+            ruleName: '版本区间格式',
+            tableName,
+            location: { sheetName: tableName, row: data.versionRowStart + i, column: data.versionColStart },
+            message: `版本区间单元格包含 Excel 错误值「${data.versionValues[i]}」`,
+          });
+        }
       }
+    }
+
+    if (results.length >= MAX_RESULTS_PER_TABLE) {
+      results.push({
+        severity: 'warning',
+        ruleName: '结果截断',
+        tableName,
+        location: { sheetName: tableName, row: 1, column: 1 },
+        message: `该表问题数量超过 ${MAX_RESULTS_PER_TABLE} 条，仅显示前 ${MAX_RESULTS_PER_TABLE} 条`,
+      });
     }
 
     return results;
