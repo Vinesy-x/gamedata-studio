@@ -157,11 +157,13 @@ export class ExportJob {
           changedTables++;
           logger.info(`表 ${chineseName} → ${fileName} 已导出`);
         } catch (err) {
+          const errDetail = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+          logger.error(`处理表「${chineseName}」失败`, err);
           this.errorHandler.logError({
             code: ErrorCode.FILE_WRITE_FAILED,
             severity: 'warning',
             tableName: chineseName,
-            message: `处理表「${chineseName}」失败: ${err instanceof Error ? err.message : String(err)}`,
+            message: `处理表「${chineseName}」失败: ${errDetail}`,
             procedure: 'ExportJob.processTable',
           });
         }
