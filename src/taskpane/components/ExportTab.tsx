@@ -30,6 +30,7 @@ import {
   QuestionCircleRegular,
   WeatherMoonRegular,
   WeatherSunnyRegular,
+  BugRegular,
 } from '@fluentui/react-icons';
 import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
@@ -40,6 +41,7 @@ import { ExportError } from '../../types/errors';
 import { excelHelper } from '../../utils/ExcelHelper';
 import { configManager } from '../../v2/ConfigManager';
 import { operatorIdentity } from '../../v2/OperatorIdentity';
+import { logger } from '../../utils/Logger';
 
 const useStyles = makeStyles({
   container: {
@@ -541,6 +543,7 @@ export function ExportTab({
   };
 
   const [helpOpen, setHelpOpen] = useState(false);
+  const [devLogOpen, setDevLogOpen] = useState(false);
 
   // 当结果被用户（Git 上传后）主动隐藏时，不显示导出结果
   const visibleResult = resultDismissed ? null : exportResult;
@@ -811,6 +814,15 @@ export function ExportTab({
           size="small"
           icon={<QuestionCircleRegular fontSize={16} />}
           onClick={() => setHelpOpen(true)}
+          title="帮助说明"
+        />
+        <Button
+          className={styles.helpBtn}
+          appearance="transparent"
+          size="small"
+          icon={<BugRegular fontSize={16} />}
+          onClick={() => setDevLogOpen(true)}
+          title="开发者日志"
         />
         <Button
           className={styles.helpBtn}
@@ -829,6 +841,31 @@ export function ExportTab({
           <DialogBody style={{ padding: 0 }}>
             <DialogContent className={styles.helpDialogContent}>
               <HelpPanel />
+            </DialogContent>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      {/* 开发者日志对话框 */}
+      <Dialog open={devLogOpen} onOpenChange={(_, data) => setDevLogOpen(data.open)}>
+        <DialogSurface style={{ maxWidth: '100%', width: '100%', margin: 0, borderRadius: 0, maxHeight: '100vh' }}>
+          <DialogBody style={{ padding: 0 }}>
+            <DialogContent style={{ padding: '12px', overflow: 'auto', maxHeight: '80vh' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <Text weight="semibold" size={300}>开发者日志</Text>
+                <Button size="small" appearance="subtle" onClick={() => { logger.clear(); setDevLogOpen(false); setTimeout(() => setDevLogOpen(true), 0); }}>清空</Button>
+              </div>
+              <pre style={{
+                fontSize: '11px',
+                fontFamily: '"Cascadia Code", "Fira Code", Consolas, monospace',
+                lineHeight: '1.5',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+                margin: 0,
+                color: tokens.colorNeutralForeground1,
+              }}>
+                {logger.getLogs().join('\n') || '（暂无日志）'}
+              </pre>
             </DialogContent>
           </DialogBody>
         </DialogSurface>
