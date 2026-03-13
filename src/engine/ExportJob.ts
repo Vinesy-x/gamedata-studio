@@ -388,39 +388,38 @@ export class ExportJob {
         }
       }
 
-      // ── 2. 校验列版本区间（version_c 区域）── 同上，空值允许
-      if (tableData.versionColData) {
-        for (let r = 0; r < tableData.versionColData.length; r++) {
-          for (let c = 0; c < tableData.versionColData[r].length; c++) {
-            const raw = tableData.versionColData[r][c];
-            const loc = { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') };
+      // ── 2. 校验列版本区间（version_c 区域）── 只检查第0行（版本区间行），不检查 roads 行
+      if (tableData.versionColData && tableData.versionColData.length > 0) {
+        const vcRow = tableData.versionColData[0];
+        for (let c = 0; c < vcRow.length; c++) {
+          const raw = vcRow[c];
+          const loc = { sheetName: chineseName, row: 1, column: c + 1, cellValue: String(raw ?? '') };
 
-            if (isExcelError(raw)) {
-              this.errorHandler.logError({
-                code: ErrorCode.CELL_EXCEL_ERROR,
-                severity: 'warning',
-                tableName: chineseName,
-                message: `列版本区域单元格包含错误值「${raw}」`,
-                procedure: 'ExportJob.runValidation',
-                location: loc,
-              });
-              continue;
-            }
+          if (isExcelError(raw)) {
+            this.errorHandler.logError({
+              code: ErrorCode.CELL_EXCEL_ERROR,
+              severity: 'warning',
+              tableName: chineseName,
+              message: `列版本区域单元格包含错误值「${raw}」`,
+              procedure: 'ExportJob.runValidation',
+              location: loc,
+            });
+            continue;
+          }
 
-            const cellVal = String(raw ?? '').trim();
-            if (!cellVal) continue;
+          const cellVal = String(raw ?? '').trim();
+          if (!cellVal) continue;
 
-            const validation = versionFilter.validateRangeFormat(cellVal);
-            if (!validation.valid && validation.errorCode) {
-              this.errorHandler.logError({
-                code: validation.errorCode,
-                severity: 'warning',
-                tableName: chineseName,
-                message: validation.message || '版本区间格式错误',
-                procedure: 'ExportJob.runValidation',
-                location: loc,
-              });
-            }
+          const validation = versionFilter.validateRangeFormat(cellVal);
+          if (!validation.valid && validation.errorCode) {
+            this.errorHandler.logError({
+              code: validation.errorCode,
+              severity: 'warning',
+              tableName: chineseName,
+              message: validation.message || '版本区间格式错误',
+              procedure: 'ExportJob.runValidation',
+              location: loc,
+            });
           }
         }
       }
