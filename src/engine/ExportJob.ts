@@ -24,6 +24,7 @@ export class ExportJob {
   private exportWriter: ExportWriter;
   private onProgress: ProgressCallback;
   private fileServerBase = '';  // '' = same origin
+  private usePost = false;      // POST 可用时单次上传，比 GET 分片快很多
 
   constructor(onProgress: ProgressCallback) {
     this.errorHandler = new ErrorHandler();
@@ -308,7 +309,22 @@ export class ExportJob {
         const resp = await this.fetchWithTimeout(`${base}/api/read-file?directory=.&fileName=_probe`);
         if (resp.ok || resp.status === 404) {
           this.fileServerBase = base;
-          logger.info(`使用本地文件服务: ${base}`);
+          // 检测 POST 是否可用（Office WebView 有时会拦截 POST）
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 3000);
+            const postResp = await fetch(`${base}/api/write-file`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({}),
+              signal: controller.signal,
+            }).finally(() => clearTimeout(timer));
+            // 400 = 服务端收到了请求但参数缺失，说明 POST 通路可用
+            this.usePost = postResp.status === 400 || postResp.ok;
+          } catch {
+            this.usePost = false;
+          }
+          logger.info(`使用本地文件服务: ${base} (POST=${this.usePost})`);
           return;
         }
       } catch { /* try next */ }
@@ -317,7 +333,7 @@ export class ExportJob {
   }
 
   /**
-   * 写入文件到磁盘（GET 分片上传，绕过 Office 代理的 POST 405 限制）
+   * 写入文件到磁盘（优先 POST 单次上传，不可用时 GET 分片）
    */
   private async writeFileToServer(
     directory: string,
@@ -327,6 +343,23 @@ export class ExportJob {
     const base64 = this.arrayBufferToBase64(buffer);
     const base = this.fileServerBase;
 
+    // POST 模式：单次请求写入整个文件
+    if (this.usePost) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 30000);
+      const resp = await fetch(`${base}/api/write-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory, fileName, data: base64 }),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timer));
+      if (!resp.ok) {
+        throw new Error(`写入文件失败 (POST HTTP ${resp.status})`);
+      }
+      return;
+    }
+
+    // GET 分片模式（Office WebView 拦截 POST 时的 fallback）
     // 1. 开始写入会话
     const startResp = await this.fetchWithTimeout(
       `${base}/api/write-start?directory=${encodeURIComponent(directory)}&fileName=${encodeURIComponent(fileName)}`
@@ -336,8 +369,8 @@ export class ExportJob {
     }
     const { id } = await startResp.json();
 
-    // 2. 分片发送 base64 数据（每片 ~8KB 确保 URL 编码后不超限，6 路并行）
-    const CHUNK_SIZE = 8000;
+    // 2. 分片发送 base64 数据（每片 256KB，6 路并行）
+    const CHUNK_SIZE = 256000;
     const CONCURRENCY = 6;
     const totalChunks = Math.ceil(base64.length / CHUNK_SIZE) || 1;
 
@@ -352,7 +385,6 @@ export class ExportJob {
       }
     };
 
-    // 并行上传，每批 CONCURRENCY 个
     for (let start = 0; start < totalChunks; start += CONCURRENCY) {
       const batch = [];
       for (let j = start; j < Math.min(start + CONCURRENCY, totalChunks); j++) {
