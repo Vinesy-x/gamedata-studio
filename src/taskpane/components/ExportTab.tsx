@@ -31,6 +31,7 @@ import {
   WeatherMoonRegular,
   WeatherSunnyRegular,
   BugRegular,
+  MegaphoneRegular,
 } from '@fluentui/react-icons';
 import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
@@ -544,6 +545,7 @@ export function ExportTab({
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [devLogOpen, setDevLogOpen] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
   const [devLogTab, setDevLogTab] = useState<'key' | 'all'>('key');
 
   // 当结果被用户（Git 上传后）主动隐藏时，不显示导出结果
@@ -809,30 +811,40 @@ export function ExportTab({
 
       {/* 底部签名行 */}
       <div className={styles.footer}>
-        <Button
-          className={styles.helpBtn}
-          appearance="transparent"
-          size="small"
-          icon={<QuestionCircleRegular fontSize={16} />}
-          onClick={() => setHelpOpen(true)}
-          title="帮助说明"
-        />
-        <Button
-          className={styles.helpBtn}
-          appearance="transparent"
-          size="small"
-          icon={<BugRegular fontSize={16} />}
-          onClick={() => setDevLogOpen(true)}
-          title="开发者日志"
-        />
-        <Button
-          className={styles.helpBtn}
-          appearance="transparent"
-          size="small"
-          icon={mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
-          onClick={toggleTheme}
-          title={mode === 'light' ? '切换到深色模式' : '切换到浅色模式'}
-        />
+        <div style={{ display: 'flex', gap: '2px' }}>
+          <Button
+            className={styles.helpBtn}
+            appearance="transparent"
+            size="small"
+            icon={<MegaphoneRegular fontSize={16} />}
+            onClick={() => setChangelogOpen(true)}
+            title="更新公告"
+          />
+          <Button
+            className={styles.helpBtn}
+            appearance="transparent"
+            size="small"
+            icon={mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
+            onClick={toggleTheme}
+            title={mode === 'light' ? '切换到深色模式' : '切换到浅色模式'}
+          />
+          <Button
+            className={styles.helpBtn}
+            appearance="transparent"
+            size="small"
+            icon={<QuestionCircleRegular fontSize={16} />}
+            onClick={() => setHelpOpen(true)}
+            title="帮助说明"
+          />
+          <Button
+            className={styles.helpBtn}
+            appearance="transparent"
+            size="small"
+            icon={<BugRegular fontSize={16} />}
+            onClick={() => setDevLogOpen(true)}
+            title="开发者日志"
+          />
+        </div>
         <span style={{ opacity: 0.35 }}>vin {__APP_VERSION__}</span>
       </div>
 
@@ -870,6 +882,36 @@ export function ExportTab({
               }}>
                 {(devLogTab === 'key' ? logger.getKeyLogs() : logger.getLogs()).join('\n') || '（暂无日志）'}
               </pre>
+            </DialogContent>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      {/* 更新公告对话框 */}
+      <Dialog open={changelogOpen} onOpenChange={(_, data) => setChangelogOpen(data.open)}>
+        <DialogSurface style={{ maxWidth: '100%', width: '100%', margin: 0, borderRadius: 0, maxHeight: '100vh' }}>
+          <DialogBody style={{ padding: 0 }}>
+            <DialogContent style={{ padding: '16px', overflow: 'auto', maxHeight: '80vh' }}>
+              <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <MegaphoneRegular fontSize={18} />
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>更新公告</span>
+              </div>
+              <div style={{
+                fontSize: '12px',
+                lineHeight: '1.8',
+                color: tokens.colorNeutralForeground1,
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.2.0 — 性能大幅优化 & 多项修复</div>
+                <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px' }}>
+                  <li>导出速度提升：POST 单次写入替代 GET 分片（数百次请求→1次），批量 Excel 加载（200次sync→2次），并行写入</li>
+                  <li>校验速度提升：4条规则合并为单次遍历，大表不再卡死（每表上限200条 + 进度显示）</li>
+                  <li>空值等价配置：null/NULL 等值可自定义，跳过类型和必填校验</li>
+                  <li>线路修正：roads_0 不再是总线路开关，各线路独立控制</li>
+                  <li>隐藏行兼容：动态检测数据起始行，描述行不再被误校验为数据类型</li>
+                  <li>无变更提示：导出数据无修改时显示「无任何修改」而非「导出成功」</li>
+                  <li>底部新增更新公告入口</li>
+                </ul>
+              </div>
             </DialogContent>
           </DialogBody>
         </DialogSurface>
