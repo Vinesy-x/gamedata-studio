@@ -40,7 +40,7 @@ const useStyles = makeStyles({
   container: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100%',
+    minHeight: '100%',
   },
   subNav: {
     display: 'flex',
@@ -69,7 +69,6 @@ const useStyles = makeStyles({
   },
   content: {
     flex: 1,
-    overflowY: 'auto',
     overflowX: 'hidden',
     padding: '12px 14px',
   },

@@ -40,6 +40,7 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     height: '100vh',
+    minWidth: '280px',
     boxSizing: 'border-box',
     fontFamily: tokens.fontFamilyBase,
     backgroundColor: '#f5f5f5',
