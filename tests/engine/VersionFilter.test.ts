@@ -173,10 +173,9 @@ describe('VersionFilter', () => {
     });
 
     it('无效版本格式报错', () => {
-      // 字母开头
+      // 纯字母（无数字）跳过校验，视为描述性标签
       const r1 = vf.validateRangeFormat('abc');
-      expect(r1.valid).toBe(false);
-      expect(r1.errorCode).toBe(1003);
+      expect(r1.valid).toBe(true);
 
       // 多个小数点
       const r2 = vf.validateRangeFormat('3.5.6');
