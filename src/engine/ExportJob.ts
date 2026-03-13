@@ -266,9 +266,9 @@ export class ExportJob {
     }
     const { id } = await startResp.json();
 
-    // 2. 分片发送 base64 数据（每片 ~16KB，最多 4 路并行）
-    const CHUNK_SIZE = 16000;
-    const CONCURRENCY = 4;
+    // 2. 分片发送 base64 数据（每片 ~8KB 确保 URL 编码后不超限，6 路并行）
+    const CHUNK_SIZE = 8000;
+    const CONCURRENCY = 6;
     const totalChunks = Math.ceil(base64.length / CHUNK_SIZE) || 1;
 
     const sendChunk = async (i: number) => {
