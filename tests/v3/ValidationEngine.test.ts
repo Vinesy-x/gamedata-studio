@@ -649,94 +649,16 @@ describe('ValidationEngine', () => {
   // ════════════════════════════════════════════════════════════
 
   describe('validateRoadsConsistency', () => {
-    it('roads_0=1 时子线路启用不应报错', () => {
+    it('roads_0 不再作为总线路，各线路独立，不产生一致性警告', () => {
       const data = makeData({
-        // roadsValues 索引从 version_r 行开始，数据行从 index 2 开始
         roadsValues: [
-          ['version_r', 'roads_0', 'roads_1'],  // 表头行
-          ['描述', '', ''],                       // 描述行
-          ['1', '1', '1'],                        // 数据行：roads_0=1, roads_1=1
+          ['version_r', 'roads_0', 'roads_1'],
+          ['描述', '', ''],
+          ['0', '1'],  // roads_0=0, roads_1=1，各自独立
         ],
       });
       const results = engine.validateRoadsConsistency('测试表', data);
       expect(results).toHaveLength(0);
-    });
-
-    it('roads_0=0 且 roads_N=1 应报 warning', () => {
-      const data = makeData({
-        versionRowStart: 5,
-        roadsValues: [
-          ['version_r', 'roads_0', 'roads_1'],
-          ['描述', '', ''],
-          ['0', '1'],  // roads_0=0 但 roads_1=1
-        ],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results).toHaveLength(1);
-      expect(results[0].severity).toBe('warning');
-      expect(results[0].ruleName).toBe('Roads一致性');
-      expect(results[0].message).toContain('roads_0=0');
-      expect(results[0].message).toContain('roads_1=1');
-    });
-
-    it('roads_0=0 且所有子线路都为 0 不应报错', () => {
-      const data = makeData({
-        roadsValues: [
-          ['version_r', 'roads_0', 'roads_1'],
-          ['描述', '', ''],
-          ['0', '0'],
-        ],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results).toHaveLength(0);
-    });
-
-    it('roads_0 为空且子线路启用应报 warning', () => {
-      const data = makeData({
-        versionRowStart: 5,
-        roadsValues: [
-          ['version_r', 'roads_0', 'roads_1'],
-          ['描述', '', ''],
-          ['', '1'],  // roads_0=空 但 roads_1=1
-        ],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results).toHaveLength(1);
-    });
-
-    it('空 roads 行应被跳过', () => {
-      const data = makeData({
-        roadsValues: [[]],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results).toHaveLength(0);
-    });
-
-    it('多行矛盾应分别报出', () => {
-      const data = makeData({
-        versionRowStart: 5,
-        roadsValues: [
-          ['version_r', 'roads_0', 'roads_1', 'roads_2'],
-          ['描述', '', '', ''],
-          ['0', '1', '0'],  // 矛盾：roads_0=0 但 roads_1=1
-          ['0', '0', '1'],  // 矛盾：roads_0=0 但 roads_2=1
-        ],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results).toHaveLength(2);
-    });
-
-    it('定位行号应正确（versionRowStart + index + 2）', () => {
-      const data = makeData({
-        versionRowStart: 10,
-        roadsValues: [
-          ['version_r', 'roads_0', 'roads_1'],
-          ['描述', '', ''],
-          ['0', '1'],
-        ],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results[0].location!.row).toBe(14); // 10 + 2 + 2
     });
   });
 

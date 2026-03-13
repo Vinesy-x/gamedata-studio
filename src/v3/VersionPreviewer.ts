@@ -167,40 +167,29 @@ export class VersionPreviewer {
       versionRowHeader.push(allValues[versionRRow][c] ?? null);
     }
 
-    // 找到 roads_0 和目标线路列索引（在 version_r 行的表头中）
+    // 找到目标线路列索引
     const targetLineField = versionFilter.getTargetLineField();
-    let roads0ColIdx = -1;
     let targetRoadColIdx = -1;
     for (let c = 0; c < versionRowHeader.length; c++) {
       const val = String(versionRowHeader[c] || '').trim();
-      if (val === 'roads_0') roads0ColIdx = c;
-      if (val === targetLineField) targetRoadColIdx = c;
+      if (val === targetLineField) { targetRoadColIdx = c; break; }
     }
 
     const excludedRows: number[] = [];
-    const keptDataRowIndices: number[] = []; // 相对于 allValues 的绝对行号
+    const keptDataRowIndices: number[] = [];
 
     for (let r = dataRowStart; r < totalRows; r++) {
-      const dataRowIdx = r - dataRowStart; // 0-indexed 相对于数据区
+      const dataRowIdx = r - dataRowStart;
 
-      // 版本区间检查（A列，即 allValues[r][0]）
+      // 版本区间检查（A列）
       const versionRangeStr = String(allValues[r][0] ?? '').trim();
       if (versionRangeStr && !versionFilter.isVersionInRange(versionRangeStr)) {
         excludedRows.push(dataRowIdx);
         continue;
       }
 
-      // roads_0 检查
-      if (roads0ColIdx >= 0 && roads0ColIdx < configAreaCol) {
-        const roads0Val = allValues[r][roads0ColIdx];
-        if (!versionFilter.isLineValuePassed(roads0Val)) {
-          excludedRows.push(dataRowIdx);
-          continue;
-        }
-      }
-
       // 目标线路检查
-      if (targetLineField !== 'roads_0' && targetRoadColIdx >= 0 && targetRoadColIdx < configAreaCol) {
+      if (targetRoadColIdx >= 0 && targetRoadColIdx < configAreaCol) {
         const targetRoadVal = allValues[r][targetRoadColIdx];
         if (!versionFilter.isLineValuePassed(targetRoadVal)) {
           excludedRows.push(dataRowIdx);
@@ -231,13 +220,11 @@ export class VersionPreviewer {
         versionColData.push(row);
       }
 
-      // 找到各线路行索引
-      let colRoads0RowIdx = -1;
+      // 找到目标线路行索引
       let colTargetRoadRowIdx = -1;
       for (let r = 0; r < colLabels.length; r++) {
         const label = String(colLabels[r] || '').trim();
-        if (label === 'roads_0') colRoads0RowIdx = r;
-        if (label === targetLineField) colTargetRoadRowIdx = r;
+        if (label === targetLineField) { colTargetRoadRowIdx = r; break; }
       }
 
       // version_c 第1行（index 0）是版本区间值
@@ -253,17 +240,8 @@ export class VersionPreviewer {
           continue;
         }
 
-        // roads_0 检查
-        if (colRoads0RowIdx >= 0 && colRoads0RowIdx < versionColData.length) {
-          const roads0Val = versionColData[colRoads0RowIdx][c];
-          if (!versionFilter.isLineValuePassed(roads0Val)) {
-            excludedCols.push(c);
-            continue;
-          }
-        }
-
         // 目标线路检查
-        if (targetLineField !== 'roads_0' && colTargetRoadRowIdx >= 0 && colTargetRoadRowIdx < versionColData.length) {
+        if (colTargetRoadRowIdx >= 0 && colTargetRoadRowIdx < versionColData.length) {
           const targetRoadVal = versionColData[colTargetRoadRowIdx][c];
           if (!versionFilter.isLineValuePassed(targetRoadVal)) {
             excludedCols.push(c);

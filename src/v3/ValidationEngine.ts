@@ -502,30 +502,11 @@ export class ValidationEngine {
 
   /**
    * 规则7：Roads 一致性检查
-   * roads_0=0 但 roads_N=1 的矛盾（总线路禁用但子线路启用）
+   * 检测同一行中线路值矛盾的情况（如所有线路都为0但有版本区间）
    */
   validateRoadsConsistency(tableName: string, data: TableValidationData): ValidationResult[] {
-    const results: ValidationResult[] = [];
-    for (let i = 0; i < data.roadsValues.length; i++) {
-      const roads = data.roadsValues[i];
-      if (!roads || roads.length === 0) continue;
-      const roads0 = String(roads[0]);
-      if (roads0 === '0' || roads0 === '') {
-        for (let j = 1; j < roads.length; j++) {
-          if (String(roads[j]) === '1') {
-            results.push({
-              severity: 'warning',
-              ruleName: 'Roads一致性',
-              tableName,
-              location: { sheetName: tableName, row: data.versionRowStart + i + 2, column: data.versionColStart + 1 },
-              message: `第 ${data.versionRowStart + i + 2} 行 roads_0=0（总线路禁用），但 roads_${j}=1，该行在所有版本中都不会导出`,
-            });
-            break; // 每行只报一次
-          }
-        }
-      }
-    }
-    return results;
+    // roads_0 不再作为总线路，各线路独立控制，暂无需额外一致性检查
+    return [];
   }
 
   // ──────────── 行筛选（与导出逻辑对齐） ────────────
@@ -540,14 +521,8 @@ export class ValidationEngine {
   private isRowInScope(data: TableValidationData, dataIndex: number, targetRoadIdx: number): boolean {
     // roadsValues 前 2 项是表头行，数据对应 roadsValues[dataIndex + 2]
     const roads = data.roadsValues[dataIndex + 2];
-    if (roads && roads.length > 0) {
-      // roads_0（总线路）检查，使用 isLineValuePassed 支持版本区间值
-      if (!this.versionFilter.isLineValuePassed(roads[0])) return false;
-
-      // 目标线路检查
-      if (targetRoadIdx >= 0 && roads[targetRoadIdx] !== undefined) {
-        if (!this.versionFilter.isLineValuePassed(roads[targetRoadIdx])) return false;
-      }
+    if (roads && roads.length > 0 && targetRoadIdx >= 0 && roads[targetRoadIdx] !== undefined) {
+      if (!this.versionFilter.isLineValuePassed(roads[targetRoadIdx])) return false;
     }
 
     return true;
