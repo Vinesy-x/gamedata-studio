@@ -618,14 +618,22 @@ export class ValidationEngine {
 
     // version_r 所在行号（1-indexed，用于结果定位）
     const versionRowStart = versionRRow + 1 + startRow;
-    // 数据从 version_r + 2 行开始（跳过字段定义行和中文描述行）
-    const dataRowStart = versionRowStart + 2;
     // 数据列起始（1-indexed）
     const dataColStart = dataStartCol + 1 + startCol;
 
-    // 确定数据区域的实际行范围（到首列空单元格为止，与导出逻辑一致）
-    // version_r 行 + 字段定义行 + 描述行 = 表头，之后为数据行
-    const dataRowOffset = versionRRow + 2;
+    // 动态检测数据起始行：version_r 后面的描述行在 A 列是纯文本（无数字/~），
+    // 数据行在 A 列包含版本号（有数字或~）或为空。跳过所有描述行。
+    let dataRowOffset = versionRRow + 1; // 至少跳过 version_r 行本身
+    for (let r = versionRRow + 1; r < allValues.length; r++) {
+      const colA = String(allValues[r]?.[0] ?? '').trim();
+      // 非空且不含数字/~ → 描述行，继续跳过
+      if (colA && !/[\d~]/.test(colA)) {
+        dataRowOffset = r + 1;
+        continue;
+      }
+      break;
+    }
+    const dataRowStart = dataRowOffset + 1 + startRow; // 1-indexed
     let dataEndRow = dataRowOffset;
     for (let r = dataRowOffset; r < allValues.length; r++) {
       const firstCell = allValues[r]?.[dataStartCol];

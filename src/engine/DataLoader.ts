@@ -160,9 +160,20 @@ export class DataLoader {
       }
     }
 
-    // 确定数据区下边界：表头2行（version_r + 描述行）始终保留，
-    // 数据行从第3行起，首列为空即停止，与校验引擎一致
-    const dataRowOffset = dataStartRow + 2; // 跳过表头2行
+    // 动态检测数据起始行：version_r 后面的描述行在首数据列是纯文本（无数字/~），
+    // 数据行包含版本号（有数字或~）或为空。跳过所有描述行（支持隐藏行等导致的额外描述行）。
+    let dataRowOffset = dataStartRow + 1; // 至少跳过 version_r 行本身
+    if (versionRRow >= 0) {
+      for (let r = dataStartRow + 1; r < totalRows; r++) {
+        const cellVal = String(allValues[r]?.[dataStartCol] ?? '').trim();
+        // 非空且不含数字/~ → 描述行，继续跳过
+        if (cellVal && !/[\d~]/.test(cellVal)) {
+          dataRowOffset = r + 1;
+          continue;
+        }
+        break;
+      }
+    }
     let dataEndRow = totalRows;
     if (configAreaCol >= 0 && versionRRow >= 0) {
       dataEndRow = dataRowOffset;
