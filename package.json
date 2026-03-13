@@ -1,12 +1,12 @@
 {
   "name": "gamedata-studio",
-  "version": "1.1.69",
+  "version": "1.1.70",
   "description": "GameData Studio — Excel Add-in for RPG/MMO game data management",
   "private": true,
   "scripts": {
     "start": "webpack serve --mode development",
     "build": "webpack --mode production",
-    "deploy": "BUILD_CHANNEL=dev webpack --mode production && npx gh-pages -d dist --dest dev -m \"Deploy dev v$(node -p \"require('./package.json').version\")\"",
+    "deploy": "webpack --mode production --env channel=dev && npx gh-pages -d dist --dest dev -m \"Deploy dev v$(node -p \"require('./package.json').version\")\"",
     "deploy:release": "webpack --mode production && npx gh-pages -d dist -m \"Release v$(node -p \"require('./package.json').version\")\"",
     "test": "jest --passWithNoTests",
     "lint": "tsc --noEmit",

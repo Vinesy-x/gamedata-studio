@@ -127,6 +127,19 @@ const useStyles = makeStyles({
     height: '100%',
     gap: '12px',
   },
+  footer: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    padding: '8px 14px',
+    marginTop: 'auto',
+    fontSize: '10px',
+    color: tokens.colorNeutralForeground4,
+    fontFamily: '"Cascadia Code", "Fira Code", Consolas, monospace',
+    letterSpacing: '1px',
+    userSelect: 'none' as const,
+    opacity: 0.35,
+  },
 });
 
 export function App() {
@@ -317,6 +330,7 @@ export function App() {
           )}
         </div>
         <IdleAnimation />
+        <div className={styles.footer}>vin {__APP_VERSION__}</div>
       </div>
     );
   }

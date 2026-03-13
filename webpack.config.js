@@ -65,7 +65,7 @@ module.exports = async (env, options) => {
     plugins: [
       new webpack.DefinePlugin({
         __APP_VERSION__: JSON.stringify(
-          require("./package.json").version + (process.env.BUILD_CHANNEL === "dev" ? "-dev" : "")
+          require("./package.json").version + (env && env.channel === "dev" ? "-dev" : "")
         ),
       }),
       new webpack.ProvidePlugin({
