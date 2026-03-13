@@ -160,12 +160,13 @@ export class DataLoader {
       }
     }
 
-    // 动态检测数据起始行：version_r 后面的描述行在首数据列是纯文本（无数字/~），
-    // 数据行包含版本号（有数字或~）或为空。跳过所有描述行（支持隐藏行等导致的额外描述行）。
+    // 动态检测数据起始行：version_r 后面的描述行在 A 列是纯文本（无数字/~），
+    // 数据行在 A 列包含版本号（有数字或~）或为空。跳过所有描述行（支持隐藏行等导致的额外描述行）。
+    // 注意：必须检查 A 列（版本列），而非 dataStartCol（数据列可能本身就是数字）。
     let dataRowOffset = dataStartRow + 1; // 至少跳过 version_r 行本身
     if (versionRRow >= 0) {
       for (let r = dataStartRow + 1; r < totalRows; r++) {
-        const cellVal = String(allValues[r]?.[dataStartCol] ?? '').trim();
+        const cellVal = String(allValues[r]?.[0] ?? '').trim();
         // 非空且不含数字/~ → 描述行，继续跳过
         if (cellVal && !/[\d~]/.test(cellVal)) {
           dataRowOffset = r + 1;
