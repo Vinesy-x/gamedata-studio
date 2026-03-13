@@ -48,6 +48,8 @@ export interface StudioConfigData {
 export interface ValidationConfig {
   /** 各数组类型的分隔符配置 */
   typeDelimiters: Record<string, TypeDelimiterConfig>;
+  /** 空值等价列表：这些字符串值视为"有意留空"，跳过类型和必填检查 */
+  nullEquivalents?: string[];
 }
 
 /** 单个类型的分隔符定义 */
@@ -169,6 +171,7 @@ export function createDefaultValidationConfig(): ValidationConfig {
       'float[][]': { primary: '|', secondary: ';' },
       'string[][]': { primary: '|', secondary: ';' },
     },
+    nullEquivalents: ['null', 'NULL'],
   };
 }
 

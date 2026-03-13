@@ -17,10 +17,12 @@ import { logger } from '../utils/Logger';
 export class ValidationEngine {
   private versionFilter: VersionFilter;
   private validationConfig?: ValidationConfig;
+  private nullEquivalentSet: Set<string>;
 
   constructor(versionFilter: VersionFilter, validationConfig?: ValidationConfig) {
     this.versionFilter = versionFilter;
     this.validationConfig = validationConfig;
+    this.nullEquivalentSet = new Set(validationConfig?.nullEquivalents ?? []);
   }
 
   // ──────────── 公开接口 ────────────
@@ -75,6 +77,9 @@ export class ValidationEngine {
       if (results.length >= MAX_RESULTS_PER_TABLE) break;
       for (let col = 0; col < data.dataValues[row].length; col++) {
         const value = data.dataValues[row][col];
+
+        // 空值等价（如 "null"）直接跳过所有检查
+        if (value != null && this.nullEquivalentSet.has(String(value))) continue;
 
         // 规则0: Excel 错误值
         if (isExcelError(value)) {
@@ -361,6 +366,7 @@ export class ValidationEngine {
         const value = data.dataValues[row][col];
         if (value === '' || value === null || value === undefined) continue;
         const strValue = String(value);
+        if (this.nullEquivalentSet.has(strValue)) continue;
 
         // 数据类型检查
         if (checkTypes) {

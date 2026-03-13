@@ -388,7 +388,14 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
     });
   }, []);
 
-  const saveDelimiters = useCallback(async () => {
+  const updateNullEquivalents = useCallback((value: string) => {
+    setValConfig(prev => ({
+      ...prev,
+      nullEquivalents: value.split(',').map(s => s.trim()).filter(Boolean),
+    }));
+  }, []);
+
+  const saveValConfig = useCallback(async () => {
     try {
       await Excel.run(async (context) => {
         await StudioConfigStore.update(context, (data) => {
@@ -625,7 +632,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
                   size="small"
                   value={delim.primary}
                   onChange={(_, d) => updateDelimiter(type, 'primary', d.value)}
-                  onBlur={saveDelimiters}
+                  onBlur={saveValConfig}
                 />
                 {delim.secondary !== undefined && (
                   <>
@@ -635,12 +642,23 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
                       size="small"
                       value={delim.secondary}
                       onChange={(_, d) => updateDelimiter(type, 'secondary', d.value)}
-                      onBlur={saveDelimiters}
+                      onBlur={saveValConfig}
                     />
                   </>
                 )}
               </div>
             ))}
+            <div className={styles.delimiterRow} style={{ marginTop: '4px' }}>
+              <span className={styles.delimiterType}>空值等价</span>
+              <Input
+                size="small"
+                style={{ flex: 1 }}
+                value={(valConfig.nullEquivalents ?? []).join(', ')}
+                onChange={(_, d) => updateNullEquivalents(d.value)}
+                onBlur={saveValConfig}
+                placeholder="null, NULL, N/A"
+              />
+            </div>
           </div>
         )}
       </div>
