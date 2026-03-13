@@ -297,10 +297,11 @@ export class ValidationEngine {
   validateVersionCoverage(tableName: string, data: TableValidationData): ValidationResult[] {
     const results: ValidationResult[] = [];
 
-    // 按 Key（第一数据列）分组
+    // 按 Key（第一数据列）分组，跳过不在当前版本区间内的行
     const keyGroups = new Map<string, { row: number; versionRange: string }[]>();
 
     for (let i = 0; i < data.dataValues.length; i++) {
+      if (!this.isRowInScope(data, i)) continue;
       const key = String(data.dataValues[i][0] ?? '');
       // versionValues 索引 i+2 对应数据行（跳过两行表头）
       const version = String(data.versionValues[i + 2] ?? '');
@@ -354,6 +355,7 @@ export class ValidationEngine {
     const keyGroups = new Map<string, { row: number; version: number }[]>();
 
     for (let i = 0; i < data.dataValues.length; i++) {
+      if (!this.isRowInScope(data, i)) continue;
       const key = String(data.dataValues[i][0] ?? '');
       const verStr = String(data.versionValues[i + 2] ?? '');
       if (!key) continue;
@@ -433,6 +435,38 @@ export class ValidationEngine {
       }
     }
     return results;
+  }
+
+  // ──────────── 行筛选（与导出逻辑对齐） ────────────
+
+  /**
+   * 判断数据行是否在当前导出范围内（版本区间 + roads 筛选）
+   * @param data 校验数据
+   * @param dataIndex 数据行索引（0-based，对应 dataValues）
+   */
+  private isRowInScope(data: TableValidationData, dataIndex: number): boolean {
+    // 仅做 roads 筛选（不做版本区间筛选，因为覆盖完整性和顺序检查是跨版本的全局校验）
+    // roadsValues 前 2 项是表头行，数据对应 roadsValues[dataIndex + 2]
+    const roads = data.roadsValues[dataIndex + 2];
+    if (roads && roads.length > 0) {
+      // roads_0（总线路）必须为 1
+      if (roads[0] === '0' || roads[0] === '') return false;
+
+      // 目标线路检查
+      const targetField = this.versionFilter.getTargetLineField();
+      if (targetField !== 'roads_0') {
+        // 从 roadsValues 表头行（index 0）找目标线路列索引
+        const headerRoads = data.roadsValues[0];
+        if (headerRoads) {
+          const targetIdx = headerRoads.indexOf(targetField);
+          if (targetIdx >= 0 && roads[targetIdx] !== undefined) {
+            if (roads[targetIdx] === '0' || roads[targetIdx] === '') return false;
+          }
+        }
+      }
+    }
+
+    return true;
   }
 
   // ──────────── 数据加载 ────────────
