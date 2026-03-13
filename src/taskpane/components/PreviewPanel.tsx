@@ -384,6 +384,26 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
             <Text className={styles.sectionTitle}>
               预览结果 ({results.length})
             </Text>
+            <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
+              <Button
+                icon={<EyeRegular />}
+                appearance="secondary"
+                size="small"
+                onClick={handleHighlight}
+                disabled={selectedTableIdx === null}
+              >
+                数据清洗
+              </Button>
+              <Button
+                icon={<EyeOffRegular />}
+                appearance="subtle"
+                size="small"
+                onClick={handleClearHighlight}
+                disabled={selectedTableIdx === null}
+              >
+                清洗结束
+              </Button>
+            </div>
           </div>
 
           <table className={styles.summaryTable}>
@@ -434,30 +454,6 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {/* 高亮/清除按钮 */}
-      {results.length > 0 && (
-        <div className={styles.actionBtnGroup}>
-          <Button
-            icon={<EyeRegular />}
-            appearance="secondary"
-            size="small"
-            onClick={handleHighlight}
-            disabled={selectedTableIdx === null}
-          >
-            数据清洗
-          </Button>
-          <Button
-            icon={<EyeOffRegular />}
-            appearance="subtle"
-            size="small"
-            onClick={handleClearHighlight}
-            disabled={selectedTableIdx === null}
-          >
-            清洗结束
-          </Button>
         </div>
       )}
 

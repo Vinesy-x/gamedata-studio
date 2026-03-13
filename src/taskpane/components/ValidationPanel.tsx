@@ -315,7 +315,7 @@ const useStyles = makeStyles({
 
 // ─── 校验范围枚举 ────────────────────────────────────────
 
-type ScopeType = 'active' | 'registered' | 'checked';
+type ScopeType = 'active' | 'registered';
 
 // ─── 组件 ────────────────────────────────────────────────
 
@@ -412,19 +412,8 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       return new Set(activeSheetName ? [activeSheetName] : []);
     }
 
-    if (scope === 'registered') {
-      // 已注册表
-      return new Set(config.tablesToProcess.keys());
-    }
-
-    // checked: 勾选表（shouldOutput === true）
-    const checkedTables = new Set<string>();
-    config.tablesToProcess.forEach((info, name) => {
-      if (info.shouldOutput) {
-        checkedTables.add(name);
-      }
-    });
-    return checkedTables;
+    // registered: 已注册表
+    return new Set(config.tablesToProcess.keys());
   }, [scope, config.tablesToProcess]);
 
   // ─── 运行校验 ─────────────────────────────
@@ -578,15 +567,6 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
             disabled={isRunning}
           >
             已注册表
-          </Button>
-          <Button
-            className={scope === 'checked' ? styles.scopeBtnActive : styles.scopeBtn}
-            appearance={scope === 'checked' ? 'primary' : 'secondary'}
-            size="small"
-            onClick={() => setScope('checked')}
-            disabled={isRunning}
-          >
-            勾选表
           </Button>
         </div>
       </div>
