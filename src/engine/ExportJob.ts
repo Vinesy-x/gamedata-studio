@@ -280,10 +280,10 @@ export class ExportJob {
     }
   }
 
-  private async fetchWithTimeout(url: string, timeoutMs = 5000): Promise<Response> {
+  private async fetchWithTimeout(url: string, timeoutMs = 5000, init?: RequestInit): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+    return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
   }
 
   private async fetchWithRetry(url: string, timeoutMs = 10000, retries = 2): Promise<Response> {
@@ -311,14 +311,11 @@ export class ExportJob {
           this.fileServerBase = base;
           // 检测 POST 是否可用（Office WebView 有时会拦截 POST）
           try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 3000);
-            const postResp = await fetch(`${base}/api/write-file`, {
+            const postResp = await this.fetchWithTimeout(`${base}/api/write-file`, 3000, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({}),
-              signal: controller.signal,
-            }).finally(() => clearTimeout(timer));
+            });
             // 400 = 服务端收到了请求但参数缺失，说明 POST 通路可用
             this.usePost = postResp.status === 400 || postResp.ok;
           } catch {
@@ -345,14 +342,11 @@ export class ExportJob {
 
     // POST 模式：单次请求写入整个文件
     if (this.usePost) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 30000);
-      const resp = await fetch(`${base}/api/write-file`, {
+      const resp = await this.fetchWithTimeout(`${base}/api/write-file`, 30000, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ directory, fileName, data: base64 }),
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timer));
+      });
       if (!resp.ok) {
         throw new Error(`写入文件失败 (POST HTTP ${resp.status})`);
       }
@@ -421,11 +415,11 @@ export class ExportJob {
 
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    const chunks: string[] = [];
+    for (let i = 0; i < bytes.length; i += 8192) {
+      chunks.push(String.fromCharCode(...bytes.subarray(i, i + 8192)));
     }
-    return btoa(binary);
+    return btoa(chunks.join(''));
   }
 
   private runValidation(

@@ -50,11 +50,11 @@ export class ValidationEngine {
       onProgress?.(tableName, index, total);
 
       // 合并单遍历：Excel错误 + 数据类型 + 数组分隔符 + 必填字段
-      results.push(...this.validateCellsOnePass(tableName, data));
-      results.push(...this.validateVersionFormat(tableName, data));
-      // 规则4+5 共享分组
-      results.push(...this.validateVersionCoverageAndOrder(tableName, data));
-      results.push(...this.validateRoadsConsistency(tableName, data));
+      const tableResults = this.validateCellsOnePass(tableName, data);
+      tableResults.push(...this.validateVersionFormat(tableName, data));
+      tableResults.push(...this.validateVersionCoverageAndOrder(tableName, data));
+      tableResults.push(...this.validateRoadsConsistency(tableName, data));
+      for (let i = 0; i < tableResults.length; i++) results.push(tableResults[i]);
 
       // 每10张表 yield 一次，让 UI 更新进度
       if (index % 10 === 0) {
@@ -76,11 +76,6 @@ export class ValidationEngine {
     for (let row = 0; row < data.dataValues.length; row++) {
       for (let col = 0; col < data.dataValues[row].length; col++) {
         const value = data.dataValues[row][col];
-        const loc = {
-          sheetName: tableName,
-          row: data.dataRowStart + row,
-          column: data.dataColStart + col,
-        };
 
         // 规则0: Excel 错误值
         if (isExcelError(value)) {
@@ -88,10 +83,10 @@ export class ValidationEngine {
             severity: 'error',
             ruleName: '数据类型',
             tableName,
-            location: loc,
+            location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
             message: `单元格包含 Excel 错误值「${value}」`,
           });
-          continue; // 错误值不再做类型/空值检查
+          continue;
         }
 
         // 规则6: 必填字段
@@ -100,10 +95,10 @@ export class ValidationEngine {
             severity: 'warning',
             ruleName: '必填字段',
             tableName,
-            location: loc,
+            location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
             message: `第 ${data.dataRowStart + row} 行 "${data.fieldNames[col] ?? ''}" 字段为空`,
           });
-          continue; // 空值不做类型检查
+          continue;
         }
 
         // 规则2+3: 数据类型 + 数组分隔符
@@ -116,18 +111,17 @@ export class ValidationEngine {
               severity: 'warning',
               ruleName: '数据类型',
               tableName,
-              location: loc,
+              location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
               message: `字段 "${data.fieldNames[col]}" 定义为 ${expectedType}，但值 "${value}" ${error}`,
             });
           }
 
-          // 数组分隔符检查
           if (expectedType.includes('[]') && strValue.includes(',') && !strValue.includes('|')) {
             results.push({
               severity: 'warning',
               ruleName: '数组分隔符',
               tableName,
-              location: loc,
+              location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
               message: `字段 "${data.fieldNames[col]}" 使用了逗号分隔，应使用 | 和 ; 分隔`,
             });
           }
