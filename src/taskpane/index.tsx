@@ -135,7 +135,7 @@ function Root() {
     return <ThemePicker onSelect={setMode} />;
   }
 
-  const ctx = { mode, toggle, setMode };
+  const ctx = useMemo(() => ({ mode, toggle, setMode }), [mode, toggle, setMode]);
 
   return (
     <ThemeContext.Provider value={ctx}>

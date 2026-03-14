@@ -49,7 +49,7 @@ import { configManager } from '../../v2/ConfigManager';
 import { operatorIdentity } from '../../v2/OperatorIdentity';
 import { logger } from '../../utils/Logger';
 import { gdsTokens } from '../theme';
-import { useThemeText, gameData, themeExtraData } from '../locales';
+import { useThemeText, themeExtraData } from '../locales';
 import { getLevelInfo, grantExportXp } from '../services/PlayerStats';
 
 const useStyles = makeStyles({
@@ -722,7 +722,7 @@ export function ExportTab({
           </Button>
           <Button
             className={styles.gitBtn}
-            icon={isGame ? <SendRegular /> : isCute ? <StarRegular /> : isCyber ? <ArrowUploadRegular /> : <ArrowUploadRegular />}
+            icon={isGame ? <SendRegular /> : isCute ? <StarRegular /> : <ArrowUploadRegular />}
             appearance="secondary"
             onClick={handleGitPush}
             disabled={!canGitPush && !gitError}

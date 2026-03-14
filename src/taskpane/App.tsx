@@ -157,11 +157,8 @@ export function App() {
   const styles = useStyles();
   const { mode: themeMode } = useContext(ThemeContext);
   const t = useThemeText();
-  const isGame = themeMode === 'game';
-  const isCute = themeMode === 'cute';
-  const isCyber = themeMode === 'cyber';
-  const isPixel = themeMode === 'pixel';
-  const isSpecial = isGame || isCute || isCyber || isPixel;
+  const specialTokens = (gdsTokens as Record<string, unknown>)[themeMode] as typeof gdsTokens.game | undefined;
+  const isSpecial = !!specialTokens;
   const { config, loading, error, loadConfig } = useConfig();
   const [selectedTab, setSelectedTab] = useState<string>('export');
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
@@ -357,7 +354,7 @@ export function App() {
 
   return (
     <div className={styles.root}>
-      <div className={styles.banner} style={isGame ? { backgroundImage: gdsTokens.game.banner } : isCute ? { backgroundImage: gdsTokens.cute.banner } : isCyber ? { backgroundImage: gdsTokens.cyber.banner } : isPixel ? { backgroundImage: gdsTokens.pixel.banner } : undefined}>
+      <div className={styles.banner} style={specialTokens ? { backgroundImage: specialTokens.banner } : undefined}>
         <span className={styles.bannerShimmer} />
         <GridRegular className={styles.bannerIcon} />
         <span className={styles.bannerDot} />
@@ -374,10 +371,10 @@ export function App() {
           onTabSelect={(_, data) => setSelectedTab(data.value as string)}
           size="small"
         >
-          <Tab value="export" icon={isGame ? <RocketRegular fontSize={14} /> : isCute ? <HeartRegular fontSize={14} /> : isCyber ? <SendRegular fontSize={14} /> : isPixel ? <ArrowExportRegular fontSize={14} /> : <ArrowExportRegular fontSize={14} />}>{t.tabExport}</Tab>
+          <Tab value="export" icon={({ game: <RocketRegular fontSize={14} />, cute: <HeartRegular fontSize={14} />, cyber: <SendRegular fontSize={14} /> } as Record<string, React.ReactNode>)[themeMode] || <ArrowExportRegular fontSize={14} />}>{t.tabExport}</Tab>
           <Tab value="manage" icon={<SettingsRegular fontSize={14} />}>{t.tabManage}</Tab>
-          <Tab value="validate" icon={isGame ? <WindowWrenchRegular fontSize={14} /> : isCute ? <StarRegular fontSize={14} /> : (isCyber || isPixel) ? <BugRegular fontSize={14} /> : <ShieldCheckmarkRegular fontSize={14} />}>{t.tabValidate}</Tab>
-          <Tab value="preview" icon={isGame ? <AirplaneTakeOffRegular fontSize={14} /> : isCute ? <SparkleRegular fontSize={14} /> : <EyeRegular fontSize={14} />}>{t.tabPreview}</Tab>
+          <Tab value="validate" icon={({ game: <WindowWrenchRegular fontSize={14} />, cute: <StarRegular fontSize={14} />, cyber: <BugRegular fontSize={14} />, pixel: <BugRegular fontSize={14} /> } as Record<string, React.ReactNode>)[themeMode] || <ShieldCheckmarkRegular fontSize={14} />}>{t.tabValidate}</Tab>
+          <Tab value="preview" icon={({ game: <AirplaneTakeOffRegular fontSize={14} />, cute: <SparkleRegular fontSize={14} /> } as Record<string, React.ReactNode>)[themeMode] || <EyeRegular fontSize={14} />}>{t.tabPreview}</Tab>
         </TabList>
       </div>
 
