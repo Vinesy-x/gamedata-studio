@@ -153,6 +153,8 @@ export function App() {
   const { mode: themeMode } = useContext(ThemeContext);
   const t = useThemeText();
   const isGame = themeMode === 'game';
+  const isCute = themeMode === 'cute';
+  const isSpecial = isGame || isCute;
   const { config, loading, error, loadConfig } = useConfig();
   const [selectedTab, setSelectedTab] = useState<string>('export');
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
@@ -346,7 +348,7 @@ export function App() {
 
   return (
     <div className={styles.root}>
-      <div className={styles.banner} style={isGame ? { backgroundImage: gdsTokens.game.banner } : undefined}>
+      <div className={styles.banner} style={isGame ? { backgroundImage: gdsTokens.game.banner } : isCute ? { backgroundImage: gdsTokens.cute.banner } : undefined}>
         <span className={styles.bannerShimmer} />
         <GridRegular className={styles.bannerIcon} />
         <span className={styles.bannerDot} />

@@ -57,6 +57,43 @@ export const gdsGameTheme = {
   colorPaletteRedBackground1: '#2A0015',
 };
 
+// Cute theme: soft pink base
+const cuteBrand: BrandVariants = {
+  10: '#2D0A1E',
+  20: '#4A1230',
+  30: '#6B1A45',
+  40: '#8C225A',
+  50: '#AD2A70',
+  60: '#E91E8C',
+  70: '#F06AB0',
+  80: '#F48CC8',
+  90: '#F8AED9',
+  100: '#FBC8E5',
+  110: '#FDE0F0',
+  120: '#FEF0F7',
+  130: '#FFF5FB',
+  140: '#FFFAFD',
+  150: '#FFFCFE',
+  160: '#FFFFFF',
+};
+
+export const gdsCuteTheme = {
+  ...createLightTheme(cuteBrand),
+  colorNeutralBackground1: '#FFFFFF',
+  colorNeutralBackground2: '#FFF5F9',
+  colorNeutralBackground3: '#FFE8F0',
+  colorNeutralForeground1: '#4A2040',
+  colorNeutralForeground2: '#7A4068',
+  colorNeutralForeground3: '#AA7098',
+  colorNeutralStroke1: '#F0C0D8',
+  colorNeutralStroke2: '#F8D8E8',
+  colorNeutralStroke3: '#FCE8F0',
+  colorBrandBackground: '#E91E8C',
+  colorBrandForeground1: '#E91E8C',
+  colorPaletteGreenForeground1: '#2E9E5A',
+  colorPaletteRedForeground1: '#D94080',
+};
+
 // --- Semantic Color Tokens ---
 export const gdsTokens = {
   banner: {
@@ -154,6 +191,24 @@ export const gdsTokens = {
     xpCyan: '#06B6D4',
     xpPurple: '#A855F7',
     tabIndicator: '#A855F7',
+  },
+
+  // --- Cute Theme Extras ---
+  cute: {
+    bg: '#FFF5F9',
+    surface: '#FFFFFF',
+    cardBg: '#FFFFFF',
+    cardBorder: '1px solid #F0C0D8',
+    cardShadow: 'none',
+    banner: 'linear-gradient(135deg, #F48CC8 0%, #C850A0 50%, #A855F7 100%)',
+    progressGradient: 'linear-gradient(90deg, #F48CC8, #88CCEE)',
+    xpTrackBg: '#FFE0F0',
+    xpBarBg: '#FFF0F8',
+    xpBarBorder: '1px solid #F0C0D8',
+    xpColor: '#E91E8C',
+    xpAccent: '#F48CC8',
+    textPrimary: '#4A2040',
+    textMuted: '#AA7098',
   },
 } as const;
 

@@ -27,7 +27,7 @@ import { VersionFilter } from '../../engine/VersionFilter';
 import { StudioConfigStore, ValidationConfig, createDefaultValidationConfig } from '../../v2/StudioConfigStore';
 import { configManager } from '../../v2/ConfigManager';
 import { gdsTokens } from '../theme';
-import { useThemeText, gameData } from '../locales';
+import { useThemeText, gameData, themeExtraData } from '../locales';
 import { ThemeContext } from '../index';
 
 // ─── 校验规则定义 ───────────────────────────────────────
@@ -329,6 +329,8 @@ interface ValidationPanelProps {
 export function ValidationPanel({ config }: ValidationPanelProps) {
   const { mode: themeMode } = useContext(ThemeContext);
   const isGame = themeMode === 'game';
+  const isCute = themeMode === 'cute';
+  const isSpecial = isGame || isCute;
   const t = useThemeText();
   const styles = useStyles();
 
@@ -623,9 +625,9 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
                   title="配置类型分隔符"
                 />
               )}
-              {isGame && (
-                <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: gdsTokens.game.xpCyan }}>
-                  +{gameData.ruleXp[idx] ?? 30} 经验
+              {isSpecial && (
+                <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: isGame ? gdsTokens.game.xpCyan : gdsTokens.cute.xpColor }}>
+                  +{(isGame ? themeExtraData.game : themeExtraData.cute).ruleXp[idx] ?? 30} 经验
                 </span>
               )}
             </div>
@@ -678,14 +680,14 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
 
       {/* 运行按钮 */}
       <div className={styles.section}>
-        {isGame && (
+        {isSpecial && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, fontSize: 11 }}>
-            <span style={{ color: gdsTokens.game.textMuted }}>
-              {gameData.progressLabel(enabledRules.size, VALIDATION_RULES.length)}
+            <span style={{ color: isGame ? gdsTokens.game.textMuted : gdsTokens.cute.textMuted }}>
+              {(isGame ? themeExtraData.game : themeExtraData.cute).progressLabel(enabledRules.size, VALIDATION_RULES.length)}
             </span>
-            <span style={{ color: gdsTokens.game.xpColor, fontWeight: 700 }}>
-              {gameData.xpTotal(
-                VALIDATION_RULES.reduce((sum, r, i) => enabledRules.has(r.key) ? sum + (gameData.ruleXp[i] ?? 30) : sum, 0)
+            <span style={{ color: isGame ? gdsTokens.game.xpColor : gdsTokens.cute.xpColor, fontWeight: 700 }}>
+              {(isGame ? themeExtraData.game : themeExtraData.cute).xpTotal(
+                VALIDATION_RULES.reduce((sum, r, i) => enabledRules.has(r.key) ? sum + ((isGame ? themeExtraData.game : themeExtraData.cute).ruleXp[i] ?? 30) : sum, 0)
               )}
             </span>
           </div>

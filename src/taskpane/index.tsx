@@ -4,16 +4,17 @@ import { createContext, useState, useCallback, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FluentProvider } from '@fluentui/react-components';
 import { App } from './App';
-import { gdsLightTheme, gdsDarkTheme, gdsGameTheme } from './theme';
+import { gdsLightTheme, gdsDarkTheme, gdsGameTheme, gdsCuteTheme } from './theme';
 
-export type ThemeMode = 'light' | 'dark' | 'game';
+export type ThemeMode = 'light' | 'dark' | 'game' | 'cute';
 
-const THEME_ORDER: ThemeMode[] = ['light', 'dark', 'game'];
+const THEME_ORDER: ThemeMode[] = ['light', 'dark', 'game', 'cute'];
 
 const themeMap = {
   light: gdsLightTheme,
   dark: gdsDarkTheme,
   game: gdsGameTheme,
+  cute: gdsCuteTheme,
 } as const;
 
 export const ThemeContext = createContext<{
