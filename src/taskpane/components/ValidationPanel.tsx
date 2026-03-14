@@ -29,6 +29,7 @@ import { configManager } from '../../v2/ConfigManager';
 import { gdsTokens } from '../theme';
 import { useThemeText, gameData, themeExtraData } from '../locales';
 import { ThemeContext } from '../index';
+import { grantValidateXp } from '../services/PlayerStats';
 
 // ─── 校验规则定义 ───────────────────────────────────────
 
@@ -479,6 +480,11 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
 
       const filtered = allResults.filter((r) => enabledRuleNames.has(r.ruleName));
       setResults(filtered);
+
+      // Grant XP for special themes
+      if (isSpecial) {
+        grantValidateXp(enabledRules.size);
+      }
     } catch (err) {
       console.error('校验运行失败', err);
       setResults([]);

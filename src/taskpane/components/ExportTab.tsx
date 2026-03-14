@@ -49,6 +49,7 @@ import { operatorIdentity } from '../../v2/OperatorIdentity';
 import { logger } from '../../utils/Logger';
 import { gdsTokens } from '../theme';
 import { useThemeText, gameData, themeExtraData } from '../locales';
+import { getLevelInfo, grantExportXp } from '../services/PlayerStats';
 
 const useStyles = makeStyles({
   container: {
@@ -429,6 +430,8 @@ export function ExportTab({
   const isGame = mode === 'game';
   const isCute = mode === 'cute';
   const isSpecial = isGame || isCute;
+  const [levelInfo, setLevelInfo] = useState(() => getLevelInfo());
+  const [earnedXp, setEarnedXp] = useState(0);
   const t = useThemeText();
   const prevExportingRef = useRef(isExporting);
   // Git 按钮错误提示
@@ -444,6 +447,12 @@ export function ExportTab({
     if (!isExporting && prevExportingRef.current && exportResult) {
       // 导出刚完成 → 触发完成动画
       setShowCompletionAnim(true);
+        // Grant XP for special themes
+        if (exportResult?.success) {
+          const xp = grantExportXp(exportResult.changedTables, exportResult.modifiedFiles.length);
+          setEarnedXp(xp);
+          setLevelInfo(getLevelInfo());
+        }
     }
     prevExportingRef.current = isExporting;
   }, [isExporting, exportResult]);
@@ -586,7 +595,7 @@ export function ExportTab({
             border: isGame ? gdsTokens.game.xpBarBorder : gdsTokens.cute.xpBarBorder,
           }}>
             <span style={{ fontSize: 11, color: isGame ? gdsTokens.game.xpPurple : gdsTokens.cute.xpColor, fontWeight: 700, fontFamily: gdsTokens.fontMono, whiteSpace: 'nowrap' }}>
-              {(isGame ? themeExtraData.game : themeExtraData.cute).levelLabel(12)}
+              {(isGame ? themeExtraData.game : themeExtraData.cute).levelLabel(levelInfo.level)}
             </span>
             <div style={{
               flex: 1,
@@ -596,7 +605,7 @@ export function ExportTab({
               overflow: 'hidden',
             }}>
               <div style={{
-                width: '65%',
+                width: `${Math.min(levelInfo.progress * 100, 100)}%`,
                 height: '100%',
                 borderRadius: 4,
                 background: isGame ? gdsTokens.game.progressGradient : gdsTokens.cute.progressGradient,
@@ -760,7 +769,7 @@ export function ExportTab({
                   <>
                     <StarRegular style={{ fontSize: 16, color: isGame ? gdsTokens.game.xpColor : gdsTokens.cute.xpAccent }} />
                     <span style={{ color: isGame ? gdsTokens.game.xpCyan : gdsTokens.cute.xpColor, fontSize: 11, fontWeight: 700 }}>
-                      {(isGame ? themeExtraData.game : themeExtraData.cute).resultXp(visibleResult.modifiedFiles.length * 2 + visibleResult.changedTables * 5)}
+                      {(isGame ? themeExtraData.game : themeExtraData.cute).resultXp(earnedXp)}
                     </span>
                   </>
                 )}

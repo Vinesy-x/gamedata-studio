@@ -22,6 +22,7 @@ import { VersionPreviewer, PreviewResult } from '../../v3/VersionPreviewer';
 import { gdsTokens } from '../theme';
 import { useThemeText } from '../locales';
 import { ThemeContext } from '../index';
+import { grantPreviewXp } from '../services/PlayerStats';
 
 const useStyles = makeStyles({
   container: {
@@ -267,6 +268,8 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
         outputTableNames
       );
       setResults(previewResults);
+        // Grant XP for special themes
+        grantPreviewXp();
     } catch {
       // 错误已在 VersionPreviewer 内部日志记录
     } finally {
