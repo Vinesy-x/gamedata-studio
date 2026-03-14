@@ -581,7 +581,7 @@ export function ExportTab({
             border: gdsTokens.game.xpBarBorder,
           }}>
             <span style={{ fontSize: 11, color: gdsTokens.game.xpPurple, fontWeight: 700, fontFamily: gdsTokens.fontMono, whiteSpace: 'nowrap' }}>
-              {gameText.levelLabel(12, '数据导出员')}
+              {gameText.levelLabel(12)}
             </span>
             <div style={{
               flex: 1,
@@ -605,7 +605,7 @@ export function ExportTab({
           backgroundColor: gdsTokens.game.cardBg,
         } : undefined}>
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>输出版本</span>
+            <span className={styles.configLabel}>{isGame ? gameText.configLabels.version : '输出版本'}</span>
             <Dropdown
               size="small"
               value={config.outputSettings.versionName}
@@ -619,7 +619,7 @@ export function ExportTab({
             </Dropdown>
           </div>
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>版本号</span>
+            <span className={styles.configLabel}>{isGame ? gameText.configLabels.versionNumber : '版本号'}</span>
             <Input
               size="small"
               value={localVersionNumber}
@@ -630,14 +630,14 @@ export function ExportTab({
             />
           </div>
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>序列号</span>
+            <span className={styles.configLabel}>{isGame ? gameText.configLabels.sequence : '序列号'}</span>
             <span className={styles.configValue}>
               {config.outputSettings.versionSequence}
             </span>
           </div>
           {currentOperator && (
             <div className={styles.configRow}>
-              <span className={styles.configLabel}>操作员</span>
+              <span className={styles.configLabel}>{isGame ? gameText.configLabels.operator : '操作员'}</span>
               <span className={styles.configValue}>
                 <PersonRegular fontSize={12} style={{ marginRight: 3 }} />
                 {currentOperator}
@@ -645,7 +645,7 @@ export function ExportTab({
             </div>
           )}
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>协同监听</span>
+            <span className={styles.configLabel}>{isGame ? gameText.configLabels.monitor : '协同监听'}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Switch
                 checked={monitorEnabled}
@@ -672,7 +672,7 @@ export function ExportTab({
             </div>
           </div>
           <div className={styles.configRow} style={{ borderBottom: 'none' }}>
-            <span className={styles.configLabel}>导出目录</span>
+            <span className={styles.configLabel}>{isGame ? gameText.configLabels.outputDir : '导出目录'}</span>
             {outputDir ? (
               <span className={styles.configValuePath} onClick={onNavigateToManage} style={{ cursor: 'pointer' }}>
                 {outputDir}

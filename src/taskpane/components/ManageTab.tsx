@@ -1,6 +1,6 @@
 /* global Excel */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useContext } from 'react';
 import {
   makeStyles,
   tokens,
@@ -35,7 +35,8 @@ import { SHEET_CONFIG } from '../../v2/TemplateFactory';
 import { operatorIdentity } from '../../v2/OperatorIdentity';
 import { excelHelper } from '../../utils/ExcelHelper';
 import { logger } from '../../utils/Logger';
-import { gdsTokens } from '../theme';
+import { gdsTokens, gameText } from '../theme';
+import { ThemeContext } from '../index';
 
 const useStyles = makeStyles({
   container: {
@@ -198,6 +199,8 @@ interface ManageTabProps {
 }
 
 export function ManageTab({ config, onReloadConfig }: ManageTabProps) {
+  const { mode: themeMode } = useContext(ThemeContext);
+  const isGame = themeMode === 'game';
   const styles = useStyles();
   const [subPage, setSubPage] = useState<ManageSubPage>('config');
   const [searchTerm, setSearchTerm] = useState('');
@@ -210,21 +213,21 @@ export function ManageTab({ config, onReloadConfig }: ManageTabProps) {
           onClick={() => setSubPage('config')}
         >
           <SettingsRegular fontSize={13} />
-          配置
+          {isGame ? gameText.manageSubNav[0] : '配置'}
         </div>
         <div
           className={`${styles.subNavItem} ${subPage === 'tables' ? styles.subNavActive : ''}`}
           onClick={() => setSubPage('tables')}
         >
           <TableRegular fontSize={13} />
-          表管理
+          {isGame ? gameText.manageSubNav[1] : '表管理'}
         </div>
         <div
           className={`${styles.subNavItem} ${subPage === 'wizard' ? styles.subNavActive : ''}`}
           onClick={() => setSubPage('wizard')}
         >
           <AddRegular fontSize={13} />
-          新建表
+          {isGame ? gameText.manageSubNav[2] : '新建表'}
         </div>
       </div>
 
@@ -261,6 +264,8 @@ function ConfigSubPage({ config, onReload, styles }: {
   onReload: () => void;
   styles: ReturnType<typeof useStyles>;
 }) {
+  const { mode: themeMode } = useContext(ThemeContext);
+  const isGame = themeMode === 'game';
   const [editingGit, setEditingGit] = useState(false);
   const [gitTemplate, setGitTemplate] = useState(config.gitCommitTemplate || '');
   const [saving, setSaving] = useState(false);
@@ -481,7 +486,7 @@ function ConfigSubPage({ config, onReload, styles }: {
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <Text style={{ fontSize: '12px', fontWeight: 600 }}>
-            版本管理 ({versions.length})
+            {isGame ? gameText.manageLabels.versionList : '版本管理'} ({versions.length})
           </Text>
           <div className={styles.actionRow}>
             <Button
@@ -608,7 +613,7 @@ function ConfigSubPage({ config, onReload, styles }: {
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <Text style={{ fontSize: '12px', fontWeight: 600 }}>
-            人员代码 ({config.staffCodes.size})
+            {isGame ? gameText.manageLabels.staff : '人员代码'} ({config.staffCodes.size})
           </Text>
           <Button
             icon={<AddRegular />}
@@ -710,7 +715,7 @@ function ConfigSubPage({ config, onReload, styles }: {
       {/* Git 提交模板 */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <Text style={{ fontSize: '12px', fontWeight: 600 }}>Git 提交模板</Text>
+          <Text style={{ fontSize: '12px', fontWeight: 600 }}>{isGame ? gameText.manageLabels.gitTemplate : 'Git 提交模板'}</Text>
           {!editingGit && (
             <Button appearance="subtle" size="small" onClick={() => { setGitTemplate(config.gitCommitTemplate || ''); setEditingGit(true); }}>
               编辑

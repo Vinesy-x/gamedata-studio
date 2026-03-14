@@ -157,32 +157,55 @@ export const gdsTokens = {
   },
 } as const;
 
-// --- Game Text Mapping (游戏文案) ---
+// --- Game Text Mapping (飞船航行主题) ---
 export const gameText = {
+  // Tab names
+  tabExport: '发射',
+  tabManage: '舰桥',
+  tabValidate: '维修',
+  tabPreview: '试飞',
+
   // ExportTab
-  sectionTitle: '任务简报',
-  exportBtn: '启动！',
-  gitBtn: '代码仓库',
-  resultSuccess: '成就解锁！',
-  resultFail: '任务失败',
-  resultXp: (n: number) => `+${n} 经验`,
-  statFiles: (n: number) => `${n} 个文件`,
-  statWarnings: (n: number) => `${n} 个警告`,
-  statErrors: (n: number) => `${n} 个错误`,
-  levelLabel: (lv: number, title: string) => `LV.${lv}  ${title}`,
+  sectionTitle: '发射准备',
+  exportBtn: '发射！',
+  gitBtn: '星际传送',
+  resultSuccess: '航行成功！',
+  resultFail: '发射失败',
+  resultXp: (n: number) => `+${n} 航程`,
+  statFiles: (n: number) => `${n} 个舱段`,
+  statWarnings: (n: number) => `${n} 个异常`,
+  statErrors: (n: number) => `${n} 个故障`,
+  levelLabel: (lv: number) => `LV.${lv}  星际领航员`,
+  configLabels: {
+    version: '航线',
+    versionNumber: '航线编号',
+    sequence: '航班号',
+    operator: '舰长',
+    monitor: '雷达监听',
+    outputDir: '着陆坐标',
+  },
+
   // ManageTab
-  manageSubNav: ['公会设置', '装备库', '锻造'] as const,
+  manageSubNav: ['舰桥指挥', '模块库', '组装'] as const,
+  manageLabels: {
+    gitTemplate: '传送协议',
+    staff: '船员编制',
+    versionList: '航线列表',
+  },
+
   // ValidationPanel
-  validationTitle: '任务日志',
-  validationScope: ['当前表', '已注册表'] as const,
-  validationRun: '开始任务',
-  validationProgress: (done: number, total: number) => `任务进度  ${done}/${total}`,
-  validationXpTotal: (xp: number) => `总经验值: ${xp}`,
+  validationTitle: '维修日志',
+  validationScope: ['当前模块', '全部模块'] as const,
+  validationRun: '开始检修',
+  validationProgress: (done: number, total: number) => `检修进度  ${done}/${total}`,
+  validationXpTotal: (xp: number) => `维修经验: ${xp}`,
+  ruleNames: ['重复部件检查', '航线区间校验', '空舱检测', '数据类型扫描', '字段完整性', '分隔符规范', '表头结构'] as const,
   ruleXp: [50, 75, 30, 40, 60, 25, 35] as const,
+
   // PreviewPanel
-  previewTitle: '选择关卡',
-  previewBtn: (n: number) => `开始战斗 (${n}张表)`,
-  previewColHeaders: ['表名', '行数', '分数'] as const,
-  previewStats: '战斗统计',
+  previewTitle: '航线选择',
+  previewBtn: (n: number) => `开始试飞 (${n}条航线)`,
+  previewColHeaders: ['模块名', '载荷', '航速'] as const,
+  previewStats: '飞行报告',
   previewRank: 'S',
 } as const;

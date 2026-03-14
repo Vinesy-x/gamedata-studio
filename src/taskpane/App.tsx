@@ -33,7 +33,7 @@ import { ExportJob } from '../engine/ExportJob';
 import { GitHandler } from '../git/GitHandler';
 import { GitExecutor } from '../git/GitExecutor';
 import { configManager } from '../v2/ConfigManager';
-import { gdsTokens } from './theme';
+import { gdsTokens, gameText } from './theme';
 import { ThemeContext } from './index';
 
 const useStyles = makeStyles({
@@ -358,10 +358,10 @@ export function App() {
           onTabSelect={(_, data) => setSelectedTab(data.value as string)}
           size="small"
         >
-          <Tab value="export" icon={<ArrowExportRegular fontSize={14} />}>导出</Tab>
-          <Tab value="manage" icon={<SettingsRegular fontSize={14} />}>管理</Tab>
-          <Tab value="validate" icon={<ShieldCheckmarkRegular fontSize={14} />}>校验</Tab>
-          <Tab value="preview" icon={<EyeRegular fontSize={14} />}>预览</Tab>
+          <Tab value="export" icon={<ArrowExportRegular fontSize={14} />}>{isGame ? gameText.tabExport : '导出'}</Tab>
+          <Tab value="manage" icon={<SettingsRegular fontSize={14} />}>{isGame ? gameText.tabManage : '管理'}</Tab>
+          <Tab value="validate" icon={<ShieldCheckmarkRegular fontSize={14} />}>{isGame ? gameText.tabValidate : '校验'}</Tab>
+          <Tab value="preview" icon={<EyeRegular fontSize={14} />}>{isGame ? gameText.tabPreview : '预览'}</Tab>
         </TabList>
       </div>
 

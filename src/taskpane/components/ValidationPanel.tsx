@@ -1,6 +1,6 @@
 /* global Excel */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useContext } from 'react';
 import {
   makeStyles,
   tokens,
@@ -26,7 +26,8 @@ import { ValidationNavigator } from '../../v3/ValidationNavigator';
 import { VersionFilter } from '../../engine/VersionFilter';
 import { StudioConfigStore, ValidationConfig, createDefaultValidationConfig } from '../../v2/StudioConfigStore';
 import { configManager } from '../../v2/ConfigManager';
-import { gdsTokens } from '../theme';
+import { gdsTokens, gameText } from '../theme';
+import { ThemeContext } from '../index';
 
 // ─── 校验规则定义 ───────────────────────────────────────
 
@@ -325,6 +326,8 @@ interface ValidationPanelProps {
 }
 
 export function ValidationPanel({ config }: ValidationPanelProps) {
+  const { mode: themeMode } = useContext(ThemeContext);
+  const isGame = themeMode === 'game';
   const styles = useStyles();
 
   // 校验范围
@@ -558,7 +561,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <SearchRegular fontSize={14} />
-          <Text className={styles.sectionTitle}>校验范围</Text>
+          <Text className={styles.sectionTitle}>{isGame ? gameText.validationTitle : '校验范围'}</Text>
         </div>
         <div className={styles.scopeRow}>
           <Button
@@ -568,7 +571,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
             onClick={() => setScope('active')}
             disabled={isRunning}
           >
-            当前表
+            {isGame ? gameText.validationScope[0] : '当前表'}
           </Button>
           <Button
             className={scope === 'registered' ? styles.scopeBtnActive : styles.scopeBtn}
@@ -577,7 +580,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
             onClick={() => setScope('registered')}
             disabled={isRunning}
           >
-            已注册表
+            {isGame ? gameText.validationScope[1] : '已注册表'}
           </Button>
         </div>
       </div>
@@ -587,7 +590,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       {/* 校验规则 */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <Text className={styles.sectionTitle}>校验规则</Text>
+          <Text className={styles.sectionTitle}>{isGame ? gameText.validationTitle : '校验规则'}</Text>
           <Button
             appearance="transparent"
             size="small"
@@ -676,7 +679,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
           onClick={handleRunValidation}
           disabled={isRunning || enabledRules.size === 0}
         >
-          {isRunning ? '校验中...' : '运行校验'}
+          {isRunning ? '校验中...' : isGame ? gameText.validationRun : '运行校验'}
         </Button>
       </div>
 
