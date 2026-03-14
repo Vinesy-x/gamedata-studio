@@ -74,4 +74,28 @@ export interface ThemeTextMap {
     statsTitle: string;
     emptyHint: string;
   };
+
+  // --- HelpPanel ---
+  help: {
+    quickStart: { title: string; body: string };
+    exportSection: { title: string; flow: string; outputDir: string; git: string };
+    collab: { title: string; howItWorks: string; monitor: string };
+    manageSection: { title: string; config: string; tableManage: string; newTable: string };
+    validateSection: { title: string; intro: string };
+    previewSection: { title: string; preview: string; highlight: string };
+    structure: { title: string; layout: string; fields: string; versionRange: string; routes: string };
+    /** 通用术语：组件内的关键词替换 */
+    terms: {
+      table: string;        // 表 → 设备
+      version: string;      // 版本 → 航线
+      versionNumber: string; // 版本号 → 航线编号
+      route: string;        // 线路 → 航段
+      operator: string;     // 操作员 → 舰长
+      export: string;       // 导出 → 发射
+      validate: string;     // 校验 → 维修/检修
+      preview: string;      // 预览 → 试飞
+      git: string;          // Git → 星际传送
+      outputDir: string;    // 导出目录 → 着陆坐标
+    };
+  };
 }

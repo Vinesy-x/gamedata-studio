@@ -75,4 +75,56 @@ export const spaceText: ThemeTextMap = {
     statsTitle: '试飞报告',
     emptyHint: '选择航线后，点击「点火」开始试飞',
   },
+
+  help: {
+    quickStart: {
+      title: '舰长手册',
+      body: 'GameData Studio 是您的星际飞船控制台，用于管理和发射飞船设备数据。每台设备是一个独立的工作表，包含航线控制区和主数据区。\n\n首次登舰：在空白工作簿中点击「初始化工作簿」，将自动创建飞船配置表、设备清单和示例设备。',
+    },
+    exportSection: {
+      title: '发射',
+      flow: '选择航线 → 设定着陆坐标 → 点击发射。系统自动加载配置、筛选数据、对比差异（Delta），仅输出有变更的设备。',
+      outputDir: '在「舰桥」中配置。支持变量替换：{0} = 航线编号，{1} = 航线名。',
+      git: '发射完成后，如果本地传送站正在运行，系统会自动执行星际传送（add、commit、push）。传送协议可在「舰桥」中自定义。',
+    },
+    collab: {
+      title: '协同发射',
+      howItWorks: '通过 StudioConfig 工作表实现多人协同发射。网页端船员在 StudioConfig 中填写航线、航线编号，并在「舰长」栏写入名字触发发射。',
+      monitor: '默认开启，以 5 秒间隔扫描 StudioConfig 表。状态指示：绿色 = 扫描中，蓝色 = 协同发射中，灰色 = 雷达关闭。',
+    },
+    manageSection: {
+      title: '舰桥',
+      config: '管理舰长、航线模板（航线名 + 航段 + 传送坐标）、船员编制、传送协议和功能开关。添加新航线后点击「同步航段」为所有设备补充对应的航段列。',
+      tableManage: '数据来源为「设备清单」工作表，直接在 Excel 中编辑设备清单即可实时同步。',
+      newTable: '通过向导组装新设备，自动注册到设备清单并添加超链接。',
+    },
+    validateSection: {
+      title: '维修',
+      intro: '对选中的设备执行检修规则，检测航线区间格式、数据类型、必填字段、航段一致性等问题。点击检修结果可自动定位到故障单元格。',
+    },
+    previewSection: {
+      title: '试飞',
+      preview: '选择航线和航线编号，查看各设备的筛选结果（保留/排除的载荷数、被覆盖的重复 Key 行）。点击设备名自动跳转到该工作表。',
+      highlight: '通过条件格式在 Excel 中高亮标记排除行和被覆盖行，不影响原有单元格格式。点击「清洗结束」还原。',
+    },
+    structure: {
+      title: '设备结构',
+      layout: 'version_c 区域（可选）→ version_r 行 → 描述行 → 数据行。左侧为航线控制列。',
+      fields: '格式：[前缀_]字段名=类型，前缀 key_ 表示主键，language_ 表示多语言字段。',
+      versionRange: '左闭右开 [min, max)。1.0 → 从 1.0 起永久生效，1.0~2.5 → 仅该区间生效，空值 → 几乎不发射。',
+      routes: 'roads_0 为总开关，roads_N 为地区专属航段。值：1=启用，0/空=禁用，航线区间=条件启用。',
+    },
+    terms: {
+      table: '设备',
+      version: '航线',
+      versionNumber: '航线编号',
+      route: '航段',
+      operator: '舰长',
+      export: '发射',
+      validate: '检修',
+      preview: '试飞',
+      git: '星际传送',
+      outputDir: '着陆坐标',
+    },
+  },
 };

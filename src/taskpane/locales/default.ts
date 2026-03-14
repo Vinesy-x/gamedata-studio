@@ -66,4 +66,56 @@ export const defaultText: ThemeTextMap = {
     statsTitle: '预览结果',
     emptyHint: '选择版本后，点击「预览」查看数据',
   },
+
+  help: {
+    quickStart: {
+      title: '快速入门',
+      body: 'GameData Studio 是一款 Excel 加载项，用于管理和导出游戏数据表。每张数据表是一个独立的工作表，包含版本控制区和主数据区。\n\n首次使用：在空白工作簿中点击「初始化工作簿」，将自动创建 StudioConfig 配置表、表名对照和示例数据表。',
+    },
+    exportSection: {
+      title: '导出',
+      flow: '选择版本 → 设置输出目录 → 点击导出。系统自动加载配置、筛选数据、对比差异（Delta），仅输出有变更的表。',
+      outputDir: '在「管理」选项卡中配置。支持变量替换：{0} = 版本号，{1} = 版本名。',
+      git: '导出完成后，如果本地文件服务器正在运行，系统会自动执行 Git add、commit、push。提交信息可在「管理」中自定义模板。',
+    },
+    collab: {
+      title: '协同导出',
+      howItWorks: '通过 StudioConfig 工作表实现多人协同导出。网页端用户在 StudioConfig 中填写输出版本、版本号，并在「操作人」栏写入名字触发导出。',
+      monitor: '默认开启，以 5 秒间隔轮询 StudioConfig 表。状态指示：绿色 = 监听中，蓝色 = 正在协同导出，灰色 = 已关闭。',
+    },
+    manageSection: {
+      title: '管理',
+      config: '管理操作员、版本模板（版本名 + 线路 + Git 目录）、人员代码、Git 提交模板和功能开关。添加新版本后点击「同步线路」为所有数据表补充对应的 roads 列。',
+      tableManage: '数据来源为「表名对照」工作表，直接在 Excel 中编辑表名对照即可实时同步。',
+      newTable: '通过向导创建符合规范的数据表工作表，自动注册到表名对照并添加超链接。',
+    },
+    validateSection: {
+      title: '校验',
+      intro: '对选中的数据表执行校验规则，检测版本区间格式、数据类型、必填字段、Roads 一致性等问题。点击校验结果可自动定位到问题单元格。',
+    },
+    previewSection: {
+      title: '预览',
+      preview: '选择版本和版本号，查看各表的筛选结果（保留/排除的行列数、被覆盖的重复 Key 行）。点击表名自动跳转到该工作表。',
+      highlight: '通过条件格式在 Excel 中高亮标记排除行和被覆盖行，不影响原有单元格格式。点击「清洗结束」还原。',
+    },
+    structure: {
+      title: '数据表结构',
+      layout: 'version_c 区域（可选）→ version_r 行 → 描述行 → 数据行。左侧为版本控制列。',
+      fields: '格式：[前缀_]字段名=类型，前缀 key_ 表示主键，language_ 表示多语言字段。',
+      versionRange: '左闭右开 [min, max)。1.0 → 从 1.0 起永久生效，1.0~2.5 → 仅该区间生效，空值 → 几乎不导出。',
+      routes: 'roads_0 为总开关，roads_N 为地区专属线路。值：1=启用，0/空=禁用，版本区间=条件启用。',
+    },
+    terms: {
+      table: '表',
+      version: '版本',
+      versionNumber: '版本号',
+      route: '线路',
+      operator: '操作员',
+      export: '导出',
+      validate: '校验',
+      preview: '预览',
+      git: 'Git',
+      outputDir: '导出目录',
+    },
+  },
 };
