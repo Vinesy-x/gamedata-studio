@@ -62,9 +62,6 @@ export class ExportWriter {
     manifest: HashManifest,
     englishName: string
   ): boolean {
-    // GameConfig 总是判定为变更（含动态版本号注入）
-    if (englishName === 'GameConfig') return true;
-
     const oldEntry = manifest[englishName];
     if (!oldEntry) return true;
 
