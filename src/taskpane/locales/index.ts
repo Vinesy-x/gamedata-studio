@@ -6,6 +6,7 @@ import { defaultText } from './default';
 import { spaceText } from './space';
 import { cuteText } from './cute';
 import { cyberText } from './cyber';
+import { pixelText } from './pixel';
 
 export type { ThemeTextMap };
 
@@ -16,6 +17,7 @@ const textMap: Record<ThemeMode, ThemeTextMap> = {
   game: spaceText,
   cute: cuteText,
   cyber: cyberText,
+  pixel: pixelText,
 };
 
 /** 获取当前主题的文本字典。组件中直接 `const t = useThemeText()` 使用。 */
@@ -53,6 +55,14 @@ export const themeExtraData = {
     xpTotal: (xp: number) => `TOTAL_EXP: ${xp}`,
     progressLabel: (done: number, total: number) => `SCAN  ${done}/${total}`,
     previewRank: 'S+',
+  },
+  pixel: {
+    ruleXp: [50, 75, 30, 40, 60, 25, 35] as const,
+    levelLabel: (lv: number) => `LV.${lv}  PLAYER_1`,
+    resultXp: (n: number) => `+${n} PTS`,
+    xpTotal: (xp: number) => `SCORE: ${xp}`,
+    progressLabel: (done: number, total: number) => `PROGRESS  ${done}/${total}`,
+    previewRank: 'SS',
   },
 } as const;
 

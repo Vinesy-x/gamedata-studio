@@ -4,11 +4,11 @@ import { createContext, useState, useCallback, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FluentProvider } from '@fluentui/react-components';
 import { App } from './App';
-import { gdsLightTheme, gdsDarkTheme, gdsGameTheme, gdsCuteTheme, gdsCyberTheme } from './theme';
+import { gdsLightTheme, gdsDarkTheme, gdsGameTheme, gdsCuteTheme, gdsCyberTheme, gdsPixelTheme } from './theme';
 
-export type ThemeMode = 'light' | 'dark' | 'game' | 'cute' | 'cyber';
+export type ThemeMode = 'light' | 'dark' | 'game' | 'cute' | 'cyber' | 'pixel';
 
-const THEME_ORDER: ThemeMode[] = ['light', 'dark', 'game', 'cute', 'cyber'];
+const THEME_ORDER: ThemeMode[] = ['light', 'dark', 'game', 'cute', 'cyber', 'pixel'];
 
 const themeMap = {
   light: gdsLightTheme,
@@ -16,6 +16,7 @@ const themeMap = {
   game: gdsGameTheme,
   cute: gdsCuteTheme,
   cyber: gdsCyberTheme,
+  pixel: gdsPixelTheme,
 } as const;
 
 export const ThemeContext = createContext<{
@@ -32,6 +33,7 @@ const THEME_OPTIONS: { mode: ThemeMode; icon: string; label: string; desc: strin
   { mode: 'game', icon: '🚀', label: '飞船航行', desc: '星际冒险风格', gradient: 'linear-gradient(135deg, #7C3AED, #06B6D4)' },
   { mode: 'cute', icon: '♡', label: '二次元冒险', desc: '可爱粉色风格', gradient: 'linear-gradient(135deg, #F48CC8, #A855F7)' },
   { mode: 'cyber', icon: '//>', label: '赛博朋克', desc: '霓虹暗夜风格', gradient: 'linear-gradient(135deg, #FF2D95, #00D4FF)' },
+  { mode: 'pixel', icon: '8B', label: '像素复古', desc: '终端绿+琥珀黄', gradient: 'linear-gradient(135deg, #39FF14, #FFB000)' },
 ];
 
 function ThemePicker({ onSelect }: { onSelect: (mode: ThemeMode) => void }) {
