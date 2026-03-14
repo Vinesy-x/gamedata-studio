@@ -158,6 +158,14 @@ export const gdsTokens = {
 } as const;
 
 // --- Game Text Mapping (飞船航行主题) ---
+//
+// 核心概念映射:
+//   版本(version) → 航线    版本名 → 航线名    版本号 → 航线编号
+//   线路(roads_X) → 航段    序列号 → 航班号
+//   表(table)     → 设备    操作员 → 舰长
+//   导出          → 发射    校验 → 维修    预览 → 试飞
+//   Git           → 星际传送
+//
 export const gameText = {
   // Tab names
   tabExport: '发射',
@@ -165,14 +173,15 @@ export const gameText = {
   tabValidate: '维修',
   tabPreview: '试飞',
 
-  // ExportTab
+  // ExportTab — 发射准备
   sectionTitle: '发射准备',
   exportBtn: '发射！',
+  exportingBtn: '发射中...',
   gitBtn: '星际传送',
   resultSuccess: '航行成功！',
   resultFail: '发射失败',
   resultXp: (n: number) => `+${n} 航程`,
-  statFiles: (n: number) => `${n} 个舱段`,
+  statFiles: (n: number) => `${n} 个设备`,
   statWarnings: (n: number) => `${n} 个异常`,
   statErrors: (n: number) => `${n} 个故障`,
   levelLabel: (lv: number) => `LV.${lv}  星际领航员`,
@@ -183,32 +192,45 @@ export const gameText = {
     operator: '舰长',
     monitor: '雷达监听',
     outputDir: '着陆坐标',
+    noOutputDir: '点击设定着陆坐标',
+    monitoring: '扫描中',
+    monitorExporting: '协同发射中...',
+    monitorOff: '雷达关闭',
   },
 
-  // ManageTab
+  // ManageTab — 舰桥
   manageSubNav: ['舰桥指挥', '设备库', '组装'] as const,
   manageLabels: {
     gitTemplate: '传送协议',
     staff: '船员编制',
-    versionList: '设备列表',
-    tableCount: (n: number) => `设备列表 (${n})`,
-    colVersion: '版本名',
-    colRoute: '航线',
+    versionList: '航线列表',
+    tableCount: (n: number) => `航线列表 (${n})`,
+    colVersion: '航线名',
+    colRoute: '航段',
     colGitDir: '传送坐标',
+    syncRoutes: '同步航段',
+    addVersion: '添加航线',
+    tableList: '设备列表',
+    tableListCount: (n: number) => `设备列表 (${n})`,
+    addTable: '装载设备',
   },
 
-  // ValidationPanel
+  // ValidationPanel — 维修
   validationTitle: '维修日志',
   validationScope: ['当前设备', '全部设备'] as const,
   validationRun: '开始检修',
+  validationRunning: '检修中...',
   validationProgress: (done: number, total: number) => `检修进度  ${done}/${total}`,
   validationXpTotal: (xp: number) => `总经验值: ${xp}`,
   ruleXp: [50, 75, 30, 40, 60, 25, 35] as const,
+  validationEmpty: '选择设备和检修项后，点击「开始检修」',
 
-  // PreviewPanel
-  previewTitle: '选择关卡',
-  previewBtn: (n: number) => `开始战斗 (${n}张表)`,
-  previewColHeaders: ['设备名', '行数', '分数'] as const,
-  previewStats: '战斗统计',
+  // PreviewPanel — 试飞
+  previewTitle: '航线预览',
+  previewBtn: (n: number) => `点火 (${n}台设备)`,
+  previewRunning: '点火中...',
+  previewColHeaders: ['设备名', '载荷', '状态'] as const,
+  previewStats: '试飞报告',
   previewRank: 'S',
+  previewEmpty: '选择航线后，点击「点火」开始试飞',
 } as const;

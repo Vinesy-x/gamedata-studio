@@ -696,7 +696,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
           onClick={handleRunValidation}
           disabled={isRunning || enabledRules.size === 0}
         >
-          {isRunning ? '校验中...' : isGame ? gameText.validationRun : '运行校验'}
+          {isRunning ? (isGame ? gameText.validationRunning : '校验中...') : isGame ? gameText.validationRun : '运行校验'}
         </Button>
       </div>
 
@@ -786,7 +786,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
         <div className={styles.emptyState}>
           <SearchRegular className={styles.emptyIcon} />
           <Text className={styles.emptyText}>
-            选择校验范围和规则后，点击「运行校验」
+            {isGame ? gameText.validationEmpty : '选择校验范围和规则后，点击「运行校验」'}
           </Text>
         </div>
       )}

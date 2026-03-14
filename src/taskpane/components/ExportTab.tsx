@@ -654,18 +654,18 @@ export function ExportTab({
               {monitorStatus === 'watching' && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: gdsTokens.success.icon }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: gdsTokens.success.icon, display: 'inline-block' }} />
-                  监听中
+                  {isGame ? gameText.configLabels.monitoring : '监听中'}
                 </span>
               )}
               {monitorStatus === 'exporting' && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: tokens.colorBrandForeground1 }}>
                   <Spinner size="extra-tiny" />
-                  正在协同导出...
+                  {isGame ? gameText.configLabels.monitorExporting : '正在协同导出...'}
                 </span>
               )}
               {monitorStatus === 'idle' && !monitorEnabled && (
                 <span style={{ fontSize: '11px', color: tokens.colorNeutralForeground4 }}>
-                  已关闭
+                  {isGame ? gameText.configLabels.monitorOff : '已关闭'}
                 </span>
               )}
             </div>
@@ -679,7 +679,7 @@ export function ExportTab({
             ) : (
               <span className={styles.configValueEmpty} onClick={onNavigateToManage}>
                 <FolderOpenRegular fontSize={12} />
-                点击前往配置
+                {isGame ? gameText.configLabels.noOutputDir : '点击前往配置'}
               </span>
             )}
           </div>
@@ -697,7 +697,11 @@ export function ExportTab({
             disabled={isExporting || !outputDir}
             size="large"
           >
-            {isExporting ? '导出中...' : !outputDir ? '请先选择导出目录' : isGame ? gameText.exportBtn : '开始导出'}
+            {isExporting
+              ? (isGame ? gameText.exportingBtn : '导出中...')
+              : !outputDir
+                ? (isGame ? '请先设定着陆坐标' : '请先选择导出目录')
+                : isGame ? gameText.exportBtn : '开始导出'}
           </Button>
           <Button
             className={styles.gitBtn}

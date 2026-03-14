@@ -496,7 +496,7 @@ function ConfigSubPage({ config, onReload, styles }: {
               onClick={handleSyncLines}
               disabled={syncing}
             >
-              {syncing ? '同步中...' : '同步线路'}
+              {syncing ? '同步中...' : isGame ? gameText.manageLabels.syncRoutes : '同步线路'}
             </Button>
             <Button
               icon={<AddRegular />}
@@ -505,7 +505,7 @@ function ConfigSubPage({ config, onReload, styles }: {
               onClick={() => setAddingVersion(true)}
               disabled={addingVersion}
             >
-              添加
+              {isGame ? gameText.manageLabels.addVersion : '添加'}
             </Button>
           </div>
         </div>

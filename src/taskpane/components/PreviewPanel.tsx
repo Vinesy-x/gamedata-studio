@@ -364,7 +364,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
           {isPreviewing ? (
             <>
               <Spinner size="tiny" style={{ marginRight: 6 }} />
-              预览中...
+              {isGame ? gameText.previewRunning : '预览中...'}
             </>
           ) : (
             isGame ? gameText.previewBtn(outputTableNames.size) : `预览 (${outputTableNames.size} 张表)`
