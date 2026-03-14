@@ -183,7 +183,9 @@ export function App() {
     setExportResult(result);
     setIsExporting(false);
     setProgress(null);
-  }, []);
+    // 重新加载配置以更新序列号等导出后变化的字段
+    loadConfig();
+  }, [loadConfig]);
 
   // 协同导出触发回调
   const handleCollabTrigger = useCallback(async (params: CollabTriggerParams) => {

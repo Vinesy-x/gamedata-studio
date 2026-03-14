@@ -12,12 +12,8 @@ import { ErrorHandler } from '../utils/ErrorHandler';
 import { excelHelper, isExcelError } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
 import { StudioConfigStore } from '../v2/StudioConfigStore';
-import { SHEET_CONFIG } from '../v2/TemplateFactory';
 
 const MANIFEST_FILE = '_manifest.json';
-
-/** 系统表不参与导出（内容会在导出过程中变化，导致哈希永远不同） */
-const SYSTEM_TABLES = new Set([SHEET_CONFIG, '表名对照', '配置设置表', '表格输出']);
 
 export type ProgressCallback = (progress: ExportProgress) => void;
 
@@ -148,12 +144,6 @@ export class ExportJob {
         tableIndex++;
         const tableInfo = config.tablesToProcess.get(chineseName);
         if (!tableInfo) continue;
-
-        // 跳过系统表（内容在导出过程中会变化）
-        if (SYSTEM_TABLES.has(chineseName) || SYSTEM_TABLES.has(tableInfo.englishName)) {
-          logger.info(`跳过系统表 ${chineseName}`);
-          continue;
-        }
 
         const englishName = tableInfo.englishName;
         this.emitProgress(5 + tableIndex, totalSteps, `正在筛选 ${chineseName} (${tableIndex}/${totalTables})...`, chineseName);
