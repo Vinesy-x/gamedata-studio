@@ -44,7 +44,7 @@ module.exports = async (env, options) => {
             loader: "babel-loader",
             options: {
               presets: [
-                "@babel/preset-env",
+                ["@babel/preset-env", { modules: false }],
                 ["@babel/preset-react", { runtime: "automatic" }],
                 "@babel/preset-typescript",
               ],
