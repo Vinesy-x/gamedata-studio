@@ -5,6 +5,7 @@ import type { ThemeMode } from '../index';
 import { defaultText } from './default';
 import { spaceText } from './space';
 import { cuteText } from './cute';
+import { cyberText } from './cyber';
 
 export type { ThemeTextMap };
 
@@ -14,6 +15,7 @@ const textMap: Record<ThemeMode, ThemeTextMap> = {
   dark: defaultText,
   game: spaceText,
   cute: cuteText,
+  cyber: cyberText,
 };
 
 /** 获取当前主题的文本字典。组件中直接 `const t = useThemeText()` 使用。 */
@@ -43,6 +45,14 @@ export const themeExtraData = {
     xpTotal: (xp: number) => `总经验值: ${xp} ♡`,
     progressLabel: (done: number, total: number) => `任务进度 ✿  ${done}/${total}`,
     previewRank: 'S☆',
+  },
+  cyber: {
+    ruleXp: [50, 75, 30, 40, 60, 25, 35] as const,
+    levelLabel: (lv: number) => `LV.${lv}  DATA_HACKER`,
+    resultXp: (n: number) => `+${n} EXP`,
+    xpTotal: (xp: number) => `TOTAL_EXP: ${xp}`,
+    progressLabel: (done: number, total: number) => `SCAN  ${done}/${total}`,
+    previewRank: 'S+',
   },
 } as const;
 
