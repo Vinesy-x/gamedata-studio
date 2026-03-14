@@ -19,7 +19,8 @@ import {
 } from '@fluentui/react-icons';
 import { Config } from '../../types/config';
 import { VersionPreviewer, PreviewResult } from '../../v3/VersionPreviewer';
-import { gdsTokens, gameText } from '../theme';
+import { gdsTokens } from '../theme';
+import { useThemeText } from '../locales';
 import { ThemeContext } from '../index';
 
 const useStyles = makeStyles({
@@ -186,6 +187,7 @@ interface PreviewPanelProps {
 export function PreviewPanel({ config }: PreviewPanelProps) {
   const { mode: themeMode } = useContext(ThemeContext);
   const isGame = themeMode === 'game';
+  const t = useThemeText();
   const styles = useStyles();
 
   // 版本选择
@@ -316,7 +318,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
     <div className={styles.container}>
       {/* 版本选择 */}
       <div className={styles.configSection}>
-        <Text className={styles.sectionTitle}>{isGame ? gameText.previewTitle : '版本预览'}</Text>
+        <Text className={styles.sectionTitle}>{t.preview.title}</Text>
         <div className={styles.fieldRow}>
           <span className={styles.fieldLabel}>版本</span>
           <Dropdown
@@ -364,10 +366,10 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
           {isPreviewing ? (
             <>
               <Spinner size="tiny" style={{ marginRight: 6 }} />
-              {isGame ? gameText.previewRunning : '预览中...'}
+              {t.preview.runningBtn}
             </>
           ) : (
-            isGame ? gameText.previewBtn(outputTableNames.size) : `预览 (${outputTableNames.size} 张表)`
+            t.preview.runBtn(outputTableNames.size)
           )}
         </Button>
       </div>
@@ -377,7 +379,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
         <div className={`${styles.tableSection} ${styles.fadeIn}`}>
           <div className={styles.tableHeader}>
             <Text className={styles.sectionTitle}>
-              {isGame ? gameText.previewStats : '预览结果'} ({results.length})
+              {t.preview.statsTitle} ({results.length})
             </Text>
             <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
               <Button
@@ -404,7 +406,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
           <table className={styles.summaryTable}>
             <thead>
               <tr>
-                <th className={styles.th}>{isGame ? gameText.previewColHeaders[0] : '表名'}</th>
+                <th className={styles.th}>{t.preview.colHeaders[0]}</th>
                 <th className={`${styles.th} ${styles.tdNumber}`}>原始行列</th>
                 <th className={`${styles.th} ${styles.tdNumber}`}>筛选行列</th>
                 <th className={`${styles.th} ${styles.tdNumber}`}>排除行列</th>

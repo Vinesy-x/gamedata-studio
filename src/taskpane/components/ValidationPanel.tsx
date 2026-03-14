@@ -26,7 +26,8 @@ import { ValidationNavigator } from '../../v3/ValidationNavigator';
 import { VersionFilter } from '../../engine/VersionFilter';
 import { StudioConfigStore, ValidationConfig, createDefaultValidationConfig } from '../../v2/StudioConfigStore';
 import { configManager } from '../../v2/ConfigManager';
-import { gdsTokens, gameText } from '../theme';
+import { gdsTokens } from '../theme';
+import { useThemeText, gameData } from '../locales';
 import { ThemeContext } from '../index';
 
 // ─── 校验规则定义 ───────────────────────────────────────
@@ -328,6 +329,7 @@ interface ValidationPanelProps {
 export function ValidationPanel({ config }: ValidationPanelProps) {
   const { mode: themeMode } = useContext(ThemeContext);
   const isGame = themeMode === 'game';
+  const t = useThemeText();
   const styles = useStyles();
 
   // 校验范围
@@ -561,7 +563,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <SearchRegular fontSize={14} />
-          <Text className={styles.sectionTitle}>{isGame ? gameText.validationTitle : '校验范围'}</Text>
+          <Text className={styles.sectionTitle}>{t.validate.title}</Text>
         </div>
         <div className={styles.scopeRow}>
           <Button
@@ -571,7 +573,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
             onClick={() => setScope('active')}
             disabled={isRunning}
           >
-            {isGame ? gameText.validationScope[0] : '当前表'}
+            {t.validate.scope[0]}
           </Button>
           <Button
             className={scope === 'registered' ? styles.scopeBtnActive : styles.scopeBtn}
@@ -580,7 +582,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
             onClick={() => setScope('registered')}
             disabled={isRunning}
           >
-            {isGame ? gameText.validationScope[1] : '已注册表'}
+            {t.validate.scope[1]}
           </Button>
         </div>
       </div>
@@ -590,14 +592,14 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       {/* 校验规则 */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <Text className={styles.sectionTitle}>{isGame ? gameText.validationTitle : '校验规则'}</Text>
+          <Text className={styles.sectionTitle}>{t.validate.title}</Text>
           <Button
             appearance="transparent"
             size="small"
             onClick={toggleAllRules}
             style={{ minWidth: 'auto', padding: '0 4px', fontSize: '11px' }}
           >
-            {enabledRules.size === VALIDATION_RULES.length ? '取消全选' : '全选'}
+            {enabledRules.size === VALIDATION_RULES.length ? t.validate.deselectAll : t.validate.selectAll}
           </Button>
         </div>
         <div className={styles.rulesGrid}>
@@ -623,7 +625,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
               )}
               {isGame && (
                 <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: gdsTokens.game.xpCyan }}>
-                  +{gameText.ruleXp[idx] ?? 30} 经验
+                  +{gameData.ruleXp[idx] ?? 30} 经验
                 </span>
               )}
             </div>
@@ -679,11 +681,11 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
         {isGame && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, fontSize: 11 }}>
             <span style={{ color: gdsTokens.game.textMuted }}>
-              {gameText.validationProgress(enabledRules.size, VALIDATION_RULES.length)}
+              {gameData.progressLabel(enabledRules.size, VALIDATION_RULES.length)}
             </span>
             <span style={{ color: gdsTokens.game.xpColor, fontWeight: 700 }}>
-              {gameText.validationXpTotal(
-                VALIDATION_RULES.reduce((sum, r, i) => enabledRules.has(r.key) ? sum + (gameText.ruleXp[i] ?? 30) : sum, 0)
+              {gameData.xpTotal(
+                VALIDATION_RULES.reduce((sum, r, i) => enabledRules.has(r.key) ? sum + (gameData.ruleXp[i] ?? 30) : sum, 0)
               )}
             </span>
           </div>
@@ -696,7 +698,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
           onClick={handleRunValidation}
           disabled={isRunning || enabledRules.size === 0}
         >
-          {isRunning ? (isGame ? gameText.validationRunning : '校验中...') : isGame ? gameText.validationRun : '运行校验'}
+          {isRunning ? t.validate.runningBtn : t.validate.runBtn}
         </Button>
       </div>
 
@@ -786,7 +788,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
         <div className={styles.emptyState}>
           <SearchRegular className={styles.emptyIcon} />
           <Text className={styles.emptyText}>
-            {isGame ? gameText.validationEmpty : '选择校验范围和规则后，点击「运行校验」'}
+            {t.validate.emptyHint}
           </Text>
         </div>
       )}

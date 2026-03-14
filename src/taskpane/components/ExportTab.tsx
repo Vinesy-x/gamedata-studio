@@ -46,7 +46,8 @@ import { excelHelper } from '../../utils/ExcelHelper';
 import { configManager } from '../../v2/ConfigManager';
 import { operatorIdentity } from '../../v2/OperatorIdentity';
 import { logger } from '../../utils/Logger';
-import { gdsTokens, gameText } from '../theme';
+import { gdsTokens } from '../theme';
+import { useThemeText, gameData } from '../locales';
 
 const useStyles = makeStyles({
   container: {
@@ -425,6 +426,7 @@ export function ExportTab({
   // 跟踪导出完成动画的触发时机
   const [showCompletionAnim, setShowCompletionAnim] = useState(false);
   const isGame = mode === 'game';
+  const t = useThemeText();
   const prevExportingRef = useRef(isExporting);
   // Git 按钮错误提示
   const [gitError, setGitError] = useState(false);
@@ -568,7 +570,7 @@ export function ExportTab({
     <div className={styles.container}>
       {/* 当前配置 */}
       <div className={styles.configSection}>
-        <div className={styles.sectionTitle}>{isGame ? gameText.sectionTitle : 'Export Settings'}</div>
+        <div className={styles.sectionTitle}>{t.export.sectionTitle}</div>
         {isGame && (
           <div style={{
             background: gdsTokens.game.xpBarBg,
@@ -581,7 +583,7 @@ export function ExportTab({
             border: gdsTokens.game.xpBarBorder,
           }}>
             <span style={{ fontSize: 11, color: gdsTokens.game.xpPurple, fontWeight: 700, fontFamily: gdsTokens.fontMono, whiteSpace: 'nowrap' }}>
-              {gameText.levelLabel(12)}
+              {gameData.levelLabel(12)}
             </span>
             <div style={{
               flex: 1,
@@ -605,7 +607,7 @@ export function ExportTab({
           backgroundColor: gdsTokens.game.cardBg,
         } : undefined}>
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>{isGame ? gameText.configLabels.version : '输出版本'}</span>
+            <span className={styles.configLabel}>{t.export.config.version}</span>
             <Dropdown
               size="small"
               value={config.outputSettings.versionName}
@@ -619,7 +621,7 @@ export function ExportTab({
             </Dropdown>
           </div>
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>{isGame ? gameText.configLabels.versionNumber : '版本号'}</span>
+            <span className={styles.configLabel}>{t.export.config.versionNumber}</span>
             <Input
               size="small"
               value={localVersionNumber}
@@ -630,14 +632,14 @@ export function ExportTab({
             />
           </div>
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>{isGame ? gameText.configLabels.sequence : '序列号'}</span>
+            <span className={styles.configLabel}>{t.export.config.sequence}</span>
             <span className={styles.configValue}>
               {config.outputSettings.versionSequence}
             </span>
           </div>
           {currentOperator && (
             <div className={styles.configRow}>
-              <span className={styles.configLabel}>{isGame ? gameText.configLabels.operator : '操作员'}</span>
+              <span className={styles.configLabel}>{t.export.config.operator}</span>
               <span className={styles.configValue}>
                 <PersonRegular fontSize={12} style={{ marginRight: 3 }} />
                 {currentOperator}
@@ -645,7 +647,7 @@ export function ExportTab({
             </div>
           )}
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>{isGame ? gameText.configLabels.monitor : '协同监听'}</span>
+            <span className={styles.configLabel}>{t.export.config.monitor}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Switch
                 checked={monitorEnabled}
@@ -655,24 +657,24 @@ export function ExportTab({
               {monitorStatus === 'watching' && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: gdsTokens.success.icon }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: gdsTokens.success.icon, display: 'inline-block' }} />
-                  {isGame ? gameText.configLabels.monitoring : '监听中'}
+                  {t.export.config.monitoring}
                 </span>
               )}
               {monitorStatus === 'exporting' && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: tokens.colorBrandForeground1 }}>
                   <Spinner size="extra-tiny" />
-                  {isGame ? gameText.configLabels.monitorExporting : '正在协同导出...'}
+                  {t.export.config.monitorExporting}
                 </span>
               )}
               {monitorStatus === 'idle' && !monitorEnabled && (
                 <span style={{ fontSize: '11px', color: tokens.colorNeutralForeground4 }}>
-                  {isGame ? gameText.configLabels.monitorOff : '已关闭'}
+                  {t.export.config.monitorOff}
                 </span>
               )}
             </div>
           </div>
           <div className={styles.configRow} style={{ borderBottom: 'none' }}>
-            <span className={styles.configLabel}>{isGame ? gameText.configLabels.outputDir : '导出目录'}</span>
+            <span className={styles.configLabel}>{t.export.config.outputDir}</span>
             {outputDir ? (
               <span className={styles.configValuePath} onClick={onNavigateToManage} style={{ cursor: 'pointer' }}>
                 {outputDir}
@@ -680,7 +682,7 @@ export function ExportTab({
             ) : (
               <span className={styles.configValueEmpty} onClick={onNavigateToManage}>
                 <FolderOpenRegular fontSize={12} />
-                {isGame ? gameText.configLabels.noOutputDir : '点击前往配置'}
+                {t.export.config.noOutputDir}
               </span>
             )}
           </div>
@@ -698,11 +700,7 @@ export function ExportTab({
             disabled={isExporting || !outputDir}
             size="large"
           >
-            {isExporting
-              ? (isGame ? gameText.exportingBtn : '导出中...')
-              : !outputDir
-                ? (isGame ? '请先设定着陆坐标' : '请先选择导出目录')
-                : isGame ? gameText.exportBtn : '开始导出'}
+            {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
           </Button>
           <Button
             className={styles.gitBtn}
@@ -713,7 +711,7 @@ export function ExportTab({
             size="large"
             style={gitError ? { color: tokens.colorPaletteRedForeground1, borderColor: tokens.colorPaletteRedBorder1 } : undefined}
           >
-            {gitError ? 'Git 失败' : isGame ? gameText.gitBtn : 'Git'}
+            {gitError ? t.export.gitFailBtn : t.export.gitBtn}
           </Button>
         </div>
 
@@ -749,10 +747,8 @@ export function ExportTab({
                 )}
                 <span className={styles.resultStatusText} style={isGame ? { color: gdsTokens.game.xpColor } : undefined}>
                   {visibleResult.success
-                    ? (isGame
-                        ? (visibleResult.changedTables > 0 ? gameText.resultSuccess : '无任何修改')
-                        : (visibleResult.changedTables > 0 ? '导出成功' : '无任何修改'))
-                    : (isGame ? gameText.resultFail : '导出失败')}
+                    ? (visibleResult.changedTables > 0 ? t.export.resultSuccess : t.export.resultNoChange)
+                    : t.export.resultFail}
                 </span>
                 <span className={styles.resultDuration}>
                   {visibleResult.duration.toFixed(1)}s
@@ -761,7 +757,7 @@ export function ExportTab({
                   <>
                     <StarRegular style={{ fontSize: 16, color: gdsTokens.game.xpColor }} />
                     <span style={{ color: gdsTokens.game.xpCyan, fontSize: 11, fontWeight: 700 }}>
-                      {gameText.resultXp(visibleResult.modifiedFiles.length * 2 + visibleResult.changedTables * 5)}
+                      {gameData.resultXp(visibleResult.modifiedFiles.length * 2 + visibleResult.changedTables * 5)}
                     </span>
                   </>
                 )}
@@ -769,22 +765,22 @@ export function ExportTab({
               <div className={styles.resultStats}>
                 {visibleResult.modifiedFiles.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statFiles}`}>
-                    {isGame ? gameText.statFiles(visibleResult.modifiedFiles.length) : `${visibleResult.modifiedFiles.length} files`}
+                    {t.export.statFiles(visibleResult.modifiedFiles.length)}
                   </span>
                 )}
                 {warnings.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statWarnings}`}>
-                    {isGame ? gameText.statWarnings(warnings.length) : `${warnings.length} warnings`}
+                    {t.export.statWarnings(warnings.length)}
                   </span>
                 )}
                 {errors.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statErrors}`}>
-                    {isGame ? gameText.statErrors(errors.length) : `${errors.length} errors`}
+                    {t.export.statErrors(errors.length)}
                   </span>
                 )}
                 {errors.length === 0 && (
                   <span className={`${styles.statItem} ${styles.statErrors}`} style={{ color: gdsTokens.success.text }}>
-                    {isGame ? gameText.statErrors(0) : '0 errors'}
+                    {t.export.statErrors(0)}
                   </span>
                 )}
               </div>
