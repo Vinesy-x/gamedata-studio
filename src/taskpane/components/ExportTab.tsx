@@ -55,32 +55,36 @@ const useStyles = makeStyles({
   },
   // 当前配置区域
   configSection: {
-    padding: '14px 14px 10px',
+    padding: '12px 14px 8px',
+  },
+  sectionTitle: {
+    fontSize: '10px',
+    fontWeight: 600,
+    color: tokens.colorNeutralForeground3,
+    letterSpacing: '0.5px',
+    marginBottom: '8px',
+    textTransform: 'uppercase' as const,
   },
   configCard: {
     backgroundColor: tokens.colorNeutralBackground1,
     borderRadius: '8px',
-    padding: '0',
+    padding: '10px 12px',
     display: 'flex',
     flexDirection: 'column',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
+    gap: '10px',
+    boxShadow: gdsTokens.shadow.sm,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
-    overflow: 'hidden' as const,
   },
   configRow: {
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'space-between',
     fontSize: '12px',
-    padding: '8px 12px',
-    borderBottom: `1px solid ${tokens.colorNeutralStroke3}`,
-    ':last-child': {
-      borderBottom: 'none',
-    },
   },
   configLabel: {
-    color: tokens.colorNeutralForeground3,
+    color: tokens.colorNeutralForeground1,
     minWidth: '60px',
-    fontSize: '11px',
+    fontSize: '12px',
   },
   configValue: {
     fontWeight: 600,
@@ -139,13 +143,18 @@ const useStyles = makeStyles({
   // 结果摘要行：成功/失败 + 耗时 + 统计图标
   resultSummary: {
     display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
+    flexDirection: 'column',
+    gap: '6px',
     padding: '10px 12px',
     backgroundColor: tokens.colorNeutralBackground1,
     borderRadius: '8px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
+    boxShadow: gdsTokens.shadow.sm,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  resultSummaryRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
   },
   resultStatusIcon: {
     fontSize: '18px',
@@ -168,9 +177,7 @@ const useStyles = makeStyles({
   resultStats: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
-    marginLeft: 'auto',
-    flexShrink: 0,
+    gap: '12px',
   },
   statItem: {
     display: 'flex',
@@ -195,7 +202,7 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
+    boxShadow: gdsTokens.shadow.sm,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   fileList: {
@@ -557,6 +564,7 @@ export function ExportTab({
     <div className={styles.container}>
       {/* 当前配置 */}
       <div className={styles.configSection}>
+        <div className={styles.sectionTitle}>Export Settings</div>
         <div className={styles.configCard}>
           <div className={styles.configRow}>
             <span className={styles.configLabel}>输出版本</span>
@@ -683,38 +691,42 @@ export function ExportTab({
           <div className={`${styles.resultSection} ${styles.resultFadeIn}`}>
             {/* 摘要行：状态 + 耗时 + 统计 */}
             <div className={styles.resultSummary}>
-              {visibleResult.success ? (
-                <CheckmarkCircleRegular
-                  className={`${styles.resultStatusIcon} ${styles.successColor} ${showCompletionAnim ? styles.successCheckAnim : ''}`}
-                />
-              ) : (
-                <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
-              )}
-              <span className={styles.resultStatusText}>
-                {visibleResult.success
-                  ? (visibleResult.changedTables > 0 ? '导出成功' : '无任何修改')
-                  : '导出失败'}
-              </span>
-              <span className={styles.resultDuration}>
-                {visibleResult.duration.toFixed(1)}s
-              </span>
+              <div className={styles.resultSummaryRow}>
+                {visibleResult.success ? (
+                  <CheckmarkCircleRegular
+                    className={`${styles.resultStatusIcon} ${styles.successColor} ${showCompletionAnim ? styles.successCheckAnim : ''}`}
+                  />
+                ) : (
+                  <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
+                )}
+                <span className={styles.resultStatusText}>
+                  {visibleResult.success
+                    ? (visibleResult.changedTables > 0 ? '导出成功' : '无任何修改')
+                    : '导出失败'}
+                </span>
+                <span className={styles.resultDuration}>
+                  {visibleResult.duration.toFixed(1)}s
+                </span>
+              </div>
               <div className={styles.resultStats}>
                 {visibleResult.modifiedFiles.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statFiles}`}>
-                    <DocumentRegular fontSize={13} />
-                    <span className={styles.fileCountBadge}>{visibleResult.modifiedFiles.length}</span>
+                    {visibleResult.modifiedFiles.length} files
                   </span>
                 )}
                 {warnings.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statWarnings}`}>
-                    <WarningRegular fontSize={13} />
-                    {warnings.length}
+                    {warnings.length} warnings
                   </span>
                 )}
                 {errors.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statErrors}`}>
-                    <DismissCircleRegular fontSize={13} />
-                    {errors.length}
+                    {errors.length} errors
+                  </span>
+                )}
+                {errors.length === 0 && (
+                  <span className={`${styles.statItem} ${styles.statErrors}`} style={{ color: gdsTokens.success.text }}>
+                    0 errors
                   </span>
                 )}
               </div>
