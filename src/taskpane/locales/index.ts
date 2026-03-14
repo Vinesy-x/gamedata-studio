@@ -60,10 +60,10 @@ export const themeExtraData = {
   },
   pixel: {
     ruleXp: DEFAULT_RULE_XP,
-    levelLabel: (lv: number) => `LV.${lv}  PLAYER_1`,
-    resultXp: (n: number) => `+${n} PTS`,
+    levelLabel: (lv: number) => `LV.${lv}  像素勇者`,
+    resultXp: (n: number) => `+${n} EXP`,
     xpTotal: (xp: number) => `SCORE: ${xp}`,
-    progressLabel: (done: number, total: number) => `PROGRESS  ${done}/${total}`,
+    progressLabel: (done: number, total: number) => `鉴定进度  ${done}/${total}`,
     previewRank: 'SS',
   },
 } as const;
