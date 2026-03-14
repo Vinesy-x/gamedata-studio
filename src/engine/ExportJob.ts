@@ -156,9 +156,10 @@ export class ExportJob {
           }
 
           const newHash = this.exportWriter.computeDataHash(filtered.data);
+          const oldHash = manifest[englishName] ? (typeof manifest[englishName] === 'string' ? manifest[englishName] : (manifest[englishName] as { hash: string }).hash) : '(无)';
           const hasChanged = this.exportWriter.hasHashChanged(newHash, manifest, englishName);
+          logger.info(`表 ${chineseName} 哈希: ${newHash} vs ${oldHash} → ${hasChanged ? '有变化' : '无变化'}`);
           if (!hasChanged) {
-            logger.info(`表 ${chineseName} 无变化，跳过`);
             continue;
           }
 
