@@ -18,12 +18,12 @@ export const cuteText: ThemeTextMap = {
 
   export: {
     sectionTitle: '冒险准备',
-    exportBtn: '♡ 出发吧~',
+    exportBtn: '出发吧~',
     exportingBtn: '出发中...',
     disabledBtn: '请先设定宝物存放处',
-    gitBtn: '☆ 魔法书架',
+    gitBtn: '魔法书架',
     gitFailBtn: '书架故障了',
-    resultSuccess: '★ 成就解锁!',
+    resultSuccess: '成就解锁!',
     resultNoChange: '什么都没变呢~',
     resultFail: '呜呜，失败了...',
     statFiles: (n) => `${n} 个宝物`,
