@@ -4,9 +4,17 @@ import { createContext, useState, useCallback, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FluentProvider } from '@fluentui/react-components';
 import { App } from './App';
-import { gdsLightTheme, gdsDarkTheme } from './theme';
+import { gdsLightTheme, gdsDarkTheme, gdsGameTheme } from './theme';
 
-type ThemeMode = 'light' | 'dark';
+export type ThemeMode = 'light' | 'dark' | 'game';
+
+const THEME_ORDER: ThemeMode[] = ['light', 'dark', 'game'];
+
+const themeMap = {
+  light: gdsLightTheme,
+  dark: gdsDarkTheme,
+  game: gdsGameTheme,
+} as const;
 
 export const ThemeContext = createContext<{
   mode: ThemeMode;
@@ -18,15 +26,16 @@ const STORAGE_KEY = 'gds-theme';
 function Root() {
   const [mode, setMode] = useState<ThemeMode>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved === 'dark' || saved === 'light') return saved;
+      const saved = localStorage.getItem(STORAGE_KEY) as ThemeMode;
+      if (THEME_ORDER.includes(saved)) return saved;
     } catch { /* ignore */ }
     return 'light';
   });
 
   const toggle = useCallback(() => {
     setMode((prev) => {
-      const next = prev === 'light' ? 'dark' : 'light';
+      const idx = THEME_ORDER.indexOf(prev);
+      const next = THEME_ORDER[(idx + 1) % THEME_ORDER.length];
       try { localStorage.setItem(STORAGE_KEY, next); } catch { /* ignore */ }
       return next;
     });
@@ -36,7 +45,7 @@ function Root() {
 
   return (
     <ThemeContext.Provider value={ctx}>
-      <FluentProvider theme={mode === 'light' ? gdsLightTheme : gdsDarkTheme}>
+      <FluentProvider theme={themeMap[mode]}>
         <App />
       </FluentProvider>
     </ThemeContext.Provider>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import {
   makeStyles,
   tokens,
@@ -34,6 +34,7 @@ import { GitHandler } from '../git/GitHandler';
 import { GitExecutor } from '../git/GitExecutor';
 import { configManager } from '../v2/ConfigManager';
 import { gdsTokens } from './theme';
+import { ThemeContext } from './index';
 
 const useStyles = makeStyles({
   root: {
@@ -145,6 +146,8 @@ const useStyles = makeStyles({
 
 export function App() {
   const styles = useStyles();
+  const { mode: themeMode } = useContext(ThemeContext);
+  const isGame = themeMode === 'game';
   const { config, loading, error, loadConfig } = useConfig();
   const [selectedTab, setSelectedTab] = useState<string>('export');
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
@@ -338,7 +341,7 @@ export function App() {
 
   return (
     <div className={styles.root}>
-      <div className={styles.banner}>
+      <div className={styles.banner} style={isGame ? { backgroundImage: gdsTokens.game.banner } : undefined}>
         <span className={styles.bannerShimmer} />
         <GridRegular className={styles.bannerIcon} />
         <span className={styles.bannerDot} />

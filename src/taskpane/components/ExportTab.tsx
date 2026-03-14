@@ -43,7 +43,7 @@ import { excelHelper } from '../../utils/ExcelHelper';
 import { configManager } from '../../v2/ConfigManager';
 import { operatorIdentity } from '../../v2/OperatorIdentity';
 import { logger } from '../../utils/Logger';
-import { gdsTokens } from '../theme';
+import { gdsTokens, gameText } from '../theme';
 
 const useStyles = makeStyles({
   container: {
@@ -421,6 +421,8 @@ export function ExportTab({
   const [resultDismissed, setResultDismissed] = useState(false);
   // 跟踪导出完成动画的触发时机
   const [showCompletionAnim, setShowCompletionAnim] = useState(false);
+  const { mode: themeMode } = useContext(ThemeContext);
+  const isGame = themeMode === 'game';
   const prevExportingRef = useRef(isExporting);
   // Git 按钮错误提示
   const [gitError, setGitError] = useState(false);
@@ -564,8 +566,42 @@ export function ExportTab({
     <div className={styles.container}>
       {/* 当前配置 */}
       <div className={styles.configSection}>
-        <div className={styles.sectionTitle}>Export Settings</div>
-        <div className={styles.configCard}>
+        <div className={styles.sectionTitle}>{isGame ? gameText.sectionTitle : 'Export Settings'}</div>
+        {isGame && (
+          <div style={{
+            background: gdsTokens.game.levelBg,
+            borderRadius: 6,
+            padding: '6px 12px',
+            marginBottom: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            border: gdsTokens.game.cardBorder,
+          }}>
+            <span style={{ fontSize: 12, color: gdsTokens.game.neonCyan, fontWeight: 700 }}>
+              {gameText.levelLabel(12, '数据导出员')}
+            </span>
+            <div style={{
+              flex: 1,
+              height: 6,
+              borderRadius: 3,
+              background: gdsTokens.game.surfaceGlow,
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                width: '65%',
+                height: '100%',
+                borderRadius: 3,
+                background: gdsTokens.game.progressGradient,
+              }} />
+            </div>
+          </div>
+        )}
+        <div className={styles.configCard} style={isGame ? {
+          border: gdsTokens.game.cardBorder,
+          boxShadow: gdsTokens.game.cardShadow,
+          backgroundColor: gdsTokens.game.cardBg,
+        } : undefined}>
           <div className={styles.configRow}>
             <span className={styles.configLabel}>输出版本</span>
             <Dropdown
@@ -660,7 +696,7 @@ export function ExportTab({
             disabled={isExporting || !outputDir}
             size="large"
           >
-            {isExporting ? '导出中...' : !outputDir ? '请先选择导出目录' : '开始导出'}
+            {isExporting ? '导出中...' : !outputDir ? '请先选择导出目录' : isGame ? gameText.exportBtn : '开始导出'}
           </Button>
           <Button
             className={styles.gitBtn}
@@ -690,7 +726,11 @@ export function ExportTab({
         {visibleResult && !isExporting ? (
           <div className={`${styles.resultSection} ${styles.resultFadeIn}`}>
             {/* 摘要行：状态 + 耗时 + 统计 */}
-            <div className={styles.resultSummary}>
+            <div className={styles.resultSummary} style={isGame ? {
+              border: gdsTokens.game.cardBorder,
+              boxShadow: gdsTokens.game.cardShadow,
+              backgroundColor: gdsTokens.game.cardBg,
+            } : undefined}>
               <div className={styles.resultSummaryRow}>
                 {visibleResult.success ? (
                   <CheckmarkCircleRegular
@@ -701,32 +741,39 @@ export function ExportTab({
                 )}
                 <span className={styles.resultStatusText}>
                   {visibleResult.success
-                    ? (visibleResult.changedTables > 0 ? '导出成功' : '无任何修改')
-                    : '导出失败'}
+                    ? (isGame
+                        ? (visibleResult.changedTables > 0 ? gameText.resultSuccess : '无任何修改')
+                        : (visibleResult.changedTables > 0 ? '导出成功' : '无任何修改'))
+                    : (isGame ? gameText.resultFail : '导出失败')}
                 </span>
                 <span className={styles.resultDuration}>
                   {visibleResult.duration.toFixed(1)}s
                 </span>
+                {isGame && visibleResult.success && (
+                  <span style={{ color: gdsTokens.game.neonGold, fontSize: 11, fontWeight: 600 }}>
+                    {gameText.resultXp(visibleResult.modifiedFiles.length * 2 + visibleResult.changedTables * 5)}
+                  </span>
+                )}
               </div>
               <div className={styles.resultStats}>
                 {visibleResult.modifiedFiles.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statFiles}`}>
-                    {visibleResult.modifiedFiles.length} files
+                    {isGame ? gameText.statFiles(visibleResult.modifiedFiles.length) : `${visibleResult.modifiedFiles.length} files`}
                   </span>
                 )}
                 {warnings.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statWarnings}`}>
-                    {warnings.length} warnings
+                    {isGame ? gameText.statWarnings(warnings.length) : `${warnings.length} warnings`}
                   </span>
                 )}
                 {errors.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statErrors}`}>
-                    {errors.length} errors
+                    {isGame ? gameText.statErrors(errors.length) : `${errors.length} errors`}
                   </span>
                 )}
                 {errors.length === 0 && (
                   <span className={`${styles.statItem} ${styles.statErrors}`} style={{ color: gdsTokens.success.text }}>
-                    0 errors
+                    {isGame ? gameText.statErrors(0) : '0 errors'}
                   </span>
                 )}
               </div>
@@ -837,9 +884,9 @@ export function ExportTab({
             className={styles.helpBtn}
             appearance="transparent"
             size="small"
-            icon={mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
+            icon={mode === 'game' ? <span style={{ fontSize: 14 }}>🎮</span> : mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
             onClick={toggleTheme}
-            title={mode === 'light' ? '切换到深色模式' : '切换到浅色模式'}
+            title={mode === 'light' ? '切换到深色模式' : mode === 'dark' ? '切换到游戏模式' : '切换到浅色模式'}
           />
           <Button
             className={styles.helpBtn}

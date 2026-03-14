@@ -1,12 +1,7 @@
 /**
  * GameData Studio Design Tokens
  *
- * Centralized color tokens for consistent theming across components.
- * Based on PDS (Pencil Design System) with cyan primary + purple accent.
- *
- * Usage:
- *   import { gdsTokens } from '../theme';
- *   backgroundColor: gdsTokens.warning.bg,
+ * Three themes: light (default), dark, game (RPG style)
  */
 
 import { createLightTheme, createDarkTheme, type BrandVariants } from '@fluentui/react-components';
@@ -18,9 +13,9 @@ const gdsBrand: BrandVariants = {
   30: '#004D5C',
   40: '#00677A',
   50: '#007A91',
-  60: '#0891B2',  // primary light
+  60: '#0891B2',
   70: '#0EA5C9',
-  80: '#22D3EE',  // primary dark
+  80: '#22D3EE',
   90: '#67E8F9',
   100: '#A5F3FC',
   110: '#CFFAFE',
@@ -40,9 +35,30 @@ export const gdsDarkTheme = {
   ...createDarkTheme(gdsBrand),
 };
 
+// Game theme: deep purple base with neon overrides
+export const gdsGameTheme = {
+  ...createDarkTheme(gdsBrand),
+  colorNeutralBackground1: '#1A1530',
+  colorNeutralBackground2: '#0D0B1A',
+  colorNeutralBackground3: '#241E3A',
+  colorNeutralForeground1: '#E0E0FF',
+  colorNeutralForeground2: '#B0B0D0',
+  colorNeutralForeground3: '#7A7A9E',
+  colorNeutralForeground4: '#5A5A7E',
+  colorNeutralStroke1: '#3D2E6B',
+  colorNeutralStroke2: '#2E2450',
+  colorNeutralStroke3: '#241E3A',
+  colorBrandBackground: '#00F0FF',
+  colorBrandForeground1: '#00F0FF',
+  colorBrandForeground2: '#BF5AF2',
+  colorNeutralForegroundOnBrand: '#0D0B1A',
+  colorPaletteGreenForeground1: '#00FF88',
+  colorPaletteRedForeground1: '#FF4466',
+  colorPaletteRedBackground1: '#2A0015',
+};
+
 // --- Semantic Color Tokens ---
 export const gdsTokens = {
-  // Banner gradient
   banner: {
     gradient: 'linear-gradient(135deg, #0891B2 0%, #0E7490 40%, #155E75 100%)',
     shimmer: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 45%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 55%, transparent 100%)',
@@ -50,7 +66,6 @@ export const gdsTokens = {
     dotColor: 'rgba(255,255,255,0.25)',
   },
 
-  // Semantic: Success
   success: {
     bg: '#E6F9F0',
     bgDark: '#064E3B',
@@ -60,7 +75,6 @@ export const gdsTokens = {
     icon: '#059669',
   },
 
-  // Semantic: Warning
   warning: {
     bg: '#FFF8E1',
     bgDark: '#78350F',
@@ -71,7 +85,6 @@ export const gdsTokens = {
     itemText: '#6B4000',
   },
 
-  // Semantic: Error
   error: {
     bg: '#FFF5F5',
     bgDark: '#7F1D1D',
@@ -81,7 +94,6 @@ export const gdsTokens = {
     icon: '#DC2626',
   },
 
-  // Semantic: Info
   info: {
     bg: '#E8F4FD',
     bgDark: '#1E3A5F',
@@ -91,24 +103,20 @@ export const gdsTokens = {
     icon: '#2563EB',
   },
 
-  // Accent (Purple)
   accent: {
     light: '#7C3AED',
     dark: '#A78BFA',
     muted: '#EDE9FE',
   },
 
-  // Fonts
   fontMono: '"JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, monospace',
   fontSerif: 'Georgia, "Times New Roman", serif',
 
-  // Card shadows
   shadow: {
     sm: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
     md: '0 4px 6px rgba(0,0,0,0.07)',
   },
 
-  // Badge colors (for validation results)
   badge: {
     error: { bg: '#FDE7E9', text: '#DC2626' },
     warning: { bg: '#FFF4CE', text: '#9D5D00' },
@@ -117,4 +125,60 @@ export const gdsTokens = {
     secondary: { bg: '#F1F5F9', text: '#64748B' },
     new: { bg: '#E8F5FE', text: '#0891B2' },
   },
+
+  // --- Game Theme Extras ---
+  game: {
+    bg: '#0D0B1A',
+    surface: '#1A1530',
+    surfaceGlow: '#241E3A',
+    neonCyan: '#00F0FF',
+    neonPurple: '#BF5AF2',
+    neonGreen: '#00FF88',
+    neonOrange: '#FF8C00',
+    neonPink: '#FF4466',
+    neonGold: '#FFD700',
+    textPrimary: '#E0E0FF',
+    textSecondary: '#B0B0D0',
+    textMuted: '#7A7A9E',
+    border: '#3D2E6B',
+    borderGlow: '0 0 8px rgba(191,90,242,0.3)',
+    cardBg: '#1A1530',
+    cardBorder: '1px solid #3D2E6B',
+    cardShadow: '0 0 12px rgba(191,90,242,0.15), 0 2px 8px rgba(0,0,0,0.3)',
+    banner: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 30%, #0891B2 70%, #06B6D4 100%)',
+    progressGradient: 'linear-gradient(90deg, #BF5AF2, #00F0FF)',
+    buttonGradient: 'linear-gradient(135deg, #00C9DB 0%, #00F0FF 100%)',
+    xpColor: '#FFD700',
+    levelBg: 'linear-gradient(90deg, #3D2E6B, #241E3A)',
+  },
+} as const;
+
+// --- Game Text Mapping (游戏文案) ---
+export const gameText = {
+  // ExportTab
+  sectionTitle: '⚔ 任务简报',
+  exportBtn: '⚡ 启动!',
+  gitBtn: '☁ 代码仓库',
+  resultSuccess: '★ 成就解锁!',
+  resultFail: '✗ 任务失败',
+  resultXp: (n: number) => `+${n} 经验`,
+  statFiles: (n: number) => `${n} 个文件`,
+  statWarnings: (n: number) => `${n} 个警告`,
+  statErrors: (n: number) => `${n} 个错误`,
+  levelLabel: (lv: number, title: string) => `LV.${lv}  ${title}`,
+  // ManageTab
+  manageSubNav: ['公会设置', '装备库', '锻造'] as const,
+  // ValidationPanel
+  validationTitle: '任务日志',
+  validationScope: ['当前表', '已注册表'] as const,
+  validationRun: '▶ 开始任务',
+  validationProgress: (done: number, total: number) => `任务进度  ${done}/${total}`,
+  validationXpTotal: (xp: number) => `总经验值: ${xp}`,
+  ruleXp: [50, 75, 30, 40, 60, 25, 35] as const,
+  // PreviewPanel
+  previewTitle: '选择关卡',
+  previewBtn: (n: number) => `开始战斗 (${n}张表)`,
+  previewColHeaders: ['表名', '行数', '分数'] as const,
+  previewStats: '战斗统计',
+  previewRank: 'S',
 } as const;
