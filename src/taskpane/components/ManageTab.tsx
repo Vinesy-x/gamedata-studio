@@ -453,9 +453,9 @@ function ConfigSubPage({ config, onReload, styles }: {
   return (
     <>
       <div className={styles.sectionHeader}>
-        <Text className={styles.sectionTitle}>配置管理</Text>
+        <Text className={styles.sectionTitle}>{isGame ? '飞船配置' : '配置管理'}</Text>
         <Button icon={<ArrowSyncRegular />} appearance="subtle" size="small" onClick={onReload}>
-          刷新
+          {isGame ? '刷新' : '刷新'}
         </Button>
       </div>
 
@@ -467,7 +467,7 @@ function ConfigSubPage({ config, onReload, styles }: {
 
       {/* 操作员 */}
       <div className={styles.section}>
-        <Text style={{ fontSize: '12px', fontWeight: 600 }}>操作员</Text>
+        <Text style={{ fontSize: '12px', fontWeight: 600 }}>{isGame ? '舰长' : '操作员'}</Text>
         <div className={styles.card}>
           <Dropdown
             size="small"

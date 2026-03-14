@@ -18,6 +18,9 @@ import {
   NumberSymbolRegular,
   DataBarVerticalRegular,
   TableSimpleRegular,
+  RocketRegular,
+  WindowWrenchRegular,
+  AirplaneTakeOffRegular,
 } from '@fluentui/react-icons';
 import { ExportTab } from './components/ExportTab';
 import { IdleAnimation } from './components/IdleAnimation';
@@ -358,10 +361,10 @@ export function App() {
           onTabSelect={(_, data) => setSelectedTab(data.value as string)}
           size="small"
         >
-          <Tab value="export" icon={<ArrowExportRegular fontSize={14} />}>{isGame ? gameText.tabExport : '导出'}</Tab>
+          <Tab value="export" icon={isGame ? <RocketRegular fontSize={14} /> : <ArrowExportRegular fontSize={14} />}>{isGame ? gameText.tabExport : '导出'}</Tab>
           <Tab value="manage" icon={<SettingsRegular fontSize={14} />}>{isGame ? gameText.tabManage : '管理'}</Tab>
-          <Tab value="validate" icon={<ShieldCheckmarkRegular fontSize={14} />}>{isGame ? gameText.tabValidate : '校验'}</Tab>
-          <Tab value="preview" icon={<EyeRegular fontSize={14} />}>{isGame ? gameText.tabPreview : '预览'}</Tab>
+          <Tab value="validate" icon={isGame ? <WindowWrenchRegular fontSize={14} /> : <ShieldCheckmarkRegular fontSize={14} />}>{isGame ? gameText.tabValidate : '校验'}</Tab>
+          <Tab value="preview" icon={isGame ? <AirplaneTakeOffRegular fontSize={14} /> : <EyeRegular fontSize={14} />}>{isGame ? gameText.tabPreview : '预览'}</Tab>
         </TabList>
       </div>
 

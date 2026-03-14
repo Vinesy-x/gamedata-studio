@@ -20,6 +20,7 @@ import {
 import {
   ArrowExportRegular,
   ArrowUploadRegular,
+  SendRegular,
   CheckmarkCircleRegular,
   DismissCircleRegular,
   WarningRegular,
@@ -705,7 +706,7 @@ export function ExportTab({
           </Button>
           <Button
             className={styles.gitBtn}
-            icon={<ArrowUploadRegular />}
+            icon={isGame ? <SendRegular /> : <ArrowUploadRegular />}
             appearance="secondary"
             onClick={handleGitPush}
             disabled={!canGitPush && !gitError}
