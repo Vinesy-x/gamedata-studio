@@ -423,8 +423,7 @@ export function ExportTab({
   const [resultDismissed, setResultDismissed] = useState(false);
   // 跟踪导出完成动画的触发时机
   const [showCompletionAnim, setShowCompletionAnim] = useState(false);
-  const { mode: themeMode } = useContext(ThemeContext);
-  const isGame = themeMode === 'game';
+  const isGame = mode === 'game';
   const prevExportingRef = useRef(isExporting);
   // Git 按钮错误提示
   const [gitError, setGitError] = useState(false);

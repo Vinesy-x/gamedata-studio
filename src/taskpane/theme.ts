@@ -199,8 +199,6 @@ export const gameText = {
   validationRun: '开始检修',
   validationProgress: (done: number, total: number) => `检修进度  ${done}/${total}`,
   validationXpTotal: (xp: number) => `维修经验: ${xp}`,
-  ruleNames: ['重复部件检查', '航线区间校验', '空舱检测', '数据类型扫描', '字段完整性', '分隔符规范', '表头结构'] as const,
-  ruleXp: [50, 75, 30, 40, 60, 25, 35] as const,
 
   // PreviewPanel
   previewTitle: '航线选择',
