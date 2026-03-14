@@ -11,10 +11,10 @@ import type { ThemeTextMap } from './types';
  *   Git           → 魔法书架
  */
 export const cuteText: ThemeTextMap = {
-  tabExport: '导出',
-  tabManage: '管理',
-  tabValidate: '校验',
-  tabPreview: '预览',
+  tabExport: '出发',
+  tabManage: '小窝',
+  tabValidate: '守护',
+  tabPreview: '冒险',
 
   export: {
     sectionTitle: '冒险准备',
