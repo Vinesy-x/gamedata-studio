@@ -41,6 +41,7 @@ export const gdsGameTheme = {
   colorNeutralBackground1: '#1A1530',
   colorNeutralBackground2: '#0D0B1A',
   colorNeutralBackground3: '#241E3A',
+  colorNeutralBackground6: '#2D2550',
   colorNeutralForeground1: '#E0E0FF',
   colorNeutralForeground2: '#B0B0D0',
   colorNeutralForeground3: '#7A7A9E',
