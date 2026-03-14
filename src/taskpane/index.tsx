@@ -2,8 +2,9 @@
 
 import { createContext, useState, useCallback, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
-import { FluentProvider, webLightTheme, webDarkTheme } from '@fluentui/react-components';
+import { FluentProvider } from '@fluentui/react-components';
 import { App } from './App';
+import { gdsLightTheme, gdsDarkTheme } from './theme';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -35,7 +36,7 @@ function Root() {
 
   return (
     <ThemeContext.Provider value={ctx}>
-      <FluentProvider theme={mode === 'light' ? webLightTheme : webDarkTheme}>
+      <FluentProvider theme={mode === 'light' ? gdsLightTheme : gdsDarkTheme}>
         <App />
       </FluentProvider>
     </ThemeContext.Provider>

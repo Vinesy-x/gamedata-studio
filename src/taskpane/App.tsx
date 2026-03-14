@@ -33,6 +33,7 @@ import { ExportJob } from '../engine/ExportJob';
 import { GitHandler } from '../git/GitHandler';
 import { GitExecutor } from '../git/GitExecutor';
 import { configManager } from '../v2/ConfigManager';
+import { gdsTokens } from './theme';
 
 const useStyles = makeStyles({
   root: {
@@ -51,8 +52,8 @@ const useStyles = makeStyles({
     justifyContent: 'center',
     gap: '14px',
     padding: '8px 14px',
-    backgroundImage: 'linear-gradient(135deg, #0078d4 0%, #1565c0 40%, #0d47a1 100%)',
-    color: 'rgba(255,255,255,0.65)',
+    backgroundImage: gdsTokens.banner.gradient,
+    color: gdsTokens.banner.iconColor,
     position: 'relative' as const,
     overflow: 'hidden' as const,
   },
@@ -62,7 +63,7 @@ const useStyles = makeStyles({
     left: '-100%',
     width: '200%',
     height: '100%',
-    backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 45%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 55%, transparent 100%)',
+    backgroundImage: gdsTokens.banner.shimmer,
     animationName: {
       from: { transform: 'translateX(-30%)' },
       to: { transform: 'translateX(30%)' },
@@ -79,7 +80,7 @@ const useStyles = makeStyles({
     width: '3px',
     height: '3px',
     borderRadius: '50%',
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: gdsTokens.banner.dotColor,
     position: 'relative' as const,
   },
   tabBar: {
@@ -135,7 +136,7 @@ const useStyles = makeStyles({
     marginTop: 'auto',
     fontSize: '10px',
     color: tokens.colorNeutralForeground4,
-    fontFamily: '"Cascadia Code", "Fira Code", Consolas, monospace',
+    fontFamily: gdsTokens.fontMono,
     letterSpacing: '1px',
     userSelect: 'none' as const,
     opacity: 0.35,

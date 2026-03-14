@@ -19,6 +19,7 @@ import {
 } from '@fluentui/react-icons';
 import { Config } from '../../types/config';
 import { VersionPreviewer, PreviewResult } from '../../v3/VersionPreviewer';
+import { gdsTokens } from '../theme';
 
 const useStyles = makeStyles({
   container: {
@@ -140,18 +141,18 @@ const useStyles = makeStyles({
     flexShrink: 0,
   },
   legendSwatchGray: {
-    backgroundColor: '#E0E0E0',
+    backgroundColor: gdsTokens.badge.secondary.bg,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   legendSwatchYellow: {
-    backgroundColor: '#FFF3CD',
-    border: '1px solid #FFE69C',
+    backgroundColor: gdsTokens.warning.bg,
+    border: `1px solid ${gdsTokens.warning.border}`,
     textDecoration: 'line-through',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: '8px',
-    color: '#6B4000',
+    color: gdsTokens.warning.itemText,
   },
   // 无结果提示
   emptyHint: {

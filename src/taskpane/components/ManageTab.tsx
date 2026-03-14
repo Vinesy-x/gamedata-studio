@@ -35,6 +35,7 @@ import { SHEET_CONFIG } from '../../v2/TemplateFactory';
 import { operatorIdentity } from '../../v2/OperatorIdentity';
 import { excelHelper } from '../../utils/ExcelHelper';
 import { logger } from '../../utils/Logger';
+import { gdsTokens } from '../theme';
 
 const useStyles = makeStyles({
   container: {
@@ -137,7 +138,7 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
   },
   badgeNew: {
-    backgroundColor: '#E8F5FE',
+    backgroundColor: gdsTokens.badge.new.bg,
     color: tokens.colorBrandForeground1,
   },
   actionRow: {
@@ -180,14 +181,14 @@ const useStyles = makeStyles({
     marginBottom: '8px',
   },
   statusSuccess: {
-    backgroundColor: '#E8F5E9',
-    color: '#2E7D32',
-    border: '1px solid #C8E6C9',
+    backgroundColor: gdsTokens.success.bg,
+    color: gdsTokens.success.text,
+    border: `1px solid ${gdsTokens.success.border}`,
   },
   statusError: {
-    backgroundColor: '#FFF5F5',
-    color: '#C62828',
-    border: '1px solid #FFCDD2',
+    backgroundColor: gdsTokens.error.bg,
+    color: gdsTokens.error.text,
+    border: `1px solid ${gdsTokens.error.border}`,
   },
 });
 

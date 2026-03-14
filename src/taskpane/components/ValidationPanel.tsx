@@ -26,6 +26,7 @@ import { ValidationNavigator } from '../../v3/ValidationNavigator';
 import { VersionFilter } from '../../engine/VersionFilter';
 import { StudioConfigStore, ValidationConfig, createDefaultValidationConfig } from '../../v2/StudioConfigStore';
 import { configManager } from '../../v2/ConfigManager';
+import { gdsTokens } from '../theme';
 
 // ─── 校验规则定义 ───────────────────────────────────────
 
@@ -131,15 +132,15 @@ const useStyles = makeStyles({
     borderRadius: '10px',
   },
   badgeError: {
-    backgroundColor: '#FDE7E9',
+    backgroundColor: gdsTokens.badge.error.bg,
     color: tokens.colorPaletteRedForeground1,
   },
   badgeWarning: {
-    backgroundColor: '#FFF4CE',
-    color: '#9D5D00',
+    backgroundColor: gdsTokens.badge.warning.bg,
+    color: gdsTokens.warning.text,
   },
   badgeInfo: {
-    backgroundColor: '#E8F4FD',
+    backgroundColor: gdsTokens.badge.info.bg,
     color: tokens.colorBrandForeground1,
   },
   summaryTotal: {
@@ -177,7 +178,7 @@ const useStyles = makeStyles({
     color: tokens.colorPaletteRedForeground1,
   },
   resultIconWarning: {
-    color: '#9D5D00',
+    color: gdsTokens.warning.text,
   },
   resultIconInfo: {
     color: tokens.colorBrandForeground1,
@@ -248,9 +249,9 @@ const useStyles = makeStyles({
     alignItems: 'center',
     gap: '8px',
     padding: '12px',
-    backgroundColor: '#E8F5E9',
+    backgroundColor: gdsTokens.success.bg,
     borderRadius: '8px',
-    border: '1px solid #C8E6C9',
+    border: `1px solid ${gdsTokens.success.border}`,
   },
   successIcon: {
     color: tokens.colorPaletteGreenForeground1,

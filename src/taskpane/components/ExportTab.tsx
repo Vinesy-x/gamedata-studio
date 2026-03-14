@@ -43,6 +43,7 @@ import { excelHelper } from '../../utils/ExcelHelper';
 import { configManager } from '../../v2/ConfigManager';
 import { operatorIdentity } from '../../v2/OperatorIdentity';
 import { logger } from '../../utils/Logger';
+import { gdsTokens } from '../theme';
 
 const useStyles = makeStyles({
   container: {
@@ -181,7 +182,7 @@ const useStyles = makeStyles({
     color: tokens.colorBrandForeground1,
   },
   statWarnings: {
-    color: '#9D5D00',
+    color: gdsTokens.warning.text,
   },
   statErrors: {
     color: tokens.colorPaletteRedForeground1,
@@ -252,13 +253,13 @@ const useStyles = makeStyles({
   },
   // 警告/错误
   warningCard: {
-    backgroundColor: '#FFF8E1',
+    backgroundColor: gdsTokens.warning.bg,
     borderRadius: '8px',
     padding: '10px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
-    border: '1px solid #FFE082',
+    border: `1px solid ${gdsTokens.warning.border}`,
   },
   warningHeader: {
     display: 'flex',
@@ -266,22 +267,22 @@ const useStyles = makeStyles({
     gap: '6px',
     fontSize: '12px',
     fontWeight: 600,
-    color: '#9D5D00',
+    color: gdsTokens.warning.text,
   },
   warningItem: {
     fontSize: '11px',
-    color: '#6B4000',
+    color: gdsTokens.warning.itemText,
     lineHeight: '1.4',
     wordBreak: 'break-all',
   },
   errorCard: {
-    backgroundColor: '#FFF5F5',
+    backgroundColor: gdsTokens.error.bg,
     borderRadius: '8px',
     padding: '10px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
-    border: '1px solid #FFCDD2',
+    border: `1px solid ${gdsTokens.error.border}`,
   },
   errorHeader: {
     display: 'flex',
@@ -606,8 +607,8 @@ export function ExportTab({
                 disabled={isExporting && !monitorEnabled}
               />
               {monitorStatus === 'watching' && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#107C10' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#107C10', display: 'inline-block' }} />
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: gdsTokens.success.icon }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: gdsTokens.success.icon, display: 'inline-block' }} />
                   监听中
                 </span>
               )}
