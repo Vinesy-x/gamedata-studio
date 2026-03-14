@@ -971,15 +971,24 @@ export function ExportTab({
                 lineHeight: '1.8',
                 color: tokens.colorNeutralForeground1,
               }}>
+                <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.3.0 — 多主题系统 & 设计升级</div>
+                <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px' }}>
+                  <li>全新主题系统：支持 4 种主题循环切换（浅色 → 深色 → 飞船航行 → 二次元冒险）</li>
+                  <li>飞船航行主题：版本→航线、表→设备、校验→维修、预览→试飞，完整 RPG 风格</li>
+                  <li>二次元冒险主题：版本→世界、表→宝典、操作员→冒险者，粉色可爱风格</li>
+                  <li>GDS 设计系统：集中式 design tokens，青色品牌色替换默认蓝</li>
+                  <li>主题文本字典化：locales 架构，新增主题只需一个文件</li>
+                  <li>等级/经验值系统：游戏主题显示 LV 等级条、规则经验值、成就解锁</li>
+                  <li>帮助说明全面适配主题文案</li>
+                  <li>Tab 图标按主题切换（Rocket/Heart/Star 等）</li>
+                </ul>
                 <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.2.0 — 性能大幅优化 & 多项修复</div>
                 <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px' }}>
-                  <li>导出速度提升：POST 单次写入替代 GET 分片（数百次请求→1次），批量 Excel 加载（200次sync→2次），并行写入</li>
-                  <li>校验速度提升：4条规则合并为单次遍历，大表不再卡死（每表上限200条 + 进度显示）</li>
-                  <li>空值等价配置：null/NULL 等值可自定义，跳过类型和必填校验</li>
+                  <li>导出速度提升：POST 单次写入替代 GET 分片，批量 Excel 加载，并行写入</li>
+                  <li>校验速度提升：4条规则合并为单次遍历，大表不再卡死</li>
+                  <li>空值等价配置：null/NULL 等值可自定义</li>
                   <li>线路修正：roads_0 不再是总线路开关，各线路独立控制</li>
-                  <li>隐藏行兼容：动态检测数据起始行，描述行不再被误校验为数据类型</li>
-                  <li>无变更提示：导出数据无修改时显示「无任何修改」而非「导出成功」</li>
-                  <li>底部新增更新公告入口</li>
+                  <li>隐藏行兼容：动态检测数据起始行</li>
                 </ul>
               </div>
             </DialogContent>
