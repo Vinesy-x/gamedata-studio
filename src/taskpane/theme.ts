@@ -137,6 +137,48 @@ export const gdsCyberTheme = {
   colorPaletteRedBackground1: '#1A0010',
 };
 
+// Pixel/Retro theme: terminal green on black, Game Boy nostalgia
+const pixelBrand: BrandVariants = {
+  10: '#001A00',
+  20: '#002E00',
+  30: '#004D00',
+  40: '#006B00',
+  50: '#008A00',
+  60: '#39FF14',
+  70: '#5FFF40',
+  80: '#85FF6C',
+  90: '#ABFF98',
+  100: '#C8FFC0',
+  110: '#E0FFD8',
+  120: '#F0FFE8',
+  130: '#F5FFF2',
+  140: '#FAFFF8',
+  150: '#FDFFFC',
+  160: '#FFFFFF',
+};
+
+export const gdsPixelTheme = {
+  ...createDarkTheme(pixelBrand),
+  colorNeutralBackground1: '#0A0A0A',
+  colorNeutralBackground2: '#050505',
+  colorNeutralBackground3: '#141414',
+  colorNeutralBackground6: '#1A1A1A',
+  colorNeutralForeground1: '#D0FFD0',
+  colorNeutralForeground2: '#90CC90',
+  colorNeutralForeground3: '#608060',
+  colorNeutralForeground4: '#406040',
+  colorNeutralStroke1: '#1E3A1E',
+  colorNeutralStroke2: '#142814',
+  colorNeutralStroke3: '#0F1E0F',
+  colorBrandBackground: '#39FF14',
+  colorBrandForeground1: '#39FF14',
+  colorBrandForeground2: '#FFB000',
+  colorNeutralForegroundOnBrand: '#050505',
+  colorPaletteGreenForeground1: '#39FF14',
+  colorPaletteRedForeground1: '#FF4444',
+  colorPaletteRedBackground1: '#1A0000',
+};
+
 // --- Semantic Color Tokens ---
 export const gdsTokens = {
   banner: {
@@ -270,6 +312,23 @@ export const gdsTokens = {
     xpAccent: '#00D4FF',
     textPrimary: '#E0E0F0',
     textMuted: '#7A7A99',
+  },
+  // --- Pixel/Retro Theme Extras ---
+  pixel: {
+    bg: '#050505',
+    surface: '#0A0A0A',
+    cardBg: '#0A0A0A',
+    cardBorder: '1px solid #1E3A1E',
+    cardShadow: '0 0 8px rgba(57,255,20,0.08), 0 2px 6px rgba(0,0,0,0.3)',
+    banner: 'linear-gradient(135deg, #39FF14 0%, #FFB000 100%)',
+    progressGradient: 'linear-gradient(90deg, #39FF14, #FFB000)',
+    xpTrackBg: '#1A1A1A',
+    xpBarBg: '#0A0A0A80',
+    xpBarBorder: '1px solid #39FF1450',
+    xpColor: '#39FF14',
+    xpAccent: '#FFB000',
+    textPrimary: '#D0FFD0',
+    textMuted: '#608060',
   },
 } as const;
 

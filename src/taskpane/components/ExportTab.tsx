@@ -36,6 +36,7 @@ import {
   MegaphoneRegular,
   RocketRegular,
   StarRegular,
+  GridRegular,
 } from '@fluentui/react-icons';
 import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
@@ -430,10 +431,11 @@ export function ExportTab({
   const isGame = mode === 'game';
   const isCute = mode === 'cute';
   const isCyber = mode === 'cyber';
-  const isSpecial = isGame || isCute || isCyber;
+  const isPixel = mode === 'pixel';
+  const isSpecial = isGame || isCute || isCyber || isPixel;
   // 特殊主题的 token 快捷访问
-  const st = isGame ? gdsTokens.game : isCyber ? gdsTokens.cyber : gdsTokens.cute;
-  const extraData = isGame ? themeExtraData.game : isCyber ? themeExtraData.cyber : themeExtraData.cute;
+  const st = isGame ? gdsTokens.game : isCyber ? gdsTokens.cyber : isPixel ? gdsTokens.pixel : gdsTokens.cute;
+  const extraData = isGame ? themeExtraData.game : isCyber ? themeExtraData.cyber : isPixel ? themeExtraData.pixel : themeExtraData.cute;
   const [levelInfo, setLevelInfo] = useState(() => getLevelInfo());
   const [earnedXp, setEarnedXp] = useState(0);
   const t = useThemeText();
@@ -907,9 +909,9 @@ export function ExportTab({
             className={styles.helpBtn}
             appearance="transparent"
             size="small"
-            icon={mode === 'cyber' ? <BugRegular fontSize={16} /> : mode === 'cute' ? <HeartRegular fontSize={16} /> : mode === 'game' ? <RocketRegular fontSize={16} /> : mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
+            icon={mode === 'pixel' ? <GridRegular fontSize={16} /> : mode === 'cyber' ? <BugRegular fontSize={16} /> : mode === 'cute' ? <HeartRegular fontSize={16} /> : mode === 'game' ? <RocketRegular fontSize={16} /> : mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
             onClick={toggleTheme}
-            title={mode === 'light' ? '深色模式' : mode === 'dark' ? '游戏模式' : mode === 'game' ? '可爱模式' : mode === 'cute' ? '赛博朋克' : '浅色模式'}
+            title={mode === 'light' ? '深色模式' : mode === 'dark' ? '游戏模式' : mode === 'game' ? '可爱模式' : mode === 'cute' ? '赛博朋克' : mode === 'cyber' ? '像素复古' : '浅色模式'}
           />
           <Button
             className={styles.helpBtn}
