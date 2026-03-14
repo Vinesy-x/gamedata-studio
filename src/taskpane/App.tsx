@@ -21,6 +21,9 @@ import {
   RocketRegular,
   WindowWrenchRegular,
   AirplaneTakeOffRegular,
+  HeartRegular,
+  StarRegular,
+  SparkleRegular,
 } from '@fluentui/react-icons';
 import { ExportTab } from './components/ExportTab';
 import { IdleAnimation } from './components/IdleAnimation';
@@ -365,10 +368,10 @@ export function App() {
           onTabSelect={(_, data) => setSelectedTab(data.value as string)}
           size="small"
         >
-          <Tab value="export" icon={isGame ? <RocketRegular fontSize={14} /> : <ArrowExportRegular fontSize={14} />}>{t.tabExport}</Tab>
+          <Tab value="export" icon={isGame ? <RocketRegular fontSize={14} /> : isCute ? <HeartRegular fontSize={14} /> : <ArrowExportRegular fontSize={14} />}>{t.tabExport}</Tab>
           <Tab value="manage" icon={<SettingsRegular fontSize={14} />}>{t.tabManage}</Tab>
-          <Tab value="validate" icon={isGame ? <WindowWrenchRegular fontSize={14} /> : <ShieldCheckmarkRegular fontSize={14} />}>{t.tabValidate}</Tab>
-          <Tab value="preview" icon={isGame ? <AirplaneTakeOffRegular fontSize={14} /> : <EyeRegular fontSize={14} />}>{t.tabPreview}</Tab>
+          <Tab value="validate" icon={isGame ? <WindowWrenchRegular fontSize={14} /> : isCute ? <StarRegular fontSize={14} /> : <ShieldCheckmarkRegular fontSize={14} />}>{t.tabValidate}</Tab>
+          <Tab value="preview" icon={isGame ? <AirplaneTakeOffRegular fontSize={14} /> : isCute ? <SparkleRegular fontSize={14} /> : <EyeRegular fontSize={14} />}>{t.tabPreview}</Tab>
         </TabList>
       </div>
 

@@ -494,7 +494,7 @@ function ConfigSubPage({ config, onReload, styles }: {
               onClick={handleSyncLines}
               disabled={syncing}
             >
-              {syncing ? '同步中...' : t.manage.syncRoutes}
+              {syncing ? t.manage.syncingRoutes : t.manage.syncRoutes}
             </Button>
             <Button
               icon={<AddRegular />}
@@ -574,7 +574,7 @@ function ConfigSubPage({ config, onReload, styles }: {
                   size="small"
                   value={newVersionName}
                   onChange={(_, d) => setNewVersionName(d.value)}
-                  placeholder="版本名称"
+                  placeholder={t.manage.versionNamePlaceholder}
                   style={{ flex: 1 }}
                 />
               </div>
@@ -583,7 +583,7 @@ function ConfigSubPage({ config, onReload, styles }: {
                   size="small"
                   value={newVersionGitDir}
                   onChange={(_, d) => setNewVersionGitDir(d.value)}
-                  placeholder="Git 目录路径（必填）"
+                  placeholder={t.manage.gitDirPlaceholder}
                   style={{ width: '100%' }}
                 />
                 <span style={{ fontSize: '9px', color: '#999', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
@@ -603,7 +603,7 @@ function ConfigSubPage({ config, onReload, styles }: {
         </div>
 
         <Text style={{ fontSize: '10px', color: tokens.colorNeutralForeground3 }}>
-          添加新版本后点击「同步线路」将为所有数据表补充线路列，默认值与 roads_0（默认线路）相同
+          {t.manage.addVersionHint}
         </Text>
       </div>
 
@@ -804,6 +804,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
   onSearchChange: (val: string) => void;
   styles: ReturnType<typeof useStyles>;
 }) {
+  const t = useThemeText();
 
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -858,7 +859,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
     : tables;
 
   // 检测各表的 version_c 状态（三态）
-  const tableNamesKey = tables.map(t => t.chineseName).join(',');
+  const tableNamesKey = tables.map(tbl => tbl.chineseName).join(',');
   useEffect(() => {
     if (tables.length === 0) return;
     let cancelled = false;
@@ -1067,7 +1068,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
   return (
     <>
       <div className={styles.sectionHeader}>
-        <Text className={styles.sectionTitle}>数据表管理</Text>
+        <Text className={styles.sectionTitle}>{t.manage.tablesSectionTitle}</Text>
         <Button icon={<ArrowSyncRegular />} appearance="subtle" size="small" onClick={onReload}>
           刷新
         </Button>
@@ -1082,7 +1083,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
       <div className={styles.searchBox}>
         <Input
           contentBefore={<SearchRegular fontSize={14} />}
-          placeholder="搜索表名..."
+          placeholder={t.manage.searchPlaceholder}
           size="small"
           value={searchTerm}
           onChange={(_, data) => onSearchChange(data.value)}
@@ -1094,45 +1095,45 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
         <table className={styles.table}>
           <thead>
             <tr>
-              <th className={styles.th} style={{ width: '24%' }}>中文名</th>
-              <th className={styles.th} style={{ width: '28%' }}>英文名</th>
-              <th className={styles.th} style={{ width: '16%' }}>版本</th>
-              <th className={styles.th} style={{ width: '20%' }}>控制</th>
+              <th className={styles.th} style={{ width: '24%' }}>{t.manage.colChineseName}</th>
+              <th className={styles.th} style={{ width: '28%' }}>{t.manage.colEnglishName}</th>
+              <th className={styles.th} style={{ width: '16%' }}>{t.manage.colTableVersion}</th>
+              <th className={styles.th} style={{ width: '20%' }}>{t.manage.colControl}</th>
               <th className={styles.th} style={{ width: '12%' }}></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((t) => {
-              const vcState = versionCMap.get(t.chineseName) ?? 'R';
+            {filtered.map((tbl) => {
+              const vcState = versionCMap.get(tbl.chineseName) ?? 'R';
               const badgeStyle = vcState === 'R+C' ? styles.badgeOn : vcState === 'R+c' ? styles.badgeNew : styles.badgeOff;
               return (
-                <tr key={t.chineseName}>
-                  <td className={styles.td}>{t.chineseName}</td>
-                  <td className={styles.td}>{t.englishName}</td>
+                <tr key={tbl.chineseName}>
+                  <td className={styles.td}>{tbl.chineseName}</td>
+                  <td className={styles.td}>{tbl.englishName}</td>
                   <td className={styles.td}>
-                    {editingVersion === t.chineseName ? (
+                    {editingVersion === tbl.chineseName ? (
                       <Input
                         size="small"
                         value={editVersionValue}
                         onChange={(_, d) => setEditVersionValue(d.value)}
-                        onBlur={() => handleSaveVersion(t)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveVersion(t); if (e.key === 'Escape') setEditingVersion(null); }}
+                        onBlur={() => handleSaveVersion(tbl)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveVersion(tbl); if (e.key === 'Escape') setEditingVersion(null); }}
                         style={{ width: 60, fontSize: '11px' }}
                         autoFocus
                       />
                     ) : (
                       <span
-                        onClick={() => { setEditingVersion(t.chineseName); setEditVersionValue(t.versionRange || ''); }}
+                        onClick={() => { setEditingVersion(tbl.chineseName); setEditVersionValue(tbl.versionRange || ''); }}
                         style={{ cursor: 'pointer', minWidth: 20, display: 'inline-block' }}
                       >
-                        {t.versionRange || '-'}
+                        {tbl.versionRange || '-'}
                       </span>
                     )}
                   </td>
                   <td className={styles.td}>
                     <span
                       className={`${styles.badge} ${badgeStyle}`}
-                      onClick={() => handleToggleVersionC(t.chineseName, vcState)}
+                      onClick={() => handleToggleVersionC(tbl.chineseName, vcState)}
                       style={{ cursor: 'pointer' }}
                       title={vcState === 'R' ? '仅行控制 → 点击添加版本列控制' : vcState === 'R+c' ? '行+版本列控制 → 点击升级为完整列控制' : '完整行列控制 → 点击移除列控制'}
                     >
@@ -1140,13 +1141,13 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
                     </span>
                   </td>
                   <td className={styles.td}>
-                    {confirmDelete === t.chineseName ? (
+                    {confirmDelete === tbl.chineseName ? (
                       <span style={{ display: 'flex', gap: '2px' }}>
                         <Button
                           icon={<CheckmarkRegular />}
                           appearance="subtle"
                           size="small"
-                          onClick={() => handleUnregister(t.chineseName)}
+                          onClick={() => handleUnregister(tbl.chineseName)}
                           style={{ minWidth: 'auto', padding: '0 2px', color: tokens.colorPaletteRedForeground1 }}
                           title="确认删除"
                         />
@@ -1164,7 +1165,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
                         icon={<DeleteRegular />}
                         appearance="subtle"
                         size="small"
-                        onClick={() => setConfirmDelete(t.chineseName)}
+                        onClick={() => setConfirmDelete(tbl.chineseName)}
                         style={{ minWidth: 'auto', padding: '0 2px' }}
                       />
                     )}
@@ -1177,7 +1178,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
       </div>
 
       <Text style={{ fontSize: '11px', color: tokens.colorNeutralForeground3, marginTop: '4px' }}>
-        共 {filtered.length} 张表{searchTerm ? `（筛选自 ${tables.length} 张）` : ''}
+        {t.manage.tableSummary(filtered.length, tables.length)}
       </Text>
     </>
   );
@@ -1200,6 +1201,7 @@ function WizardSubPage({ config, onReload, styles }: {
   onReload: () => void;
   styles: ReturnType<typeof useStyles>;
 }) {
+  const t = useThemeText();
   const [chineseName, setChineseName] = useState('');
   const [englishName, setEnglishName] = useState('');
   const [startVersion, setStartVersion] = useState('1');
@@ -1280,7 +1282,7 @@ function WizardSubPage({ config, onReload, styles }: {
   return (
     <>
       <div className={styles.sectionHeader}>
-        <Text className={styles.sectionTitle}>新表创建向导</Text>
+        <Text className={styles.sectionTitle}>{t.manage.wizardTitle}</Text>
         <Button appearance="subtle" size="small" onClick={handleUndo}>
           撤销上次
         </Button>
@@ -1294,7 +1296,7 @@ function WizardSubPage({ config, onReload, styles }: {
 
       <div style={{ marginTop: '4px' }}>
         <div className={styles.formField}>
-          <Label className={styles.formLabel}>中文表名</Label>
+          <Label className={styles.formLabel}>{t.manage.wizardChineseName}</Label>
           <Input
             size="small"
             value={chineseName}
@@ -1304,7 +1306,7 @@ function WizardSubPage({ config, onReload, styles }: {
         </div>
 
         <div className={styles.formField}>
-          <Label className={styles.formLabel}>英文表名</Label>
+          <Label className={styles.formLabel}>{t.manage.wizardEnglishName}</Label>
           <Input
             size="small"
             value={englishName}
@@ -1314,7 +1316,7 @@ function WizardSubPage({ config, onReload, styles }: {
         </div>
 
         <div className={styles.formField}>
-          <Label className={styles.formLabel}>起始版本号</Label>
+          <Label className={styles.formLabel}>{t.manage.wizardStartVersion}</Label>
           <Input
             size="small"
             value={startVersion}
@@ -1329,14 +1331,14 @@ function WizardSubPage({ config, onReload, styles }: {
               checked={includeVersionCol}
               onChange={(_, d) => setIncludeVersionCol(d.checked)}
             />
-            <Text style={{ fontSize: '11px' }}>包含 version_c</Text>
+            <Text style={{ fontSize: '11px' }}>{t.manage.wizardIncludeVersionC}</Text>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Switch
               checked={autoRegister}
               onChange={(_, d) => setAutoRegister(d.checked)}
             />
-            <Text style={{ fontSize: '11px' }}>自动注册</Text>
+            <Text style={{ fontSize: '11px' }}>{t.manage.wizardAutoRegister}</Text>
           </div>
         </div>
 
@@ -1366,7 +1368,7 @@ function WizardSubPage({ config, onReload, styles }: {
               onOptionSelect={(_, d) => updateField(i, 'type', d.optionValue || 'string')}
               style={{ minWidth: 65 }}
             >
-              {typeOptions.map(t => <Option key={t} value={t} text={t}>{t}</Option>)}
+              {typeOptions.map(tp => <Option key={tp} value={tp} text={tp}>{tp}</Option>)}
             </Dropdown>
             <Input
               className={styles.fieldInput}
@@ -1393,7 +1395,7 @@ function WizardSubPage({ config, onReload, styles }: {
           disabled={!chineseName || !englishName || fields.length === 0 || creating}
           style={{ width: '100%', marginTop: '12px' }}
         >
-          {creating ? <><Spinner size="tiny" /> 创建中...</> : '创建工作表'}
+          {creating ? <><Spinner size="tiny" /> {t.manage.wizardCreatingBtn}</> : t.manage.wizardCreateBtn}
         </Button>
       </div>
     </>

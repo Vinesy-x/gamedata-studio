@@ -697,7 +697,7 @@ export function ExportTab({
         <div className={styles.actionRow}>
           <Button
             className={styles.exportBtn}
-            icon={isGame ? <RocketRegular /> : <ArrowExportRegular />}
+            icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : <ArrowExportRegular />}
             appearance="primary"
             onClick={handleExport}
             disabled={isExporting || !outputDir}
@@ -707,7 +707,7 @@ export function ExportTab({
           </Button>
           <Button
             className={styles.gitBtn}
-            icon={isGame ? <SendRegular /> : <ArrowUploadRegular />}
+            icon={isGame ? <SendRegular /> : isCute ? <StarRegular /> : <ArrowUploadRegular />}
             appearance="secondary"
             onClick={handleGitPush}
             disabled={!canGitPush && !gitError}

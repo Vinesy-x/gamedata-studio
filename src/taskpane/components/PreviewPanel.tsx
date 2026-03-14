@@ -187,6 +187,8 @@ interface PreviewPanelProps {
 export function PreviewPanel({ config }: PreviewPanelProps) {
   const { mode: themeMode } = useContext(ThemeContext);
   const isGame = themeMode === 'game';
+  const isCute = themeMode === 'cute';
+  const isSpecial = isGame || isCute;
   const t = useThemeText();
   const styles = useStyles();
 

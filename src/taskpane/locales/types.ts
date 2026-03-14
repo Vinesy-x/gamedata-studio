@@ -51,7 +51,29 @@ export interface ThemeTextMap {
     colRoute: string;
     colGitDir: string;
     syncRoutes: string;
+    syncingRoutes: string;
     addVersion: string;
+    // TablesSubPage
+    tablesSectionTitle: string;
+    searchPlaceholder: string;
+    colChineseName: string;
+    colEnglishName: string;
+    colTableVersion: string;
+    colControl: string;
+    tableSummary: (filtered: number, total: number) => string;
+    // WizardSubPage
+    wizardTitle: string;
+    wizardChineseName: string;
+    wizardEnglishName: string;
+    wizardStartVersion: string;
+    wizardIncludeVersionC: string;
+    wizardAutoRegister: string;
+    wizardCreateBtn: string;
+    wizardCreatingBtn: string;
+    // Hints
+    addVersionHint: string;
+    gitDirPlaceholder: string;
+    versionNamePlaceholder: string;
   };
 
   // --- ValidationPanel ---
