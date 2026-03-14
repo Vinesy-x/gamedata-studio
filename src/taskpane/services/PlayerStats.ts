@@ -95,9 +95,8 @@ export function grantExportXp(changedTables: number, modifiedFiles: number): num
  * 校验完成时增加经验
  * @returns 本次获得的经验值
  */
-export function grantValidateXp(rulesCount: number): number {
-  const xp = rulesCount * 10;
-  if (xp <= 0) return 0;
+export function grantValidateXp(_rulesCount: number): number {
+  const xp = 1;
   const data = load();
   data.totalXp += xp;
   data.validateCount += 1;
