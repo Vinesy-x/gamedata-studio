@@ -36,7 +36,8 @@ import {
   MegaphoneRegular,
   RocketRegular,
   StarRegular,
-  GridRegular,
+  FlagCheckeredRegular,
+  JoystickRegular,
 } from '@fluentui/react-icons';
 import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
@@ -712,7 +713,7 @@ export function ExportTab({
         <div className={styles.actionRow}>
           <Button
             className={styles.exportBtn}
-            icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : isCyber ? <SendRegular /> : <ArrowExportRegular />}
+            icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : isCyber ? <SendRegular /> : isPixel ? <FlagCheckeredRegular /> : <ArrowExportRegular />}
             appearance="primary"
             onClick={handleExport}
             disabled={isExporting || !outputDir}
@@ -909,7 +910,7 @@ export function ExportTab({
             className={styles.helpBtn}
             appearance="transparent"
             size="small"
-            icon={mode === 'pixel' ? <GridRegular fontSize={16} /> : mode === 'cyber' ? <BugRegular fontSize={16} /> : mode === 'cute' ? <HeartRegular fontSize={16} /> : mode === 'game' ? <RocketRegular fontSize={16} /> : mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
+            icon={mode === 'pixel' ? <JoystickRegular fontSize={16} /> : mode === 'cyber' ? <BugRegular fontSize={16} /> : mode === 'cute' ? <HeartRegular fontSize={16} /> : mode === 'game' ? <RocketRegular fontSize={16} /> : mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
             onClick={toggleTheme}
             title={mode === 'light' ? '深色模式' : mode === 'dark' ? '游戏模式' : mode === 'game' ? '可爱模式' : mode === 'cute' ? '赛博朋克' : mode === 'cyber' ? '像素复古' : '浅色模式'}
           />
