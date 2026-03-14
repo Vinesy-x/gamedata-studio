@@ -31,9 +31,11 @@ export function useThemeText(): ThemeTextMap {
  * 仅在 isGame 时使用，不属于通用文本字典。
  */
 /** 特殊主题专属数据（非文本，如经验值、等级等）。按主题模式返回不同数据。 */
+const DEFAULT_RULE_XP = [50, 75, 30, 40, 60, 25, 35] as const;
+
 export const themeExtraData = {
   game: {
-    ruleXp: [50, 75, 30, 40, 60, 25, 35] as const,
+    ruleXp: DEFAULT_RULE_XP,
     levelLabel: (lv: number) => `LV.${lv}  星际领航员`,
     resultXp: (n: number) => `+${n} 航程`,
     xpTotal: (xp: number) => `总经验值: ${xp}`,
@@ -41,7 +43,7 @@ export const themeExtraData = {
     previewRank: 'S',
   },
   cute: {
-    ruleXp: [50, 75, 30, 40, 60, 25, 35] as const,
+    ruleXp: DEFAULT_RULE_XP,
     levelLabel: (lv: number) => `Lv.${lv}  数据小精灵 ✿`,
     resultXp: (n: number) => `+${n} 经验`,
     xpTotal: (xp: number) => `总经验值: ${xp} ♡`,
@@ -49,7 +51,7 @@ export const themeExtraData = {
     previewRank: 'S☆',
   },
   cyber: {
-    ruleXp: [50, 75, 30, 40, 60, 25, 35] as const,
+    ruleXp: DEFAULT_RULE_XP,
     levelLabel: (lv: number) => `LV.${lv}  DATA_HACKER`,
     resultXp: (n: number) => `+${n} EXP`,
     xpTotal: (xp: number) => `TOTAL_EXP: ${xp}`,
@@ -57,14 +59,11 @@ export const themeExtraData = {
     previewRank: 'S+',
   },
   pixel: {
-    ruleXp: [50, 75, 30, 40, 60, 25, 35] as const,
-    levelLabel: (lv: number) => `LV.${lv}  PLAYER_1`,
-    resultXp: (n: number) => `+${n} PTS`,
+    ruleXp: DEFAULT_RULE_XP,
+    levelLabel: (lv: number) => `LV.${lv}  像素勇者`,
+    resultXp: (n: number) => `+${n} EXP`,
     xpTotal: (xp: number) => `SCORE: ${xp}`,
-    progressLabel: (done: number, total: number) => `PROGRESS  ${done}/${total}`,
+    progressLabel: (done: number, total: number) => `鉴定进度  ${done}/${total}`,
     previewRank: 'SS',
   },
 } as const;
-
-/** @deprecated 使用 themeExtraData.game 代替 */
-export const gameData = themeExtraData.game;

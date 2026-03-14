@@ -27,7 +27,7 @@ import { VersionFilter } from '../../engine/VersionFilter';
 import { StudioConfigStore, ValidationConfig, createDefaultValidationConfig } from '../../v2/StudioConfigStore';
 import { configManager } from '../../v2/ConfigManager';
 import { gdsTokens } from '../theme';
-import { useThemeText, gameData, themeExtraData } from '../locales';
+import { useThemeText, themeExtraData } from '../locales';
 import { ThemeContext } from '../index';
 import { grantValidateXp } from '../services/PlayerStats';
 
