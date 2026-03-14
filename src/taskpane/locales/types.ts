@@ -74,6 +74,13 @@ export interface ThemeTextMap {
     addVersionHint: string;
     gitDirPlaceholder: string;
     versionNamePlaceholder: string;
+    // Status messages
+    statusGitDirRequired: string;
+    statusVersionAdded: (name: string, field: string) => string;
+    statusVersionDeleted: (name: string) => string;
+    statusSyncResult: (synced: number) => string;
+    statusTableCreated: (name: string) => string;
+    variableHint: string;
   };
 
   // --- ValidationPanel ---
@@ -85,6 +92,9 @@ export interface ThemeTextMap {
     runBtn: string;
     runningBtn: string;
     emptyHint: string;
+    ruleLabels: readonly string[];
+    validatingProgress: string;
+    passedMessage: string;
   };
 
   // --- PreviewPanel ---
@@ -94,7 +104,15 @@ export interface ThemeTextMap {
     runningBtn: string;
     colHeaders: readonly [string, string, string];
     statsTitle: string;
+    legendExcluded: string;
     emptyHint: string;
+  };
+
+  // --- Setup (uninitialized workbook) ---
+  setup: {
+    description: string;
+    initBtn: string;
+    initializingBtn: string;
   };
 
   // --- HelpPanel ---

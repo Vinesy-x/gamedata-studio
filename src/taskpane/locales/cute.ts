@@ -74,6 +74,12 @@ export const cuteText: ThemeTextMap = {
     addVersionHint: '开辟新世界后点击「同步路线」为所有宝典补充路线列~',
     gitDirPlaceholder: '魔法书架位置（必填）',
     versionNamePlaceholder: '世界名称',
+    statusGitDirRequired: '需要设定魔法书架位置哦，没有书架的世界没有意义~',
+    statusVersionAdded: (name, field) => `新世界「${name}」(${field}) 已开辟~`,
+    statusVersionDeleted: (name) => `世界「${name}」已关闭~`,
+    statusSyncResult: (n) => `路线同步完成: ${n} 本宝典已更新~`,
+    statusTableCreated: (name) => `宝典「${name}」制作成功！`,
+    variableHint: '{0}=章节号 {1}=世界名',
   },
 
   validate: {
@@ -84,6 +90,9 @@ export const cuteText: ThemeTextMap = {
     runBtn: '开始守护检查~',
     runningBtn: '检查中...',
     emptyHint: '选择宝典和检查项后，点击「开始守护检查」',
+    ruleLabels: ['冒险范围确认', '世界覆盖完整性', '数据类型匹配', '数组分隔符', '同Key世界顺序', '必填字段', '路线一致性'],
+    validatingProgress: '守护检查中',
+    passedMessage: '检查完成，一切安好~',
   },
 
   preview: {
@@ -92,7 +101,14 @@ export const cuteText: ThemeTextMap = {
     runningBtn: '冒险准备中...',
     colHeaders: ['表名', '行数', '分数'],
     statsTitle: '♡ 冒险统计',
+    legendExcluded: '灰色 + 删除线 = 排除的部分（世界区间或路线不匹配）',
     emptyHint: '选择世界后，点击「出发冒险」开始探索~',
+  },
+
+  setup: {
+    description: '冒险小屋还没准备好呢~ 点击下方按钮自动创建配置，就可以开始收集宝典啦！',
+    initBtn: '开始准备',
+    initializingBtn: '准备中~',
   },
 
   help: {

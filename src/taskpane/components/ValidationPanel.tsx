@@ -609,7 +609,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
             <div key={rule.key} style={{ display: 'flex', alignItems: 'center' }}>
               <Checkbox
                 className={styles.ruleCheckbox}
-                label={rule.label}
+                label={t.validate.ruleLabels[idx] ?? rule.label}
                 checked={enabledRules.has(rule.key)}
                 onChange={() => toggleRule(rule.key)}
                 disabled={isRunning}
@@ -708,7 +708,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       {isRunning && (
         <div className={styles.spinnerArea}>
           <Spinner size="small" />
-          <Text className={styles.spinnerText}>正在校验 {progressText}</Text>
+          <Text className={styles.spinnerText}>{t.validate.validatingProgress} {progressText}</Text>
         </div>
       )}
 
@@ -722,7 +722,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
             {counts && counts.total === 0 ? (
               <div className={styles.successState}>
                 <CheckmarkCircleRegular className={styles.successIcon} />
-                <Text className={styles.successText}>校验通过，未发现问题</Text>
+                <Text className={styles.successText}>{t.validate.passedMessage}</Text>
               </div>
             ) : counts && (
               <div className={styles.summaryRow}>

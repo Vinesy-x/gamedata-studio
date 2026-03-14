@@ -74,6 +74,12 @@ export const spaceText: ThemeTextMap = {
     addVersionHint: '添加新航线后点击「同步航段」为所有设备补充航段列',
     gitDirPlaceholder: '传送坐标路径（必填）',
     versionNamePlaceholder: '航线名称',
+    statusGitDirRequired: '必须配置传送坐标，没有着陆坐标的航线没有意义',
+    statusVersionAdded: (name, field) => `已添加航线「${name}」(${field})`,
+    statusVersionDeleted: (name) => `已删除航线「${name}」`,
+    statusSyncResult: (n) => `航段同步完成: ${n} 台设备已同步`,
+    statusTableCreated: (name) => `设备「${name}」组装成功！`,
+    variableHint: '{0}=航线编号 {1}=航线名',
   },
 
   validate: {
@@ -84,6 +90,9 @@ export const spaceText: ThemeTextMap = {
     runBtn: '开始检修',
     runningBtn: '检修中...',
     emptyHint: '选择设备和检修项后，点击「开始检修」',
+    ruleLabels: ['航线区间格式', '航线覆盖完整性', '数据类型匹配', '数组分隔符', '同Key航线顺序', '必填字段', '航段一致性'],
+    validatingProgress: '正在检修',
+    passedMessage: '检修完成，一切正常',
   },
 
   preview: {
@@ -92,7 +101,14 @@ export const spaceText: ThemeTextMap = {
     runningBtn: '点火中...',
     colHeaders: ['设备名', '载荷', '状态'],
     statsTitle: '试飞报告',
+    legendExcluded: '灰色 + 删除线 = 排除的载荷（航线区间或航段不匹配）',
     emptyHint: '选择航线后，点击「点火」开始试飞',
+  },
+
+  setup: {
+    description: '飞船控制台尚未初始化。点击下方按钮自动创建配置，即可开始管理飞船设备。',
+    initBtn: '初始化飞船',
+    initializingBtn: '初始化中...',
   },
 
   help: {

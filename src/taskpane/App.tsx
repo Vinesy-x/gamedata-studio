@@ -326,7 +326,7 @@ export function App() {
           <img src="assets/gds-80.png" alt="GameData Studio" className={styles.setupIcon} />
           <Text weight="semibold" size={400}>欢迎使用 GameData Studio</Text>
           <Text className={styles.setupDesc}>
-            当前工作簿尚未初始化。点击下方按钮自动创建配置，即可开始管理游戏数据表。
+            {t.setup.description}
           </Text>
           <Button
             appearance="primary"
@@ -335,7 +335,7 @@ export function App() {
             onClick={handleInitialize}
             size="large"
           >
-            {initializing ? '正在初始化...' : '初始化工作簿'}
+            {initializing ? t.setup.initializingBtn : t.setup.initBtn}
           </Button>
           {initError && (
             <div className={styles.errorBox}>

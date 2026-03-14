@@ -65,6 +65,12 @@ export const defaultText: ThemeTextMap = {
     addVersionHint: '添加新版本后点击「同步线路」为所有数据表补充线路列',
     gitDirPlaceholder: 'Git 目录路径（必填）',
     versionNamePlaceholder: '版本名称',
+    statusGitDirRequired: '必须配置 Git 目录，没有输出目录的线路没有意义',
+    statusVersionAdded: (name, field) => `已添加版本「${name}」(${field})`,
+    statusVersionDeleted: (name) => `已删除版本「${name}」`,
+    statusSyncResult: (n) => `线路同步完成: ${n} 张表已同步`,
+    statusTableCreated: (name) => `工作表「${name}」创建成功！`,
+    variableHint: '{0}=版本号 {1}=版本名',
   },
 
   validate: {
@@ -75,6 +81,9 @@ export const defaultText: ThemeTextMap = {
     runBtn: '运行校验',
     runningBtn: '校验中...',
     emptyHint: '选择校验范围和规则后，点击「运行校验」',
+    ruleLabels: ['版本区间格式', '版本覆盖完整性', '数据类型匹配', '数组分隔符', '同Key版本顺序', '必填字段', 'Roads一致性'],
+    validatingProgress: '正在校验',
+    passedMessage: '校验通过，未发现问题',
   },
 
   preview: {
@@ -83,7 +92,14 @@ export const defaultText: ThemeTextMap = {
     runningBtn: '预览中...',
     colHeaders: ['表名', '原始行列', '筛选行列'],
     statsTitle: '预览结果',
+    legendExcluded: '灰色 + 删除线 = 排除的行/列（版本区间或线路不匹配）',
     emptyHint: '选择版本后，点击「预览」查看数据',
+  },
+
+  setup: {
+    description: '当前工作簿尚未初始化。点击下方按钮自动创建配置，即可开始管理游戏数据表。',
+    initBtn: '初始化工作簿',
+    initializingBtn: '正在初始化...',
   },
 
   help: {

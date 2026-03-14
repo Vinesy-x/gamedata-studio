@@ -322,7 +322,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
       <div className={styles.configSection}>
         <Text className={styles.sectionTitle}>{t.preview.title}</Text>
         <div className={styles.fieldRow}>
-          <span className={styles.fieldLabel}>版本</span>
+          <span className={styles.fieldLabel}>{t.help.terms.version}</span>
           <Dropdown
             size="small"
             value={selectedVersion}
@@ -340,7 +340,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
           </Dropdown>
         </div>
         <div className={styles.fieldRow}>
-          <span className={styles.fieldLabel}>版本号</span>
+          <span className={styles.fieldLabel}>{t.help.terms.versionNumber}</span>
           <Input
             size="small"
             type="number"
@@ -473,7 +473,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
             <span
               className={`${styles.legendSwatch} ${styles.legendSwatchGray}`}
             />
-            <span>灰色 + 删除线 = 排除的行/列（版本区间或线路不匹配）</span>
+            <span>{t.preview.legendExcluded}</span>
           </div>
           <div className={styles.legendRow}>
             <span
@@ -490,7 +490,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
       {!isPreviewing && results.length === 0 && (
         <div className={styles.emptyHint}>
           <Text>
-            选择版本并点击「预览」查看筛选结果
+            {t.preview.emptyHint}
           </Text>
         </div>
       )}

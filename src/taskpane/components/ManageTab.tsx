@@ -382,7 +382,7 @@ function ConfigSubPage({ config, onReload, styles }: {
   const handleAddVersion = useCallback(async () => {
     if (!newVersionName.trim()) return;
     if (!newVersionGitDir.trim()) {
-      setStatusMsg({ text: '必须配置 Git 目录，没有输出目录的线路没有意义', type: 'error' });
+      setStatusMsg({ text: t.manage.statusGitDirRequired, type: 'error' });
       return;
     }
     setSaving(true);
@@ -408,7 +408,7 @@ function ConfigSubPage({ config, onReload, styles }: {
       setNewVersionName('');
       setNewVersionGitDir('');
       setAddingVersion(false);
-      setStatusMsg({ text: `已添加版本「${newVersionName}」(${lineField})`, type: 'success' });
+      setStatusMsg({ text: t.manage.statusVersionAdded(newVersionName, lineField), type: 'success' });
       onReload();
     } catch (err) {
       setStatusMsg({ text: `添加失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
@@ -422,7 +422,7 @@ function ConfigSubPage({ config, onReload, styles }: {
     setStatusMsg(null);
     try {
       await configManager.deleteVersion(vt.name);
-      setStatusMsg({ text: `已删除版本「${vt.name}」`, type: 'success' });
+      setStatusMsg({ text: t.manage.statusVersionDeleted(vt.name), type: 'success' });
       onReload();
     } catch (err) {
       setStatusMsg({ text: `删除失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
@@ -436,7 +436,7 @@ function ConfigSubPage({ config, onReload, styles }: {
     try {
       const tableNames = Array.from(config.tablesToProcess.keys());
       const result = await lineSyncer.syncAllTables(config.versionTemplates, tableNames);
-      const msg = `线路同步完成: ${result.synced} 张表已同步` +
+      const msg = t.manage.statusSyncResult(result.synced) +
         (result.errors.length > 0 ? `, ${result.errors.length} 张失败: ${result.errors.join('、')}` : '');
       setStatusMsg({ text: msg, type: result.errors.length > 0 ? 'error' : 'success' });
     } catch (err) {
@@ -538,7 +538,7 @@ function ConfigSubPage({ config, onReload, styles }: {
                           autoFocus
                         />
                         <span style={{ fontSize: '9px', color: '#999', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
-                          {'{0}'}=版本号 {'{1}'}=版本名
+                          {t.manage.variableHint}
                         </span>
                       </div>
                     ) : (
@@ -587,7 +587,7 @@ function ConfigSubPage({ config, onReload, styles }: {
                   style={{ width: '100%' }}
                 />
                 <span style={{ fontSize: '9px', color: '#999', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
-                  支持变量: {'{0}'}=版本号 {'{1}'}=版本名，如 /data/{'{1}'}/{'{0}'} → /data/默认/2.1
+                  支持变量: {t.manage.variableHint}，如 /data/{'{1}'}/{'{0}'} → /data/默认/2.1
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '6px' }}>
@@ -1249,7 +1249,7 @@ function WizardSubPage({ config, onReload, styles }: {
       };
 
       await tableCreator.createTable(creationConfig);
-      setStatusMsg({ text: `工作表「${chineseName}」创建成功！`, type: 'success' });
+      setStatusMsg({ text: t.manage.statusTableCreated(chineseName), type: 'success' });
       // 重置表单
       setChineseName('');
       setEnglishName('');
