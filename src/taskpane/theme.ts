@@ -186,24 +186,29 @@ export const gameText = {
   },
 
   // ManageTab
-  manageSubNav: ['舰桥指挥', '模块库', '组装'] as const,
+  manageSubNav: ['舰桥指挥', '设备库', '组装'] as const,
   manageLabels: {
     gitTemplate: '传送协议',
     staff: '船员编制',
-    versionList: '航线列表',
+    versionList: '设备列表',
+    tableCount: (n: number) => `设备列表 (${n})`,
+    colVersion: '版本名',
+    colRoute: '航线',
+    colGitDir: '传送坐标',
   },
 
   // ValidationPanel
   validationTitle: '维修日志',
-  validationScope: ['当前模块', '全部模块'] as const,
+  validationScope: ['当前设备', '全部设备'] as const,
   validationRun: '开始检修',
   validationProgress: (done: number, total: number) => `检修进度  ${done}/${total}`,
-  validationXpTotal: (xp: number) => `维修经验: ${xp}`,
+  validationXpTotal: (xp: number) => `总经验值: ${xp}`,
+  ruleXp: [50, 75, 30, 40, 60, 25, 35] as const,
 
   // PreviewPanel
-  previewTitle: '航线选择',
-  previewBtn: (n: number) => `开始试飞 (${n}条航线)`,
-  previewColHeaders: ['模块名', '载荷', '航速'] as const,
-  previewStats: '飞行报告',
+  previewTitle: '选择关卡',
+  previewBtn: (n: number) => `开始战斗 (${n}张表)`,
+  previewColHeaders: ['设备名', '行数', '分数'] as const,
+  previewStats: '战斗统计',
   previewRank: 'S',
 } as const;

@@ -108,7 +108,7 @@ const useStyles = makeStyles({
   th: {
     textAlign: 'left',
     padding: '5px 6px',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: tokens.colorNeutralBackground3,
     fontWeight: 600,
     fontSize: '10px',
     color: tokens.colorNeutralForeground3,
@@ -486,7 +486,7 @@ function ConfigSubPage({ config, onReload, styles }: {
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <Text style={{ fontSize: '12px', fontWeight: 600 }}>
-            {isGame ? gameText.manageLabels.versionList : '版本管理'} ({versions.length})
+            {isGame ? gameText.manageLabels.tableCount(versions.length) : `版本管理 (${versions.length})`}
           </Text>
           <div className={styles.actionRow}>
             <Button
@@ -514,9 +514,9 @@ function ConfigSubPage({ config, onReload, styles }: {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th className={styles.th} style={{ width: '28%' }}>版本名</th>
-                <th className={styles.th} style={{ width: '24%' }}>线路</th>
-                <th className={styles.th} style={{ width: '38%' }}>Git 目录</th>
+                <th className={styles.th} style={{ width: '28%' }}>{isGame ? gameText.manageLabels.colVersion : '版本名'}</th>
+                <th className={styles.th} style={{ width: '24%' }}>{isGame ? gameText.manageLabels.colRoute : '线路'}</th>
+                <th className={styles.th} style={{ width: '38%' }}>{isGame ? gameText.manageLabels.colGitDir : 'Git 目录'}</th>
                 <th className={styles.th} style={{ width: '10%' }}></th>
               </tr>
             </thead>

@@ -88,7 +88,7 @@ const useStyles = makeStyles({
     whiteSpace: 'nowrap' as const,
     textTransform: 'uppercase' as const,
     letterSpacing: '0.3px',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: tokens.colorNeutralBackground3,
   },
   td: {
     padding: '4px 6px',

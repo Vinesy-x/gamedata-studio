@@ -601,7 +601,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
           </Button>
         </div>
         <div className={styles.rulesGrid}>
-          {VALIDATION_RULES.map((rule) => (
+          {VALIDATION_RULES.map((rule, idx) => (
             <div key={rule.key} style={{ display: 'flex', alignItems: 'center' }}>
               <Checkbox
                 className={styles.ruleCheckbox}
@@ -620,6 +620,11 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
                   style={{ minWidth: 'auto', padding: '0 2px', color: showDelimiters ? tokens.colorBrandForeground1 : tokens.colorNeutralForeground4 }}
                   title="配置类型分隔符"
                 />
+              )}
+              {isGame && (
+                <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: gdsTokens.game.xpCyan }}>
+                  +{gameText.ruleXp[idx] ?? 30} 经验
+                </span>
               )}
             </div>
           ))}
@@ -671,6 +676,18 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
 
       {/* 运行按钮 */}
       <div className={styles.section}>
+        {isGame && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, fontSize: 11 }}>
+            <span style={{ color: gdsTokens.game.textMuted }}>
+              {gameText.validationProgress(enabledRules.size, VALIDATION_RULES.length)}
+            </span>
+            <span style={{ color: gdsTokens.game.xpColor, fontWeight: 700 }}>
+              {gameText.validationXpTotal(
+                VALIDATION_RULES.reduce((sum, r, i) => enabledRules.has(r.key) ? sum + (gameText.ruleXp[i] ?? 30) : sum, 0)
+              )}
+            </span>
+          </div>
+        )}
         <Button
           className={styles.runBtn}
           icon={<PlayRegular />}
