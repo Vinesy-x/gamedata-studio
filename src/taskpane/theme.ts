@@ -95,6 +95,48 @@ export const gdsCuteTheme = {
   colorPaletteRedForeground1: '#D94080',
 };
 
+// Cyberpunk theme: dark base with neon pink/blue/green
+const cyberBrand: BrandVariants = {
+  10: '#0A0A12',
+  20: '#12121F',
+  30: '#1A1A2E',
+  40: '#22223D',
+  50: '#2A2A4C',
+  60: '#FF2D95',
+  70: '#FF4DA8',
+  80: '#FF6DBB',
+  90: '#FF8DCD',
+  100: '#FFADE0',
+  110: '#FFCDE9',
+  120: '#FFE0F2',
+  130: '#FFF0F8',
+  140: '#FFF5FB',
+  150: '#FFFAFE',
+  160: '#FFFFFF',
+};
+
+export const gdsCyberTheme = {
+  ...createDarkTheme(cyberBrand),
+  colorNeutralBackground1: '#0F0F1A',
+  colorNeutralBackground2: '#0A0A12',
+  colorNeutralBackground3: '#1A1A2E',
+  colorNeutralBackground6: '#1E1E35',
+  colorNeutralForeground1: '#E0E0F0',
+  colorNeutralForeground2: '#B0B0CC',
+  colorNeutralForeground3: '#7A7A99',
+  colorNeutralForeground4: '#5A5A77',
+  colorNeutralStroke1: '#2A2A4C',
+  colorNeutralStroke2: '#1E1E35',
+  colorNeutralStroke3: '#1A1A2E',
+  colorBrandBackground: '#FF2D95',
+  colorBrandForeground1: '#FF2D95',
+  colorBrandForeground2: '#00D4FF',
+  colorNeutralForegroundOnBrand: '#0A0A12',
+  colorPaletteGreenForeground1: '#ADFF2F',
+  colorPaletteRedForeground1: '#FF2D95',
+  colorPaletteRedBackground1: '#1A0010',
+};
+
 // --- Semantic Color Tokens ---
 export const gdsTokens = {
   banner: {
@@ -189,6 +231,7 @@ export const gdsTokens = {
     xpBarBg: '#1A143280',
     xpBarBorder: '1px solid #A855F750',
     xpColor: '#FFD700',
+    xpAccent: '#06B6D4',
     xpCyan: '#06B6D4',
     xpPurple: '#A855F7',
     tabIndicator: '#A855F7',
@@ -210,6 +253,23 @@ export const gdsTokens = {
     xpAccent: '#F48CC8',
     textPrimary: '#4A2040',
     textMuted: '#AA7098',
+  },
+  // --- Cyberpunk Theme Extras ---
+  cyber: {
+    bg: '#0A0A12',
+    surface: '#0F0F1A',
+    cardBg: '#0F0F1A',
+    cardBorder: '1px solid #2A2A4C',
+    cardShadow: '0 0 12px rgba(255,45,149,0.1), 0 2px 8px rgba(0,0,0,0.3)',
+    banner: 'linear-gradient(135deg, #FF2D95 0%, #00D4FF 100%)',
+    progressGradient: 'linear-gradient(90deg, #FF2D95, #00D4FF)',
+    xpTrackBg: '#1E1E35',
+    xpBarBg: '#0F0F1A80',
+    xpBarBorder: '1px solid #FF2D9550',
+    xpColor: '#ADFF2F',
+    xpAccent: '#00D4FF',
+    textPrimary: '#E0E0F0',
+    textMuted: '#7A7A99',
   },
 } as const;
 
