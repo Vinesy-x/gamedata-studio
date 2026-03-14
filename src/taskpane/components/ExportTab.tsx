@@ -32,6 +32,8 @@ import {
   WeatherSunnyRegular,
   BugRegular,
   MegaphoneRegular,
+  RocketRegular,
+  StarRegular,
 } from '@fluentui/react-icons';
 import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
@@ -569,29 +571,29 @@ export function ExportTab({
         <div className={styles.sectionTitle}>{isGame ? gameText.sectionTitle : 'Export Settings'}</div>
         {isGame && (
           <div style={{
-            background: gdsTokens.game.levelBg,
+            background: gdsTokens.game.xpBarBg,
             borderRadius: 6,
-            padding: '6px 12px',
+            padding: '8px 12px',
             marginBottom: 8,
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            border: gdsTokens.game.cardBorder,
+            gap: 10,
+            border: gdsTokens.game.xpBarBorder,
           }}>
-            <span style={{ fontSize: 12, color: gdsTokens.game.neonCyan, fontWeight: 700 }}>
+            <span style={{ fontSize: 11, color: gdsTokens.game.xpPurple, fontWeight: 700, fontFamily: gdsTokens.fontMono, whiteSpace: 'nowrap' }}>
               {gameText.levelLabel(12, '数据导出员')}
             </span>
             <div style={{
               flex: 1,
-              height: 6,
-              borderRadius: 3,
-              background: gdsTokens.game.surfaceGlow,
+              height: 8,
+              borderRadius: 4,
+              background: gdsTokens.game.xpTrackBg,
               overflow: 'hidden',
             }}>
               <div style={{
                 width: '65%',
                 height: '100%',
-                borderRadius: 3,
+                borderRadius: 4,
                 background: gdsTokens.game.progressGradient,
               }} />
             </div>
@@ -599,7 +601,7 @@ export function ExportTab({
         )}
         <div className={styles.configCard} style={isGame ? {
           border: gdsTokens.game.cardBorder,
-          boxShadow: gdsTokens.game.cardShadow,
+          boxShadow: 'none',
           backgroundColor: gdsTokens.game.cardBg,
         } : undefined}>
           <div className={styles.configRow}>
@@ -690,7 +692,7 @@ export function ExportTab({
         <div className={styles.actionRow}>
           <Button
             className={styles.exportBtn}
-            icon={<ArrowExportRegular />}
+            icon={isGame ? <RocketRegular /> : <ArrowExportRegular />}
             appearance="primary"
             onClick={handleExport}
             disabled={isExporting || !outputDir}
@@ -707,7 +709,7 @@ export function ExportTab({
             size="large"
             style={gitError ? { color: tokens.colorPaletteRedForeground1, borderColor: tokens.colorPaletteRedBorder1 } : undefined}
           >
-            {gitError ? 'Git 失败' : 'Git'}
+            {gitError ? 'Git 失败' : isGame ? gameText.gitBtn : 'Git'}
           </Button>
         </div>
 
@@ -728,18 +730,20 @@ export function ExportTab({
             {/* 摘要行：状态 + 耗时 + 统计 */}
             <div className={styles.resultSummary} style={isGame ? {
               border: gdsTokens.game.cardBorder,
-              boxShadow: gdsTokens.game.cardShadow,
+              boxShadow: 'none',
               backgroundColor: gdsTokens.game.cardBg,
             } : undefined}>
               <div className={styles.resultSummaryRow}>
-                {visibleResult.success ? (
+                {isGame ? (
+                  <StarRegular style={{ fontSize: 18, color: gdsTokens.game.xpColor, flexShrink: 0 }} />
+                ) : visibleResult.success ? (
                   <CheckmarkCircleRegular
                     className={`${styles.resultStatusIcon} ${styles.successColor} ${showCompletionAnim ? styles.successCheckAnim : ''}`}
                   />
                 ) : (
                   <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
                 )}
-                <span className={styles.resultStatusText}>
+                <span className={styles.resultStatusText} style={isGame ? { color: gdsTokens.game.xpColor } : undefined}>
                   {visibleResult.success
                     ? (isGame
                         ? (visibleResult.changedTables > 0 ? gameText.resultSuccess : '无任何修改')
@@ -750,9 +754,12 @@ export function ExportTab({
                   {visibleResult.duration.toFixed(1)}s
                 </span>
                 {isGame && visibleResult.success && (
-                  <span style={{ color: gdsTokens.game.neonGold, fontSize: 11, fontWeight: 600 }}>
-                    {gameText.resultXp(visibleResult.modifiedFiles.length * 2 + visibleResult.changedTables * 5)}
-                  </span>
+                  <>
+                    <StarRegular style={{ fontSize: 16, color: gdsTokens.game.xpColor }} />
+                    <span style={{ color: gdsTokens.game.xpCyan, fontSize: 11, fontWeight: 700 }}>
+                      {gameText.resultXp(visibleResult.modifiedFiles.length * 2 + visibleResult.changedTables * 5)}
+                    </span>
+                  </>
                 )}
               </div>
               <div className={styles.resultStats}>
@@ -884,7 +891,7 @@ export function ExportTab({
             className={styles.helpBtn}
             appearance="transparent"
             size="small"
-            icon={mode === 'game' ? <span style={{ fontSize: 14 }}>🎮</span> : mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
+            icon={mode === 'game' ? <RocketRegular fontSize={16} /> : mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
             onClick={toggleTheme}
             title={mode === 'light' ? '切换到深色模式' : mode === 'dark' ? '切换到游戏模式' : '切换到浅色模式'}
           />
