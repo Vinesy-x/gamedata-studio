@@ -621,18 +621,24 @@ export class StudioConfigStore {
       const rows = configData.tables.map(t => [t.versionRange, t.chineseName, t.englishName, t.shouldOutput]);
       sheet.getRangeByIndexes(1, 0, rows.length, 4).values = rows;
 
-      // 为功能表名列添加超链接（跳转到对应工作表），保持原有文本和格式
+      // 为功能表名列添加超链接（跳转到对应工作表），只加超链接不改文本和格式
+      const nameColRange = sheet.getRangeByIndexes(1, 1, configData.tables.length, 1);
+      nameColRange.load('values');
+      nameColRange.format.font.load('color, underline');
+      await context.sync();
+
       for (let i = 0; i < configData.tables.length; i++) {
         const name = configData.tables[i].chineseName;
         const cellRange = sheet.getRangeByIndexes(1 + i, 1, 1, 1);
+        const origColor = nameColRange.format.font.color;
+        const origUnderline = nameColRange.format.font.underline;
         cellRange.hyperlink = {
           documentReference: `'${name}'!A1`,
-          textToDisplay: name,
+          textToDisplay: String(nameColRange.values[i][0]),
           screenTip: `跳转到「${name}」`,
         };
-        // 恢复默认字体格式（去除超链接的蓝色+下划线）
-        cellRange.format.font.color = '#000000';
-        cellRange.format.font.underline = 'None';
+        cellRange.format.font.color = origColor;
+        cellRange.format.font.underline = origUnderline;
       }
     }
 
