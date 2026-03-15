@@ -111,6 +111,21 @@ export const spaceText: ThemeTextMap = {
     initializingBtn: '初始化中...',
   },
 
+  commitHistory: {
+    title: '航行日志',
+    loading: '扫描中...',
+    empty: '暂无航行记录',
+    rollbackBtn: '回溯',
+    confirmTitle: '确认回溯',
+    confirmMessage: (hash) => `确定要回溯到航行节点 ${hash} 吗？此操作将强制覆盖，不可撤销。`,
+    confirmBtn: '确认回溯',
+    cancelBtn: '取消',
+    rolling: '回溯中...',
+    rollbackSuccess: '回溯成功',
+    rollbackFail: '回溯失败',
+    serverError: '无法连接星际传送站',
+  },
+
   help: {
     quickStart: {
       title: '舰长手册',

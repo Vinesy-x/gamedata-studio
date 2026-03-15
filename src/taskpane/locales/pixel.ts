@@ -111,6 +111,21 @@ export const pixelText: ThemeTextMap = {
     initializingBtn: 'LOADING...',
   },
 
+  commitHistory: {
+    title: 'SAVE LIST',
+    loading: 'LOADING...',
+    empty: 'NO SAVE DATA',
+    rollbackBtn: 'LOAD',
+    confirmTitle: 'LOAD SAVE?',
+    confirmMessage: (hash) => `确定要读取存档 ${hash} 吗？当前进度将被覆盖！`,
+    confirmBtn: 'YES',
+    cancelBtn: 'NO',
+    rolling: 'LOADING...',
+    rollbackSuccess: 'LOAD OK!',
+    rollbackFail: 'LOAD FAILED',
+    serverError: '传送阵无响应',
+  },
+
   help: {
     quickStart: {
       title: '勇者手册',

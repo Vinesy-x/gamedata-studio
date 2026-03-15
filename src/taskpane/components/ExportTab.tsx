@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { IdleAnimation } from './IdleAnimation';
 import { HelpPanel } from './HelpPanel';
+import { CommitHistoryPanel } from './CommitHistoryPanel';
 import {
   makeStyles,
   tokens,
@@ -37,6 +38,7 @@ import {
   StarRegular,
   FlagCheckeredRegular,
   JoystickRegular,
+  HistoryRegular,
 } from '@fluentui/react-icons';
 import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
@@ -518,6 +520,7 @@ export function ExportTab({
   const [devLogOpen, setDevLogOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [devLogTab, setDevLogTab] = useState<'key' | 'all'>('key');
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   return (
     <div className={styles.container}>
@@ -849,6 +852,15 @@ export function ExportTab({
             className={styles.helpBtn}
             appearance="transparent"
             size="small"
+            icon={<HistoryRegular fontSize={16} />}
+            onClick={() => setHistoryOpen(true)}
+            title={t.commitHistory.title}
+            disabled={!outputDir}
+          />
+          <Button
+            className={styles.helpBtn}
+            appearance="transparent"
+            size="small"
             icon={<BugRegular fontSize={16} />}
             onClick={() => setDevLogOpen(true)}
             title="开发者日志"
@@ -894,6 +906,19 @@ export function ExportTab({
               }}>
                 {(devLogTab === 'key' ? logger.getKeyLogs() : logger.getLogs()).join('\n') || '（暂无日志）'}
               </pre>
+            </DialogContent>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      {/* 提交历史对话框 */}
+      <Dialog open={historyOpen} onOpenChange={(_, data) => setHistoryOpen(data.open)}>
+        <DialogSurface style={{ maxWidth: '100%', width: '100%', margin: 0, borderRadius: 0, maxHeight: '100vh' }}>
+          <DialogBody style={{ padding: 0 }}>
+            <DialogContent style={{ padding: 0, overflow: 'auto', maxHeight: '80vh' }}>
+              {historyOpen && outputDir && (
+                <CommitHistoryPanel outputDirectory={outputDir} />
+              )}
             </DialogContent>
           </DialogBody>
         </DialogSurface>

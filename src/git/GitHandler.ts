@@ -81,6 +81,33 @@ export class GitHandler {
     return this.generatePushCommands(modifiedFiles, commitMessage).join(' && ');
   }
 
+  /**
+   * 生成查看最近提交历史的命令
+   */
+  generateLogCommands(): string[] {
+    if (!this.outputDirectory) return [];
+    return [
+      `cd "${this.outputDirectory}"`,
+      'git log --pretty=format:"%H||%ai||%s" -10',
+    ];
+  }
+
+  /**
+   * 生成回退到指定提交的命令
+   * hash 做正则校验防注入
+   */
+  generateResetCommands(hash: string): string[] {
+    if (!this.outputDirectory) return [];
+    if (!/^[0-9a-f]{7,40}$/i.test(hash)) {
+      throw new Error(`无效的 commit hash: ${hash}`);
+    }
+    return [
+      `cd "${this.outputDirectory}"`,
+      `git reset --hard ${hash}`,
+      'git push --force',
+    ];
+  }
+
   getOutputDirectory(): string {
     return this.outputDirectory;
   }

@@ -111,6 +111,21 @@ export const cuteText: ThemeTextMap = {
     initializingBtn: '准备中~',
   },
 
+  commitHistory: {
+    title: '冒险日记',
+    loading: '翻页中~',
+    empty: '还没有冒险记录呢~',
+    rollbackBtn: '回到过去',
+    confirmTitle: '确认回到过去',
+    confirmMessage: (hash) => `真的要回到 ${hash} 那一刻吗？回去之后就不能反悔了哦~`,
+    confirmBtn: '确认回去',
+    cancelBtn: '算了算了',
+    rolling: '穿越中~',
+    rollbackSuccess: '回到过去成功啦~',
+    rollbackFail: '呜呜，穿越失败了...',
+    serverError: '魔法书架连不上了~',
+  },
+
   help: {
     quickStart: {
       title: '冒险者手册',

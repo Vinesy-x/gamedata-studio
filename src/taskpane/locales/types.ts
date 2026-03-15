@@ -115,6 +115,22 @@ export interface ThemeTextMap {
     initializingBtn: string;
   };
 
+  // --- CommitHistoryPanel ---
+  commitHistory: {
+    title: string;
+    loading: string;
+    empty: string;
+    rollbackBtn: string;
+    confirmTitle: string;
+    confirmMessage: (hash: string) => string;
+    confirmBtn: string;
+    cancelBtn: string;
+    rolling: string;
+    rollbackSuccess: string;
+    rollbackFail: string;
+    serverError: string;
+  };
+
   // --- HelpPanel ---
   help: {
     quickStart: { title: string; body: string };

@@ -111,6 +111,21 @@ export const cyberText: ThemeTextMap = {
     initializingBtn: '初始化中...',
   },
 
+  commitHistory: {
+    title: '操作日志',
+    loading: '检索中...',
+    empty: '暂无操作记录',
+    rollbackBtn: '回滚',
+    confirmTitle: '确认回滚',
+    confirmMessage: (hash) => `确认回滚到节点 ${hash}？此操作将强制覆盖远端，不可逆。`,
+    confirmBtn: '执行回滚',
+    cancelBtn: '取消',
+    rolling: '回滚中...',
+    rollbackSuccess: '回滚完成',
+    rollbackFail: '回滚失败',
+    serverError: '暗网节点无响应',
+  },
+
   help: {
     quickStart: {
       title: '黑客手册',

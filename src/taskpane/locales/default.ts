@@ -102,6 +102,21 @@ export const defaultText: ThemeTextMap = {
     initializingBtn: '正在初始化...',
   },
 
+  commitHistory: {
+    title: '提交历史',
+    loading: '加载中...',
+    empty: '暂无提交记录',
+    rollbackBtn: '回退',
+    confirmTitle: '确认回退',
+    confirmMessage: (hash) => `确定要回退到 ${hash} 吗？此操作将强制推送，不可撤销。`,
+    confirmBtn: '确认回退',
+    cancelBtn: '取消',
+    rolling: '回退中...',
+    rollbackSuccess: '回退成功',
+    rollbackFail: '回退失败',
+    serverError: '无法连接本地文件服务',
+  },
+
   help: {
     quickStart: {
       title: '快速入门',
