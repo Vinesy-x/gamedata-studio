@@ -65,10 +65,15 @@ module.exports = async (env, options) => {
     },
     plugins: [
       new webpack.DefinePlugin({
-        __APP_VERSION__: JSON.stringify(
-          require("./package.json").version +
-            (dev ? "+" + execSync("git rev-parse --short HEAD").toString().trim() : "")
-        ),
+        __APP_VERSION__: dev
+          ? webpack.DefinePlugin.runtimeValue(
+              () => JSON.stringify(
+                require("./package.json").version + "+" +
+                execSync("git rev-parse --short HEAD").toString().trim()
+              ),
+              { fileDependencies: [require("path").resolve(__dirname, ".git/HEAD")] }
+            )
+          : JSON.stringify(require("./package.json").version),
       }),
       new webpack.ProvidePlugin({
         Buffer: ["buffer", "Buffer"],
