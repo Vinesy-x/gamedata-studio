@@ -44,7 +44,7 @@ module.exports = async (env, options) => {
             loader: "babel-loader",
             options: {
               presets: [
-                "@babel/preset-env",
+                ["@babel/preset-env", { modules: false }],
                 ["@babel/preset-react", { runtime: "automatic" }],
                 "@babel/preset-typescript",
               ],
@@ -64,7 +64,9 @@ module.exports = async (env, options) => {
     },
     plugins: [
       new webpack.DefinePlugin({
-        __APP_VERSION__: JSON.stringify(require("./package.json").version),
+        __APP_VERSION__: JSON.stringify(
+          require("./package.json").version + (env && env.channel === "dev" ? "-dev" : "")
+        ),
       }),
       new webpack.ProvidePlugin({
         Buffer: ["buffer", "Buffer"],

@@ -9,7 +9,7 @@
  */
 
 import { VersionFilter } from '../engine/VersionFilter';
-import { excelHelper, SheetData } from '../utils/ExcelHelper';
+import { excelHelper, SheetData, isExcelError } from '../utils/ExcelHelper';
 import { ValidationResult, TableValidationData } from '../types/validation';
 import { ValidationConfig, TypeDelimiterConfig } from '../v2/StudioConfigStore';
 import { logger } from '../utils/Logger';
@@ -17,10 +17,12 @@ import { logger } from '../utils/Logger';
 export class ValidationEngine {
   private versionFilter: VersionFilter;
   private validationConfig?: ValidationConfig;
+  private nullEquivalentSet: Set<string>;
 
   constructor(versionFilter: VersionFilter, validationConfig?: ValidationConfig) {
     this.versionFilter = versionFilter;
     this.validationConfig = validationConfig;
+    this.nullEquivalentSet = new Set((validationConfig?.nullEquivalents ?? []).map(s => s.toLowerCase()));
   }
 
   // ──────────── 公开接口 ────────────
@@ -28,37 +30,138 @@ export class ValidationEngine {
   /**
    * 运行全部规则校验
    * 仅手动触发（点击「校验」按钮）
+   * @param onProgress 进度回调（tableName, index, total）
    */
-  async runValidation(tableNames: Set<string>): Promise<ValidationResult[]> {
+  async runValidation(
+    tableNames: Set<string>,
+    onProgress?: (tableName: string, index: number, total: number) => void,
+  ): Promise<ValidationResult[]> {
     const results: ValidationResult[] = [];
+    const total = tableNames.size;
 
+    // Batch load all tables in a single Excel.run to reduce context switching overhead
+    onProgress?.('加载数据...', 0, total);
+    const dataMap = await this.loadAllTableData(tableNames);
+
+    let index = 0;
     for (const tableName of tableNames) {
-      const data = await this.loadTableData(tableName);
+      index++;
+      const data = dataMap.get(tableName);
       if (!data) continue;
 
-      results.push(...this.validateExcelErrors(tableName, data));
-      results.push(...this.validateVersionFormat(tableName, data));
-      results.push(...this.validateDataTypes(tableName, data));
-      results.push(...this.validateArrayFormats(tableName, data));
-      results.push(...this.validateVersionCoverage(tableName, data));
-      results.push(...this.validateKeyVersionOrder(tableName, data));
-      results.push(...this.validateRequiredFields(tableName, data));
-      results.push(...this.validateRoadsConsistency(tableName, data));
+      onProgress?.(tableName, index, total);
+      // 每张表前 yield，确保大表不阻塞 UI
+      await new Promise(r => setTimeout(r, 0));
+
+      // 合并单遍历：Excel错误 + 数据类型 + 数组分隔符 + 必填字段
+      const tableResults = this.validateCellsOnePass(tableName, data);
+      tableResults.push(...this.validateVersionFormat(tableName, data));
+      tableResults.push(...this.validateVersionCoverageAndOrder(tableName, data));
+      tableResults.push(...this.validateRoadsConsistency(tableName, data));
+      for (let i = 0; i < tableResults.length; i++) results.push(tableResults[i]);
+    }
+
+    return results;
+  }
+
+  /**
+   * 合并单次遍历：Excel错误值 + 数据类型 + 数组分隔符 + 必填字段
+   * 将4个规则的 O(rows×cols) 遍历合并为1次，减少3/4的迭代开销
+   */
+  private validateCellsOnePass(tableName: string, data: TableValidationData): ValidationResult[] {
+    const results: ValidationResult[] = [];
+    const MAX_RESULTS_PER_TABLE = 200; // 避免大表生成海量结果卡死 UI
+
+    // 数据区域 - 单次遍历检查所有单元格级规则
+    for (let row = 0; row < data.dataValues.length; row++) {
+      if (results.length >= MAX_RESULTS_PER_TABLE) break;
+      for (let col = 0; col < data.dataValues[row].length; col++) {
+        const value = data.dataValues[row][col];
+
+        // 空值等价（如 "null"/"Null"/"NULL"）直接跳过所有检查，大小写不敏感
+        if (value != null && this.nullEquivalentSet.has(String(value).toLowerCase())) continue;
+
+        // 规则0: Excel 错误值
+        if (isExcelError(value)) {
+          results.push({
+            severity: 'error',
+            ruleName: '数据类型',
+            tableName,
+            location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
+            message: `单元格包含 Excel 错误值「${value}」`,
+          });
+          continue;
+        }
+
+        // 规则6: 必填字段
+        if (value === '' || value === null || value === undefined) {
+          results.push({
+            severity: 'warning',
+            ruleName: '必填字段',
+            tableName,
+            location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
+            message: `第 ${data.dataRowStart + row} 行 "${data.fieldNames[col] ?? ''}" 字段为空`,
+          });
+          continue;
+        }
+
+        // 规则2+3: 数据类型 + 数组分隔符
+        const expectedType = data.fieldTypes[col];
+        if (expectedType) {
+          const strValue = String(value);
+          const error = this.checkType(strValue, expectedType);
+          if (error) {
+            results.push({
+              severity: 'warning',
+              ruleName: '数据类型',
+              tableName,
+              location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
+              message: `字段 "${data.fieldNames[col]}" 定义为 ${expectedType}，但值 "${value}" ${error}`,
+            });
+          }
+
+          if (expectedType.includes('[]') && strValue.includes(',') && !strValue.includes('|')) {
+            results.push({
+              severity: 'warning',
+              ruleName: '数组分隔符',
+              tableName,
+              location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
+              message: `字段 "${data.fieldNames[col]}" 使用了逗号分隔，应使用 | 和 ; 分隔`,
+            });
+          }
+        }
+      }
+    }
+
+    // 版本区间列的 Excel 错误值检查
+    if (results.length < MAX_RESULTS_PER_TABLE) {
+      for (let i = 0; i < data.versionValues.length; i++) {
+        if (isExcelError(data.versionValues[i])) {
+          results.push({
+            severity: 'error',
+            ruleName: '版本区间格式',
+            tableName,
+            location: { sheetName: tableName, row: data.versionRowStart + i, column: data.versionColStart },
+            message: `版本区间单元格包含 Excel 错误值「${data.versionValues[i]}」`,
+          });
+        }
+      }
+    }
+
+    if (results.length >= MAX_RESULTS_PER_TABLE) {
+      results.push({
+        severity: 'warning',
+        ruleName: '结果截断',
+        tableName,
+        location: { sheetName: tableName, row: 1, column: 1 },
+        message: `该表问题数量超过 ${MAX_RESULTS_PER_TABLE} 条，仅显示前 ${MAX_RESULTS_PER_TABLE} 条`,
+      });
     }
 
     return results;
   }
 
   // ──────────── Excel 错误值校验 ────────────
-
-  /** 检测 Excel 错误值 (#REF!, #N/A, #VALUE! 等) */
-  private isExcelError(val: unknown): boolean {
-    if (val == null) return false;
-    const s = String(val).trim();
-    return s === '#N/A' || s === '#REF!' || s === '#VALUE!'
-      || s === '#DIV/0!' || s === '#NAME?' || s === '#NULL!'
-      || s === '#NUM!' || s === '#GETTING_DATA' || s === '#SPILL!';
-  }
 
   /**
    * 规则0：Excel 错误值检查
@@ -71,7 +174,7 @@ export class ValidationEngine {
     for (let row = 0; row < data.dataValues.length; row++) {
       for (let col = 0; col < data.dataValues[row].length; col++) {
         const value = data.dataValues[row][col];
-        if (this.isExcelError(value)) {
+        if (isExcelError(value)) {
           results.push({
             severity: 'error',
             ruleName: '数据类型',
@@ -89,7 +192,7 @@ export class ValidationEngine {
 
     // 检查版本区间列
     for (let i = 0; i < data.versionValues.length; i++) {
-      if (this.isExcelError(data.versionValues[i])) {
+      if (isExcelError(data.versionValues[i])) {
         results.push({
           severity: 'error',
           ruleName: '版本区间格式',
@@ -156,33 +259,7 @@ export class ValidationEngine {
    * 按字段定义的类型（int/float/string/int[]/int[][]）校验数据值
    */
   validateDataTypes(tableName: string, data: TableValidationData): ValidationResult[] {
-    const results: ValidationResult[] = [];
-
-    for (let col = 0; col < data.fieldTypes.length; col++) {
-      const expectedType = data.fieldTypes[col];
-      if (!expectedType) continue;
-
-      for (let row = 0; row < data.dataValues.length; row++) {
-        const value = data.dataValues[row][col];
-        if (value === '' || value === null || value === undefined) continue;
-
-        const error = this.checkType(String(value), expectedType);
-        if (error) {
-          results.push({
-            severity: 'warning',
-            ruleName: '数据类型',
-            tableName,
-            location: {
-              sheetName: tableName,
-              row: data.dataRowStart + row,
-              column: data.dataColStart + col,
-            },
-            message: `字段 "${data.fieldNames[col]}" 定义为 ${expectedType}，但值 "${value}" ${error}`,
-          });
-        }
-      }
-    }
-    return results;
+    return this.validateDataTypesAndArrayFormats(tableName, data, true, false);
   }
 
   /**
@@ -190,13 +267,6 @@ export class ValidationEngine {
    */
   private getDelimiters(type: string): TypeDelimiterConfig | undefined {
     return this.validationConfig?.typeDelimiters?.[type];
-  }
-
-  /**
-   * 转义正则特殊字符
-   */
-  private escapeRegex(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   /**
@@ -217,7 +287,6 @@ export class ValidationEngine {
       const baseType = type.slice(0, -2); // "int", "float", "string"
       const delim = this.getDelimiters(type);
       const sep = delim?.primary || '|';
-      const escapedSep = this.escapeRegex(sep);
 
       if (baseType === 'string') return null; // string[] 只检查分隔符存在性
 
@@ -273,29 +342,57 @@ export class ValidationEngine {
    * 数组类型字段中使用逗号分隔的，应改用 | 和 ;
    */
   validateArrayFormats(tableName: string, data: TableValidationData): ValidationResult[] {
+    return this.validateDataTypesAndArrayFormats(tableName, data, false, true);
+  }
+
+  /**
+   * 合并执行数据类型和数组分隔符检查（单次遍历）
+   */
+  private validateDataTypesAndArrayFormats(
+    tableName: string,
+    data: TableValidationData,
+    checkTypes: boolean,
+    checkArraySep: boolean
+  ): ValidationResult[] {
     const results: ValidationResult[] = [];
 
     for (let col = 0; col < data.fieldTypes.length; col++) {
-      const type = data.fieldTypes[col];
-      if (!type || !type.includes('[]')) continue;
+      const expectedType = data.fieldTypes[col];
+      if (!expectedType) continue;
+
+      const isArray = expectedType.includes('[]');
 
       for (let row = 0; row < data.dataValues.length; row++) {
-        const value = String(data.dataValues[row][col] ?? '');
-        if (value === '') continue;
+        const value = data.dataValues[row][col];
+        if (value === '' || value === null || value === undefined) continue;
+        const strValue = String(value);
+        if (this.nullEquivalentSet.has(strValue.toLowerCase())) continue;
 
-        // 使用了逗号且没有使用竖线 → 可能误用分隔符
-        if (value.includes(',') && !value.includes('|')) {
-          results.push({
-            severity: 'warning',
-            ruleName: '数组分隔符',
-            tableName,
-            location: {
-              sheetName: tableName,
-              row: data.dataRowStart + row,
-              column: data.dataColStart + col,
-            },
-            message: `字段 "${data.fieldNames[col]}" 使用了逗号分隔，应使用 | 和 ; 分隔`,
-          });
+        // 数据类型检查
+        if (checkTypes) {
+          const error = this.checkType(strValue, expectedType);
+          if (error) {
+            results.push({
+              severity: 'warning',
+              ruleName: '数据类型',
+              tableName,
+              location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
+              message: `字段 "${data.fieldNames[col]}" 定义为 ${expectedType}，但值 "${value}" ${error}`,
+            });
+          }
+        }
+
+        // 数组分隔符检查
+        if (checkArraySep && isArray) {
+          if (strValue.includes(',') && !strValue.includes('|')) {
+            results.push({
+              severity: 'warning',
+              ruleName: '数组分隔符',
+              tableName,
+              location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
+              message: `字段 "${data.fieldNames[col]}" 使用了逗号分隔，应使用 | 和 ; 分隔`,
+            });
+          }
         }
       }
     }
@@ -305,88 +402,70 @@ export class ValidationEngine {
   // ──────────── 逻辑校验 ────────────
 
   /**
-   * 规则4：版本覆盖完整性检查（核心功能）
-   * 对同一 Key 的所有行，检查版本区间是否连续无间隙
+   * 规则4：版本覆盖完整性检查（独立入口，供测试调用）
    */
   validateVersionCoverage(tableName: string, data: TableValidationData): ValidationResult[] {
-    const results: ValidationResult[] = [];
-
-    // 按 Key（第一数据列）分组
-    const keyGroups = new Map<string, { row: number; versionRange: string }[]>();
-
-    for (let i = 0; i < data.dataValues.length; i++) {
-      const key = String(data.dataValues[i][0] ?? '');
-      // versionValues 索引 i+2 对应数据行（跳过两行表头）
-      const version = String(data.versionValues[i + 2] ?? '');
-      if (!key) continue;
-      if (!keyGroups.has(key)) keyGroups.set(key, []);
-      keyGroups.get(key)!.push({ row: data.dataRowStart + i, versionRange: version });
-    }
-
-    // 对多行 Key 检查覆盖
-    for (const [key, rows] of keyGroups) {
-      if (rows.length <= 1) continue;
-
-      const ranges: { row: number; min: number; max: number }[] = [];
-      for (const r of rows) {
-        const parsed = this.versionFilter.parseRange(r.versionRange);
-        if (parsed) {
-          ranges.push({ row: r.row, min: parsed.min, max: parsed.max });
-        }
-      }
-      if (ranges.length <= 1) continue;
-
-      // 按最小版本号排序
-      ranges.sort((a, b) => a.min - b.min);
-
-      for (let i = 1; i < ranges.length; i++) {
-        const prev = ranges[i - 1];
-        const curr = ranges[i];
-
-        if (curr.min > prev.max) {
-          // 有间隙
-          results.push({
-            severity: 'error',
-            ruleName: '版本覆盖完整性',
-            tableName,
-            location: { sheetName: tableName, row: curr.row, column: data.versionColStart },
-            message: `Key=${key} 在版本 ${prev.max}~${curr.min} 之间无配置数据，导出该区间版本时此 Key 将不存在`,
-          });
-        }
-        // 重叠是正常设计（同Key多版本覆盖），不需要提示
-      }
-    }
-    return results;
+    return this.validateVersionCoverageAndOrder(tableName, data).filter(
+      r => r.ruleName === '版本覆盖完整性'
+    );
   }
 
   /**
-   * 规则5：同Key版本顺序检查
-   * 多行同Key是否按版本号递增排列
+   * 规则5：同Key版本顺序检查（独立入口，供测试调用）
    */
   validateKeyVersionOrder(tableName: string, data: TableValidationData): ValidationResult[] {
+    return this.validateVersionCoverageAndOrder(tableName, data).filter(
+      r => r.ruleName === '同Key版本顺序'
+    );
+  }
+
+  /**
+   * 规则4+5 合并：单次分组 + 单次 parseRange，同时检查覆盖完整性和版本顺序
+   */
+  private validateVersionCoverageAndOrder(tableName: string, data: TableValidationData): ValidationResult[] {
     const results: ValidationResult[] = [];
-    const keyGroups = new Map<string, { row: number; version: number }[]>();
+    const targetRoadIdx = this.resolveTargetRoadIdx(data);
+
+    // 单次遍历构建分组，同时解析版本区间
+    const keyGroups = new Map<string, { row: number; min: number; max: number }[]>();
 
     for (let i = 0; i < data.dataValues.length; i++) {
+      if (!this.isRowInScope(data, i, targetRoadIdx)) continue;
       const key = String(data.dataValues[i][0] ?? '');
-      const verStr = String(data.versionValues[i + 2] ?? '');
       if (!key) continue;
+      const verStr = String(data.versionValues[i + 2] ?? '');
       const parsed = this.versionFilter.parseRange(verStr);
       if (!parsed) continue;
       if (!keyGroups.has(key)) keyGroups.set(key, []);
-      keyGroups.get(key)!.push({ row: data.dataRowStart + i, version: parsed.min });
+      keyGroups.get(key)!.push({ row: data.dataRowStart + i, min: parsed.min, max: parsed.max });
     }
 
     for (const [key, rows] of keyGroups) {
       if (rows.length <= 1) continue;
+
+      // 规则5：检查原始顺序是否递增
       for (let i = 1; i < rows.length; i++) {
-        if (rows[i].version < rows[i - 1].version) {
+        if (rows[i].min < rows[i - 1].min) {
           results.push({
             severity: 'warning',
             ruleName: '同Key版本顺序',
             tableName,
             location: { sheetName: tableName, row: rows[i].row, column: data.versionColStart },
             message: `Key=${key} 第 ${rows[i].row} 行的版本号比第 ${rows[i - 1].row} 行小，简写模式下可能导致覆盖逻辑异常`,
+          });
+        }
+      }
+
+      // 规则4：按版本号排序后检查间隙
+      const sorted = [...rows].sort((a, b) => a.min - b.min);
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i].min > sorted[i - 1].max) {
+          results.push({
+            severity: 'error',
+            ruleName: '版本覆盖完整性',
+            tableName,
+            location: { sheetName: tableName, row: sorted[i].row, column: data.versionColStart },
+            message: `Key=${key} 在版本 ${sorted[i - 1].max}~${sorted[i].min} 之间无配置数据，导出该区间版本时此 Key 将不存在`,
           });
         }
       }
@@ -423,33 +502,68 @@ export class ValidationEngine {
 
   /**
    * 规则7：Roads 一致性检查
-   * roads_0=0 但 roads_N=1 的矛盾（总线路禁用但子线路启用）
+   * 检测同一行中线路值矛盾的情况（如所有线路都为0但有版本区间）
    */
   validateRoadsConsistency(tableName: string, data: TableValidationData): ValidationResult[] {
-    const results: ValidationResult[] = [];
-    for (let i = 0; i < data.roadsValues.length; i++) {
-      const roads = data.roadsValues[i];
-      if (!roads || roads.length === 0) continue;
-      const roads0 = String(roads[0]);
-      if (roads0 === '0' || roads0 === '') {
-        for (let j = 1; j < roads.length; j++) {
-          if (String(roads[j]) === '1') {
-            results.push({
-              severity: 'warning',
-              ruleName: 'Roads一致性',
-              tableName,
-              location: { sheetName: tableName, row: data.versionRowStart + i + 2, column: data.versionColStart + 1 },
-              message: `第 ${data.versionRowStart + i + 2} 行 roads_0=0（总线路禁用），但 roads_${j}=1，该行在所有版本中都不会导出`,
-            });
-            break; // 每行只报一次
-          }
-        }
-      }
+    // roads_0 不再作为总线路，各线路独立控制，暂无需额外一致性检查
+    return [];
+  }
+
+  // ──────────── 行筛选（与导出逻辑对齐） ────────────
+
+  /**
+   * 判断数据行是否在当前导出 roads 范围内
+   * 不做版本区间筛选，因为覆盖完整性和顺序检查是跨版本的全局校验
+   * @param data 校验数据
+   * @param dataIndex 数据行索引（0-based，对应 dataValues）
+   * @param targetRoadIdx 目标线路在 roadsValues 中的列索引（-1 表示无需检查）
+   */
+  private isRowInScope(data: TableValidationData, dataIndex: number, targetRoadIdx: number): boolean {
+    // roadsValues 前 2 项是表头行，数据对应 roadsValues[dataIndex + 2]
+    const roads = data.roadsValues[dataIndex + 2];
+    if (roads && roads.length > 0 && targetRoadIdx >= 0 && roads[targetRoadIdx] !== undefined) {
+      if (!this.versionFilter.isLineValuePassed(roads[targetRoadIdx])) return false;
     }
-    return results;
+
+    return true;
+  }
+
+  /** 从 roadsValues 表头行查找目标线路列索引（调用方缓存结果） */
+  private resolveTargetRoadIdx(data: TableValidationData): number {
+    const targetField = this.versionFilter.getTargetLineField();
+    if (targetField === 'roads_0') return -1;
+    const headerRoads = data.roadsValues[0];
+    return headerRoads ? headerRoads.indexOf(targetField) : -1;
   }
 
   // ──────────── 数据加载 ────────────
+
+  /**
+   * 批量加载多表的校验数据（单次 Excel.run）
+   * 避免每张表各开一次 Excel.run，减少上下文切换开销
+   */
+  async loadAllTableData(tableNames: Set<string>): Promise<Map<string, TableValidationData>> {
+    const dataMap = new Map<string, TableValidationData>();
+    const nameList = Array.from(tableNames);
+
+    // 批量加载所有工作表（仅 2 次 context.sync，而非 2N 次）
+    await Excel.run(async (context) => {
+      const snapshots = await excelHelper.loadSheetSnapshotsBatch(context, nameList);
+
+      for (const tableName of nameList) {
+        const snap = snapshots.get(tableName);
+        if (!snap || snap.values.length === 0) {
+          logger.warn(`校验：找不到工作表「${tableName}」或数据为空`);
+          continue;
+        }
+
+        const data = this.parseValidationData(snap.values, tableName, snap.startRow, snap.startCol);
+        if (data) dataMap.set(tableName, data);
+      }
+    });
+
+    return dataMap;
+  }
 
   /**
    * 加载单表的校验数据
@@ -504,14 +618,22 @@ export class ValidationEngine {
 
     // version_r 所在行号（1-indexed，用于结果定位）
     const versionRowStart = versionRRow + 1 + startRow;
-    // 数据从 version_r + 2 行开始（跳过字段定义行和中文描述行）
-    const dataRowStart = versionRowStart + 2;
     // 数据列起始（1-indexed）
     const dataColStart = dataStartCol + 1 + startCol;
 
-    // 确定数据区域的实际行范围（到首列空单元格为止，与导出逻辑一致）
-    // version_r 行 + 字段定义行 + 描述行 = 表头，之后为数据行
-    const dataRowOffset = versionRRow + 2;
+    // 动态检测数据起始行：version_r 后面的描述行在 A 列是纯文本（无数字/~），
+    // 数据行在 A 列包含版本号（有数字或~）或为空。跳过所有描述行。
+    let dataRowOffset = versionRRow + 1; // 至少跳过 version_r 行本身
+    for (let r = versionRRow + 1; r < allValues.length; r++) {
+      const colA = String(allValues[r]?.[0] ?? '').trim();
+      // 非空且不含数字/~ → 描述行，继续跳过
+      if (colA && !/[\d~]/.test(colA)) {
+        dataRowOffset = r + 1;
+        continue;
+      }
+      break;
+    }
+    const dataRowStart = dataRowOffset + 1 + startRow; // 1-indexed
     let dataEndRow = dataRowOffset;
     for (let r = dataRowOffset; r < allValues.length; r++) {
       const firstCell = allValues[r]?.[dataStartCol];

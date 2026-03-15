@@ -48,6 +48,8 @@ export interface StudioConfigData {
 export interface ValidationConfig {
   /** 各数组类型的分隔符配置 */
   typeDelimiters: Record<string, TypeDelimiterConfig>;
+  /** 空值等价列表：这些字符串值视为"有意留空"，跳过类型和必填检查 */
+  nullEquivalents?: string[];
 }
 
 /** 单个类型的分隔符定义 */
@@ -169,6 +171,7 @@ export function createDefaultValidationConfig(): ValidationConfig {
       'float[][]': { primary: '|', secondary: ';' },
       'string[][]': { primary: '|', secondary: ';' },
     },
+    nullEquivalents: ['null', 'NULL'],
   };
 }
 
@@ -275,24 +278,16 @@ export function createTableSchema(): TableSchemaDoc {
     },
 
     roadsControl: {
-      _description: '线路控制列决定每行/列数据在哪些地区版本下导出，筛选时各条件为 AND 关系。',
-      roads0: {
-        role: '总线路开关，所有版本都会检查此列',
-        values: [
-          '1 = 该行在所有版本中启用',
-          '0 或空 = 该行在所有版本中禁用',
-          '版本区间字符串 = 该行仅在指定版本区间内启用',
-        ],
-      },
+      _description: '线路控制列决定每行/列数据在哪些地区版本下导出。各线路独立控制，导出时只检查当前版本对应的线路列。',
       roadsN: {
-        role: '地区专属线路（如国内 roads_1、韩国 roads_9、日本 roads_11），导出时只检查当前版本对应的线路列',
+        role: '每个 roads_N 列对应一条线路（如 roads_0=简体、roads_1=简体净化、roads_9=韩国），导出时只检查当前版本配置的目标线路列',
         values: [
           '1 = 该行在该线路中启用',
           '0 或空 = 该行在该线路中禁用',
           '版本区间字符串 = 仅在指定版本区间内启用',
         ],
       },
-      filterLogic: '行导出条件 = 版本区间通过(A列) AND roads_0通过 AND 当前线路roads_N通过；三个条件全部满足才保留该行',
+      filterLogic: '行导出条件 = 版本区间通过(A列) AND 当前线路roads_N通过；两个条件都满足才保留该行',
       emptyCellRule: '行列控制区的空单元格等同于 0（不导出），允许留空；主数据区（#配置区域# 右侧的实际数值）不允许空单元格',
     },
 
@@ -626,14 +621,19 @@ export class StudioConfigStore {
       const rows = configData.tables.map(t => [t.versionRange, t.chineseName, t.englishName, t.shouldOutput]);
       sheet.getRangeByIndexes(1, 0, rows.length, 4).values = rows;
 
-      // TODO: 超链接功能暂时屏蔽，待修复后恢复
-      // for (let i = 0; i < configData.tables.length; i++) {
-      //   const cellRange = sheet.getRangeByIndexes(1 + i, 1, 1, 1);
-      //   cellRange.hyperlink = {
-      //     documentReference: `'${configData.tables[i].chineseName}'!A1`,
-      //     screenTip: `跳转到「${configData.tables[i].chineseName}」`,
-      //   };
-      // }
+      // 为功能表名列添加超链接（跳转到对应工作表），保持原有文本和格式
+      for (let i = 0; i < configData.tables.length; i++) {
+        const name = configData.tables[i].chineseName;
+        const cellRange = sheet.getRangeByIndexes(1 + i, 1, 1, 1);
+        cellRange.hyperlink = {
+          documentReference: `'${name}'!A1`,
+          textToDisplay: name,
+          screenTip: `跳转到「${name}」`,
+        };
+        // 恢复默认字体格式（去除超链接的蓝色+下划线）
+        cellRange.format.font.color = '#000000';
+        cellRange.format.font.underline = 'None';
+      }
     }
 
     // 列宽

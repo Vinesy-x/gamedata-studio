@@ -35,6 +35,8 @@ import { SHEET_CONFIG } from '../../v2/TemplateFactory';
 import { operatorIdentity } from '../../v2/OperatorIdentity';
 import { excelHelper } from '../../utils/ExcelHelper';
 import { logger } from '../../utils/Logger';
+import { gdsTokens } from '../theme';
+import { useThemeText } from '../locales';
 
 const useStyles = makeStyles({
   container: {
@@ -106,7 +108,7 @@ const useStyles = makeStyles({
   th: {
     textAlign: 'left',
     padding: '5px 6px',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: tokens.colorNeutralBackground3,
     fontWeight: 600,
     fontSize: '10px',
     color: tokens.colorNeutralForeground3,
@@ -137,7 +139,7 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
   },
   badgeNew: {
-    backgroundColor: '#E8F5FE',
+    backgroundColor: gdsTokens.badge.new.bg,
     color: tokens.colorBrandForeground1,
   },
   actionRow: {
@@ -180,14 +182,14 @@ const useStyles = makeStyles({
     marginBottom: '8px',
   },
   statusSuccess: {
-    backgroundColor: '#E8F5E9',
-    color: '#2E7D32',
-    border: '1px solid #C8E6C9',
+    backgroundColor: gdsTokens.success.bg,
+    color: gdsTokens.success.text,
+    border: `1px solid ${gdsTokens.success.border}`,
   },
   statusError: {
-    backgroundColor: '#FFF5F5',
-    color: '#C62828',
-    border: '1px solid #FFCDD2',
+    backgroundColor: gdsTokens.error.bg,
+    color: gdsTokens.error.text,
+    border: `1px solid ${gdsTokens.error.border}`,
   },
 });
 
@@ -197,6 +199,7 @@ interface ManageTabProps {
 }
 
 export function ManageTab({ config, onReloadConfig }: ManageTabProps) {
+  const t = useThemeText();
   const styles = useStyles();
   const [subPage, setSubPage] = useState<ManageSubPage>('config');
   const [searchTerm, setSearchTerm] = useState('');
@@ -209,21 +212,21 @@ export function ManageTab({ config, onReloadConfig }: ManageTabProps) {
           onClick={() => setSubPage('config')}
         >
           <SettingsRegular fontSize={13} />
-          配置
+          {t.manage.subNav[0]}
         </div>
         <div
           className={`${styles.subNavItem} ${subPage === 'tables' ? styles.subNavActive : ''}`}
           onClick={() => setSubPage('tables')}
         >
           <TableRegular fontSize={13} />
-          表管理
+          {t.manage.subNav[1]}
         </div>
         <div
           className={`${styles.subNavItem} ${subPage === 'wizard' ? styles.subNavActive : ''}`}
           onClick={() => setSubPage('wizard')}
         >
           <AddRegular fontSize={13} />
-          新建表
+          {t.manage.subNav[2]}
         </div>
       </div>
 
@@ -260,6 +263,7 @@ function ConfigSubPage({ config, onReload, styles }: {
   onReload: () => void;
   styles: ReturnType<typeof useStyles>;
 }) {
+  const t = useThemeText();
   const [editingGit, setEditingGit] = useState(false);
   const [gitTemplate, setGitTemplate] = useState(config.gitCommitTemplate || '');
   const [saving, setSaving] = useState(false);
@@ -378,7 +382,7 @@ function ConfigSubPage({ config, onReload, styles }: {
   const handleAddVersion = useCallback(async () => {
     if (!newVersionName.trim()) return;
     if (!newVersionGitDir.trim()) {
-      setStatusMsg({ text: '必须配置 Git 目录，没有输出目录的线路没有意义', type: 'error' });
+      setStatusMsg({ text: t.manage.statusGitDirRequired, type: 'error' });
       return;
     }
     setSaving(true);
@@ -404,7 +408,7 @@ function ConfigSubPage({ config, onReload, styles }: {
       setNewVersionName('');
       setNewVersionGitDir('');
       setAddingVersion(false);
-      setStatusMsg({ text: `已添加版本「${newVersionName}」(${lineField})`, type: 'success' });
+      setStatusMsg({ text: t.manage.statusVersionAdded(newVersionName, lineField), type: 'success' });
       onReload();
     } catch (err) {
       setStatusMsg({ text: `添加失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
@@ -418,7 +422,7 @@ function ConfigSubPage({ config, onReload, styles }: {
     setStatusMsg(null);
     try {
       await configManager.deleteVersion(vt.name);
-      setStatusMsg({ text: `已删除版本「${vt.name}」`, type: 'success' });
+      setStatusMsg({ text: t.manage.statusVersionDeleted(vt.name), type: 'success' });
       onReload();
     } catch (err) {
       setStatusMsg({ text: `删除失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
@@ -432,7 +436,7 @@ function ConfigSubPage({ config, onReload, styles }: {
     try {
       const tableNames = Array.from(config.tablesToProcess.keys());
       const result = await lineSyncer.syncAllTables(config.versionTemplates, tableNames);
-      const msg = `线路同步完成: ${result.synced} 张表已同步` +
+      const msg = t.manage.statusSyncResult(result.synced) +
         (result.errors.length > 0 ? `, ${result.errors.length} 张失败: ${result.errors.join('、')}` : '');
       setStatusMsg({ text: msg, type: result.errors.length > 0 ? 'error' : 'success' });
     } catch (err) {
@@ -447,9 +451,9 @@ function ConfigSubPage({ config, onReload, styles }: {
   return (
     <>
       <div className={styles.sectionHeader}>
-        <Text className={styles.sectionTitle}>配置管理</Text>
+        <Text className={styles.sectionTitle}>{t.manage.sectionTitle}</Text>
         <Button icon={<ArrowSyncRegular />} appearance="subtle" size="small" onClick={onReload}>
-          刷新
+          {'刷新'}
         </Button>
       </div>
 
@@ -461,7 +465,7 @@ function ConfigSubPage({ config, onReload, styles }: {
 
       {/* 操作员 */}
       <div className={styles.section}>
-        <Text style={{ fontSize: '12px', fontWeight: 600 }}>操作员</Text>
+        <Text style={{ fontSize: '12px', fontWeight: 600 }}>{t.manage.operator}</Text>
         <div className={styles.card}>
           <Dropdown
             size="small"
@@ -480,7 +484,7 @@ function ConfigSubPage({ config, onReload, styles }: {
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <Text style={{ fontSize: '12px', fontWeight: 600 }}>
-            版本管理 ({versions.length})
+            {t.manage.versionListTitle(versions.length)}
           </Text>
           <div className={styles.actionRow}>
             <Button
@@ -490,7 +494,7 @@ function ConfigSubPage({ config, onReload, styles }: {
               onClick={handleSyncLines}
               disabled={syncing}
             >
-              {syncing ? '同步中...' : '同步线路'}
+              {syncing ? t.manage.syncingRoutes : t.manage.syncRoutes}
             </Button>
             <Button
               icon={<AddRegular />}
@@ -499,7 +503,7 @@ function ConfigSubPage({ config, onReload, styles }: {
               onClick={() => setAddingVersion(true)}
               disabled={addingVersion}
             >
-              添加
+              {t.manage.addVersion}
             </Button>
           </div>
         </div>
@@ -508,9 +512,9 @@ function ConfigSubPage({ config, onReload, styles }: {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th className={styles.th} style={{ width: '28%' }}>版本名</th>
-                <th className={styles.th} style={{ width: '24%' }}>线路</th>
-                <th className={styles.th} style={{ width: '38%' }}>Git 目录</th>
+                <th className={styles.th} style={{ width: '28%' }}>{t.manage.colVersion}</th>
+                <th className={styles.th} style={{ width: '24%' }}>{t.manage.colRoute}</th>
+                <th className={styles.th} style={{ width: '38%' }}>{t.manage.colGitDir}</th>
                 <th className={styles.th} style={{ width: '10%' }}></th>
               </tr>
             </thead>
@@ -534,7 +538,7 @@ function ConfigSubPage({ config, onReload, styles }: {
                           autoFocus
                         />
                         <span style={{ fontSize: '9px', color: '#999', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
-                          {'{0}'}=版本号 {'{1}'}=版本名
+                          {t.manage.variableHint}
                         </span>
                       </div>
                     ) : (
@@ -570,7 +574,7 @@ function ConfigSubPage({ config, onReload, styles }: {
                   size="small"
                   value={newVersionName}
                   onChange={(_, d) => setNewVersionName(d.value)}
-                  placeholder="版本名称"
+                  placeholder={t.manage.versionNamePlaceholder}
                   style={{ flex: 1 }}
                 />
               </div>
@@ -579,11 +583,11 @@ function ConfigSubPage({ config, onReload, styles }: {
                   size="small"
                   value={newVersionGitDir}
                   onChange={(_, d) => setNewVersionGitDir(d.value)}
-                  placeholder="Git 目录路径（必填）"
+                  placeholder={t.manage.gitDirPlaceholder}
                   style={{ width: '100%' }}
                 />
                 <span style={{ fontSize: '9px', color: '#999', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
-                  支持变量: {'{0}'}=版本号 {'{1}'}=版本名，如 /data/{'{1}'}/{'{0}'} → /data/默认/2.1
+                  支持变量: {t.manage.variableHint}，如 /data/{'{1}'}/{'{0}'} → /data/默认/2.1
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '6px' }}>
@@ -599,7 +603,7 @@ function ConfigSubPage({ config, onReload, styles }: {
         </div>
 
         <Text style={{ fontSize: '10px', color: tokens.colorNeutralForeground3 }}>
-          添加新版本后点击「同步线路」将为所有数据表补充线路列，默认值与 roads_0（默认线路）相同
+          {t.manage.addVersionHint}
         </Text>
       </div>
 
@@ -607,7 +611,7 @@ function ConfigSubPage({ config, onReload, styles }: {
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <Text style={{ fontSize: '12px', fontWeight: 600 }}>
-            人员代码 ({config.staffCodes.size})
+            {t.manage.staff} ({config.staffCodes.size})
           </Text>
           <Button
             icon={<AddRegular />}
@@ -709,7 +713,7 @@ function ConfigSubPage({ config, onReload, styles }: {
       {/* Git 提交模板 */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <Text style={{ fontSize: '12px', fontWeight: 600 }}>Git 提交模板</Text>
+          <Text style={{ fontSize: '12px', fontWeight: 600 }}>{t.manage.gitTemplate}</Text>
           {!editingGit && (
             <Button appearance="subtle" size="small" onClick={() => { setGitTemplate(config.gitCommitTemplate || ''); setEditingGit(true); }}>
               编辑
@@ -800,6 +804,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
   onSearchChange: (val: string) => void;
   styles: ReturnType<typeof useStyles>;
 }) {
+  const t = useThemeText();
 
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -854,7 +859,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
     : tables;
 
   // 检测各表的 version_c 状态（三态）
-  const tableNamesKey = tables.map(t => t.chineseName).join(',');
+  const tableNamesKey = tables.map(tbl => tbl.chineseName).join(',');
   useEffect(() => {
     if (tables.length === 0) return;
     let cancelled = false;
@@ -1063,7 +1068,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
   return (
     <>
       <div className={styles.sectionHeader}>
-        <Text className={styles.sectionTitle}>数据表管理</Text>
+        <Text className={styles.sectionTitle}>{t.manage.tablesSectionTitle}</Text>
         <Button icon={<ArrowSyncRegular />} appearance="subtle" size="small" onClick={onReload}>
           刷新
         </Button>
@@ -1078,7 +1083,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
       <div className={styles.searchBox}>
         <Input
           contentBefore={<SearchRegular fontSize={14} />}
-          placeholder="搜索表名..."
+          placeholder={t.manage.searchPlaceholder}
           size="small"
           value={searchTerm}
           onChange={(_, data) => onSearchChange(data.value)}
@@ -1090,45 +1095,45 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
         <table className={styles.table}>
           <thead>
             <tr>
-              <th className={styles.th} style={{ width: '24%' }}>中文名</th>
-              <th className={styles.th} style={{ width: '28%' }}>英文名</th>
-              <th className={styles.th} style={{ width: '16%' }}>版本</th>
-              <th className={styles.th} style={{ width: '20%' }}>控制</th>
+              <th className={styles.th} style={{ width: '24%' }}>{t.manage.colChineseName}</th>
+              <th className={styles.th} style={{ width: '28%' }}>{t.manage.colEnglishName}</th>
+              <th className={styles.th} style={{ width: '16%' }}>{t.manage.colTableVersion}</th>
+              <th className={styles.th} style={{ width: '20%' }}>{t.manage.colControl}</th>
               <th className={styles.th} style={{ width: '12%' }}></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((t) => {
-              const vcState = versionCMap.get(t.chineseName) ?? 'R';
+            {filtered.map((tbl) => {
+              const vcState = versionCMap.get(tbl.chineseName) ?? 'R';
               const badgeStyle = vcState === 'R+C' ? styles.badgeOn : vcState === 'R+c' ? styles.badgeNew : styles.badgeOff;
               return (
-                <tr key={t.chineseName}>
-                  <td className={styles.td}>{t.chineseName}</td>
-                  <td className={styles.td}>{t.englishName}</td>
+                <tr key={tbl.chineseName}>
+                  <td className={styles.td}>{tbl.chineseName}</td>
+                  <td className={styles.td}>{tbl.englishName}</td>
                   <td className={styles.td}>
-                    {editingVersion === t.chineseName ? (
+                    {editingVersion === tbl.chineseName ? (
                       <Input
                         size="small"
                         value={editVersionValue}
                         onChange={(_, d) => setEditVersionValue(d.value)}
-                        onBlur={() => handleSaveVersion(t)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveVersion(t); if (e.key === 'Escape') setEditingVersion(null); }}
+                        onBlur={() => handleSaveVersion(tbl)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveVersion(tbl); if (e.key === 'Escape') setEditingVersion(null); }}
                         style={{ width: 60, fontSize: '11px' }}
                         autoFocus
                       />
                     ) : (
                       <span
-                        onClick={() => { setEditingVersion(t.chineseName); setEditVersionValue(t.versionRange || ''); }}
+                        onClick={() => { setEditingVersion(tbl.chineseName); setEditVersionValue(tbl.versionRange || ''); }}
                         style={{ cursor: 'pointer', minWidth: 20, display: 'inline-block' }}
                       >
-                        {t.versionRange || '-'}
+                        {tbl.versionRange || '-'}
                       </span>
                     )}
                   </td>
                   <td className={styles.td}>
                     <span
                       className={`${styles.badge} ${badgeStyle}`}
-                      onClick={() => handleToggleVersionC(t.chineseName, vcState)}
+                      onClick={() => handleToggleVersionC(tbl.chineseName, vcState)}
                       style={{ cursor: 'pointer' }}
                       title={vcState === 'R' ? '仅行控制 → 点击添加版本列控制' : vcState === 'R+c' ? '行+版本列控制 → 点击升级为完整列控制' : '完整行列控制 → 点击移除列控制'}
                     >
@@ -1136,13 +1141,13 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
                     </span>
                   </td>
                   <td className={styles.td}>
-                    {confirmDelete === t.chineseName ? (
+                    {confirmDelete === tbl.chineseName ? (
                       <span style={{ display: 'flex', gap: '2px' }}>
                         <Button
                           icon={<CheckmarkRegular />}
                           appearance="subtle"
                           size="small"
-                          onClick={() => handleUnregister(t.chineseName)}
+                          onClick={() => handleUnregister(tbl.chineseName)}
                           style={{ minWidth: 'auto', padding: '0 2px', color: tokens.colorPaletteRedForeground1 }}
                           title="确认删除"
                         />
@@ -1160,7 +1165,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
                         icon={<DeleteRegular />}
                         appearance="subtle"
                         size="small"
-                        onClick={() => setConfirmDelete(t.chineseName)}
+                        onClick={() => setConfirmDelete(tbl.chineseName)}
                         style={{ minWidth: 'auto', padding: '0 2px' }}
                       />
                     )}
@@ -1173,7 +1178,7 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
       </div>
 
       <Text style={{ fontSize: '11px', color: tokens.colorNeutralForeground3, marginTop: '4px' }}>
-        共 {filtered.length} 张表{searchTerm ? `（筛选自 ${tables.length} 张）` : ''}
+        {t.manage.tableSummary(filtered.length, tables.length)}
       </Text>
     </>
   );
@@ -1196,6 +1201,7 @@ function WizardSubPage({ config, onReload, styles }: {
   onReload: () => void;
   styles: ReturnType<typeof useStyles>;
 }) {
+  const t = useThemeText();
   const [chineseName, setChineseName] = useState('');
   const [englishName, setEnglishName] = useState('');
   const [startVersion, setStartVersion] = useState('1');
@@ -1243,7 +1249,7 @@ function WizardSubPage({ config, onReload, styles }: {
       };
 
       await tableCreator.createTable(creationConfig);
-      setStatusMsg({ text: `工作表「${chineseName}」创建成功！`, type: 'success' });
+      setStatusMsg({ text: t.manage.statusTableCreated(chineseName), type: 'success' });
       // 重置表单
       setChineseName('');
       setEnglishName('');
@@ -1276,7 +1282,7 @@ function WizardSubPage({ config, onReload, styles }: {
   return (
     <>
       <div className={styles.sectionHeader}>
-        <Text className={styles.sectionTitle}>新表创建向导</Text>
+        <Text className={styles.sectionTitle}>{t.manage.wizardTitle}</Text>
         <Button appearance="subtle" size="small" onClick={handleUndo}>
           撤销上次
         </Button>
@@ -1290,7 +1296,7 @@ function WizardSubPage({ config, onReload, styles }: {
 
       <div style={{ marginTop: '4px' }}>
         <div className={styles.formField}>
-          <Label className={styles.formLabel}>中文表名</Label>
+          <Label className={styles.formLabel}>{t.manage.wizardChineseName}</Label>
           <Input
             size="small"
             value={chineseName}
@@ -1300,7 +1306,7 @@ function WizardSubPage({ config, onReload, styles }: {
         </div>
 
         <div className={styles.formField}>
-          <Label className={styles.formLabel}>英文表名</Label>
+          <Label className={styles.formLabel}>{t.manage.wizardEnglishName}</Label>
           <Input
             size="small"
             value={englishName}
@@ -1310,7 +1316,7 @@ function WizardSubPage({ config, onReload, styles }: {
         </div>
 
         <div className={styles.formField}>
-          <Label className={styles.formLabel}>起始版本号</Label>
+          <Label className={styles.formLabel}>{t.manage.wizardStartVersion}</Label>
           <Input
             size="small"
             value={startVersion}
@@ -1325,14 +1331,14 @@ function WizardSubPage({ config, onReload, styles }: {
               checked={includeVersionCol}
               onChange={(_, d) => setIncludeVersionCol(d.checked)}
             />
-            <Text style={{ fontSize: '11px' }}>包含 version_c</Text>
+            <Text style={{ fontSize: '11px' }}>{t.manage.wizardIncludeVersionC}</Text>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Switch
               checked={autoRegister}
               onChange={(_, d) => setAutoRegister(d.checked)}
             />
-            <Text style={{ fontSize: '11px' }}>自动注册</Text>
+            <Text style={{ fontSize: '11px' }}>{t.manage.wizardAutoRegister}</Text>
           </div>
         </div>
 
@@ -1362,7 +1368,7 @@ function WizardSubPage({ config, onReload, styles }: {
               onOptionSelect={(_, d) => updateField(i, 'type', d.optionValue || 'string')}
               style={{ minWidth: 65 }}
             >
-              {typeOptions.map(t => <Option key={t} value={t} text={t}>{t}</Option>)}
+              {typeOptions.map(tp => <Option key={tp} value={tp} text={tp}>{tp}</Option>)}
             </Dropdown>
             <Input
               className={styles.fieldInput}
@@ -1389,7 +1395,7 @@ function WizardSubPage({ config, onReload, styles }: {
           disabled={!chineseName || !englishName || fields.length === 0 || creating}
           style={{ width: '100%', marginTop: '12px' }}
         >
-          {creating ? <><Spinner size="tiny" /> 创建中...</> : '创建工作表'}
+          {creating ? <><Spinner size="tiny" /> {t.manage.wizardCreatingBtn}</> : t.manage.wizardCreateBtn}
         </Button>
       </div>
     </>

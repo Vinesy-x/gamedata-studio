@@ -1,17 +1,19 @@
 /* global Excel */
 
 import { Config } from '../types/config';
-import { ExportResult, ExportProgress, InMemoryTableData } from '../types/table';
+import { CellValue, ExportResult, ExportProgress, InMemoryTableData, TableDiff } from '../types/table';
 import { ErrorCode } from '../types/errors';
 import { ConfigLoader } from './ConfigLoader';
 import { VersionFilter } from './VersionFilter';
 import { DataLoader } from './DataLoader';
 import { DataFilter } from './DataFilter';
-import { ExportWriter, HashManifest } from './ExportWriter';
+import { ExportWriter, HashManifest, getManifestRows } from './ExportWriter';
 import { ErrorHandler } from '../utils/ErrorHandler';
-import { excelHelper } from '../utils/ExcelHelper';
+import { excelHelper, isExcelError } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
 import { StudioConfigStore } from '../v2/StudioConfigStore';
+import { GitHandler } from '../git/GitHandler';
+import { GitExecutor } from '../git/GitExecutor';
 
 const MANIFEST_FILE = '_manifest.json';
 
@@ -24,6 +26,7 @@ export class ExportJob {
   private exportWriter: ExportWriter;
   private onProgress: ProgressCallback;
   private fileServerBase = '';  // '' = same origin
+  private usePost = false;      // POST 可用时单次上传，比 GET 分片快很多
 
   constructor(onProgress: ProgressCallback) {
     this.errorHandler = new ErrorHandler();
@@ -41,15 +44,20 @@ export class ExportJob {
     this.errorHandler.clear();
 
     const modifiedFiles: string[] = [];
+    const tableDiffs: TableDiff[] = [];
     let totalTables = 0;
     let changedTables = 0;
 
     try {
+      // 初始阶段 totalSteps 未知，先用估计值；加载数据后重新计算
+      let totalSteps = 10;
+
       // 步骤1: 加载配置
-      this.emitProgress(1, 10, '正在加载配置...');
+      this.emitProgress(1, totalSteps, '正在加载配置...');
+      const t0 = Date.now();
       const config = await this.configLoader.loadConfig();
       if (!config) {
-        return this.buildResult(false, modifiedFiles, startTime, 0, 0);
+        return this.buildResult(false, modifiedFiles, startTime, 0, 0, tableDiffs);
       }
 
       const outputDir = config.outputSettings.outputDirectory;
@@ -61,14 +69,36 @@ export class ExportJob {
           message: '输出目录为空，无法导出。请检查配置设置表中的版本模板目录。',
           procedure: 'ExportJob.runExport',
         });
-        return this.buildResult(false, modifiedFiles, startTime, 0, 0);
+        return this.buildResult(false, modifiedFiles, startTime, 0, 0, tableDiffs);
       }
 
+      logger.info(`⏱ 加载配置: ${Date.now() - t0}ms`);
+
       // 检测写入模式：优先用 dev server API，不可用时切换到 File System Access API
+      const t1 = Date.now();
       await this.detectWriteMode(outputDir);
+      logger.info(`⏱ 检测写入模式: ${Date.now() - t1}ms`);
+
+      // 导出前 Git pull（清理本地修改 + 拉取远程最新）
+      const t1b = Date.now();
+      try {
+        const gitHandler = new GitHandler(outputDir);
+        const pullCommands = gitHandler.generatePullCommands();
+        if (pullCommands.length > 0) {
+          const executor = new GitExecutor(this.fileServerBase);
+          const pullResult = await executor.execute(outputDir, pullCommands);
+          if (pullResult.ok) {
+            logger.info(`⏱ Git pull: ${Date.now() - t1b}ms`);
+          } else {
+            logger.warn(`Git pull 失败 (继续导出): ${pullResult.error || pullResult.output}`);
+          }
+        }
+      } catch (err) {
+        logger.warn(`Git pull 异常 (继续导出): ${err instanceof Error ? err.message : err}`);
+      }
 
       // 步骤2: 创建版本筛选器
-      this.emitProgress(2, 10, '正在初始化筛选器...');
+      this.emitProgress(2, totalSteps, '正在初始化筛选器...');
       const lineField = this.configLoader.determineOutputLineField(config);
       const versionFilter = new VersionFilter(
         config.outputSettings.versionNumber,
@@ -79,22 +109,28 @@ export class ExportJob {
       logger.info(`输出目录: ${outputDir}`);
 
       // 步骤3: 加载所有源数据到内存
-      this.emitProgress(3, 10, '正在加载数据表...');
+      this.emitProgress(3, totalSteps, '正在加载数据表...');
+      const t2 = Date.now();
       const inMemoryData = await this.dataLoader.loadAll(config, versionFilter);
+      logger.info(`⏱ 加载数据表: ${Date.now() - t2}ms (${inMemoryData.size} 张表)`);
 
       if (inMemoryData.size === 0) {
         logger.warn('没有表需要处理');
-        return this.buildResult(true, modifiedFiles, startTime, 0, 0);
+        return this.buildResult(true, modifiedFiles, startTime, 0, 0, tableDiffs);
       }
 
       totalTables = inMemoryData.size;
+      // 重新计算总步数: 5 setup + N tables + 2 finalize
+      totalSteps = 5 + totalTables + 2;
 
       // 步骤4: 导出前校验
-      this.emitProgress(4, 10, '正在执行校验...');
+      this.emitProgress(4, totalSteps, '正在执行校验...');
+      const t3 = Date.now();
       this.runValidation(inMemoryData, versionFilter);
+      logger.info(`⏱ 导出前校验: ${Date.now() - t3}ms`);
 
       // 步骤5: 加载哈希清单（用于差异对比）
-      this.emitProgress(5, 10, '正在准备输出...');
+      this.emitProgress(5, totalSteps, '正在准备输出...');
       let manifest: HashManifest = {};
 
       try {
@@ -108,9 +144,21 @@ export class ExportJob {
         logger.info('创建新的哈希清单');
       }
 
-      // 步骤6-8: 逐表处理
+      // ── 阶段A：筛选 + 哈希对比（纯 CPU，同步完成）
+      const t4 = Date.now();
       const dataFilter = new DataFilter(versionFilter);
       let tableIndex = 0;
+
+      interface PendingWrite {
+        chineseName: string;
+        englishName: string;
+        filteredData: CellValue[][];
+        newHash: string;
+        currentRows: number;
+        previousRows: number;
+        isNew: boolean;
+      }
+      const pendingWrites: PendingWrite[] = [];
 
       for (const [chineseName, tableData] of inMemoryData) {
         tableIndex++;
@@ -118,44 +166,27 @@ export class ExportJob {
         if (!tableInfo) continue;
 
         const englishName = tableInfo.englishName;
-        this.emitProgress(6, 10, `正在处理 ${chineseName} (${tableIndex}/${totalTables})...`, chineseName);
+        this.emitProgress(5 + tableIndex, totalSteps, `正在筛选 ${chineseName} (${tableIndex}/${totalTables})...`, chineseName);
 
         try {
-          // 筛选
           const filtered = dataFilter.applyFilters(tableData);
-
           if (!filtered.shouldOutput) {
             logger.info(`表 ${chineseName} 筛选后无数据，跳过`);
             continue;
           }
 
-          // 哈希对比
-          const hasChanged = this.exportWriter.hasDataChanged(
-            filtered.data,
-            manifest,
-            englishName
-          );
-
+          const newHash = this.exportWriter.computeDataHash(filtered.data);
+          const hasChanged = this.exportWriter.hasHashChanged(newHash, manifest, englishName);
           if (!hasChanged) {
-            logger.info(`表 ${chineseName} 无变化，跳过`);
             continue;
           }
 
-          // 生成独立 xlsx
-          const fileBuffer = await this.exportWriter.writeIndividualFile(
-            filtered.data, englishName, config
-          );
+          const currentRows = Math.max(0, filtered.data.length - 1);
+          const oldEntry = manifest[englishName];
+          const previousRows = oldEntry ? getManifestRows(oldEntry) : 0;
+          const isNew = !oldEntry;
 
-          // 写入输出目录
-          const fileName = `${englishName}.xlsx`;
-          await this.writeFileToServer(outputDir, fileName, fileBuffer);
-
-          // 更新哈希清单
-          manifest[englishName] = this.exportWriter.computeDataHash(filtered.data);
-
-          modifiedFiles.push(fileName);
-          changedTables++;
-          logger.info(`表 ${chineseName} → ${fileName} 已导出`);
+          pendingWrites.push({ chineseName, englishName, filteredData: filtered.data, newHash, currentRows, previousRows, isNew });
         } catch (err) {
           const errDetail = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
           logger.error(`处理表「${chineseName}」失败`, err);
@@ -169,8 +200,67 @@ export class ExportJob {
         }
       }
 
-      // 步骤9: 保存哈希清单
-      this.emitProgress(9, 10, '正在保存清单...');
+      logger.info(`⏱ 阶段A筛选+哈希: ${Date.now() - t4}ms (${pendingWrites.length} 张表需写入)`);
+
+      // ── 阶段B：并行生成 xlsx + 写入文件（I/O 密集，4 路并发）
+      const t5 = Date.now();
+      const WRITE_CONCURRENCY = 8;
+      const writeTable = async (pw: PendingWrite) => {
+        const tw = Date.now();
+        const fileBuffer = await this.exportWriter.writeIndividualFile(
+          pw.filteredData, pw.englishName, config
+        );
+        const genMs = Date.now() - tw;
+        const fileName = `${pw.englishName}.xlsx`;
+        await this.writeFileToServer(outputDir, fileName, fileBuffer);
+        const totalMs = Date.now() - tw;
+
+        tableDiffs.push({
+          tableName: pw.englishName,
+          chineseName: pw.chineseName,
+          totalRows: pw.currentRows,
+          previousRows: pw.previousRows,
+          status: pw.isNew ? 'new' : 'modified',
+        });
+
+        manifest[pw.englishName] = { hash: pw.newHash, rows: pw.currentRows };
+        modifiedFiles.push(fileName);
+        changedTables++;
+        logger.info(`表 ${pw.chineseName} → ${fileName} (${pw.currentRows}行, 生成${genMs}ms, 写入${totalMs}ms)`);
+      };
+
+      // 分批并行写入
+      for (let i = 0; i < pendingWrites.length; i += WRITE_CONCURRENCY) {
+        const batch = pendingWrites.slice(i, i + WRITE_CONCURRENCY);
+        const batchNames = batch.map(pw => pw.chineseName).join('、');
+        this.emitProgress(
+          5 + totalTables + Math.floor(i / WRITE_CONCURRENCY),
+          totalSteps,
+          `正在写入 ${batchNames}...`
+        );
+
+        const results = await Promise.allSettled(batch.map(pw => writeTable(pw)));
+        for (let j = 0; j < results.length; j++) {
+          if (results[j].status === 'rejected') {
+            const err = (results[j] as PromiseRejectedResult).reason;
+            const pw = batch[j];
+            const errDetail = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+            logger.error(`写入表「${pw.chineseName}」失败`, err);
+            this.errorHandler.logError({
+              code: ErrorCode.FILE_WRITE_FAILED,
+              severity: 'warning',
+              tableName: pw.chineseName,
+              message: `写入表「${pw.chineseName}」失败: ${errDetail}`,
+              procedure: 'ExportJob.writeTable',
+            });
+          }
+        }
+      }
+
+      logger.info(`⏱ 阶段B写入文件: ${Date.now() - t5}ms`);
+
+      // 保存哈希清单
+      this.emitProgress(totalSteps - 1, totalSteps, '正在保存清单...');
       if (changedTables > 0) {
         try {
           const manifestJson = JSON.stringify(manifest, null, 2);
@@ -188,14 +278,14 @@ export class ExportJob {
         }
       }
 
-      // 步骤10: 收尾
-      this.emitProgress(10, 10, '正在更新状态...');
+      // 收尾
+      this.emitProgress(totalSteps, totalSteps, '正在更新状态...');
       if (changedTables > 0) {
         await this.configLoader.incrementSequence(config);
       }
       await this.updateExportResults(modifiedFiles);
 
-      return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables);
+      return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables, tableDiffs);
     } catch (err) {
       logger.error('导出失败', err);
       this.errorHandler.logError({
@@ -205,14 +295,14 @@ export class ExportJob {
         message: err instanceof Error ? err.message : String(err),
         procedure: 'ExportJob.runExport',
       });
-      return this.buildResult(false, modifiedFiles, startTime, totalTables, changedTables);
+      return this.buildResult(false, modifiedFiles, startTime, totalTables, changedTables, tableDiffs);
     }
   }
 
-  private async fetchWithTimeout(url: string, timeoutMs = 5000): Promise<Response> {
+  private async fetchWithTimeout(url: string, timeoutMs = 5000, init?: RequestInit): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+    return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
   }
 
   private async fetchWithRetry(url: string, timeoutMs = 10000, retries = 2): Promise<Response> {
@@ -233,21 +323,40 @@ export class ExportJob {
    */
   private async detectWriteMode(_outputDir: string): Promise<void> {
     const bases = ['https://localhost:9876', 'http://localhost:9876'];
+    const errors: string[] = [];
     for (const base of bases) {
       try {
         const resp = await this.fetchWithTimeout(`${base}/api/read-file?directory=.&fileName=_probe`);
         if (resp.ok || resp.status === 404) {
           this.fileServerBase = base;
-          logger.info(`使用本地文件服务: ${base}`);
+          // 检测 POST 是否可用（Office WebView 有时会拦截 POST）
+          try {
+            const postResp = await this.fetchWithTimeout(`${base}/api/write-file`, 3000, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({}),
+            });
+            // 400 = 服务端收到了请求但参数缺失，说明 POST 通路可用
+            this.usePost = postResp.status === 400 || postResp.ok;
+          } catch {
+            this.usePost = false;
+          }
+          logger.info(`使用本地文件服务: ${base} (POST=${this.usePost})`);
           return;
         }
-      } catch { /* try next */ }
+        errors.push(`${base} → HTTP ${resp.status}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`${base} → ${msg}`);
+      }
     }
-    throw new Error('无法连接文件服务。请先启动：python3 ~/.gamedata-studio/file-server.py');
+    const detail = errors.join('; ');
+    logger.error(`文件服务检测失败: ${detail}`);
+    throw new Error(`无法连接文件服务 (${detail})。请先启动：python3 ~/.gamedata-studio/file-server.py`);
   }
 
   /**
-   * 写入文件到磁盘（GET 分片上传，绕过 Office 代理的 POST 405 限制）
+   * 写入文件到磁盘（优先 POST 单次上传，不可用时 GET 分片）
    */
   private async writeFileToServer(
     directory: string,
@@ -257,6 +366,20 @@ export class ExportJob {
     const base64 = this.arrayBufferToBase64(buffer);
     const base = this.fileServerBase;
 
+    // POST 模式：单次请求写入整个文件
+    if (this.usePost) {
+      const resp = await this.fetchWithTimeout(`${base}/api/write-file`, 30000, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directory, fileName, data: base64 }),
+      });
+      if (!resp.ok) {
+        throw new Error(`写入文件失败 (POST HTTP ${resp.status})`);
+      }
+      return;
+    }
+
+    // GET 分片模式（Office WebView 拦截 POST 时的 fallback）
     // 1. 开始写入会话
     const startResp = await this.fetchWithTimeout(
       `${base}/api/write-start?directory=${encodeURIComponent(directory)}&fileName=${encodeURIComponent(fileName)}`
@@ -266,8 +389,8 @@ export class ExportJob {
     }
     const { id } = await startResp.json();
 
-    // 2. 分片发送 base64 数据（每片 ~8KB 确保 URL 编码后不超限，6 路并行）
-    const CHUNK_SIZE = 8000;
+    // 2. 分片发送 base64 数据（每片 256KB，6 路并行）
+    const CHUNK_SIZE = 256000;
     const CONCURRENCY = 6;
     const totalChunks = Math.ceil(base64.length / CHUNK_SIZE) || 1;
 
@@ -282,7 +405,6 @@ export class ExportJob {
       }
     };
 
-    // 并行上传，每批 CONCURRENCY 个
     for (let start = 0; start < totalChunks; start += CONCURRENCY) {
       const batch = [];
       for (let j = start; j < Math.min(start + CONCURRENCY, totalChunks); j++) {
@@ -319,23 +441,11 @@ export class ExportJob {
 
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    const chunks: string[] = [];
+    for (let i = 0; i < bytes.length; i += 8192) {
+      chunks.push(String.fromCharCode(...bytes.subarray(i, i + 8192)));
     }
-    return btoa(binary);
-  }
-
-  /**
-   * 导出前校验
-   */
-  /** 检测单元格值是否为 Excel 错误值 */
-  private isExcelError(val: unknown): boolean {
-    if (val == null) return false;
-    const s = String(val).trim();
-    return s === '#N/A' || s === '#REF!' || s === '#VALUE!'
-      || s === '#DIV/0!' || s === '#NAME?' || s === '#NULL!'
-      || s === '#NUM!' || s === '#GETTING_DATA' || s === '#SPILL!';
+    return btoa(chunks.join(''));
   }
 
   private runValidation(
@@ -343,121 +453,66 @@ export class ExportJob {
     versionFilter: VersionFilter,
   ): void {
     for (const [chineseName, tableData] of inMemoryData) {
-      // ── 1. 校验配置区域（versionRowData）── 空值允许（代表0/不筛选），只检测错误值和格式
+      // ── 1. 校验行版本区间（versionRowData 列0）
       if (tableData.versionRowData) {
+        const cells: { raw: CellValue; row: number; col: number }[] = [];
         for (let r = 2; r < tableData.versionRowData.length; r++) {
-          const row = tableData.versionRowData[r];
-          for (let c = 0; c < row.length; c++) {
-            const raw = row[c];
-            const loc = { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') };
-
-            if (this.isExcelError(raw)) {
-              this.errorHandler.logError({
-                code: ErrorCode.CELL_EXCEL_ERROR,
-                severity: 'warning',
-                tableName: chineseName,
-                message: `配置区域单元格包含错误值「${raw}」`,
-                procedure: 'ExportJob.runValidation',
-                location: loc,
-              });
-              continue;
-            }
-
-            const cellVal = String(raw ?? '').trim();
-            if (!cellVal) continue; // 空值在配置区域是合法的（等同于0）
-
-            const validation = versionFilter.validateRangeFormat(cellVal);
-            if (!validation.valid && validation.errorCode) {
-              this.errorHandler.logError({
-                code: validation.errorCode,
-                severity: 'warning',
-                tableName: chineseName,
-                message: validation.message || '版本区间格式错误',
-                procedure: 'ExportJob.runValidation',
-                location: loc,
-              });
-            }
-          }
+          cells.push({ raw: tableData.versionRowData[r][0], row: r + 1, col: 1 });
         }
+        this.validateVersionCells(cells, chineseName, versionFilter);
       }
 
-      // ── 2. 校验列版本区间（version_c 区域）── 同上，空值允许
-      if (tableData.versionColData) {
-        for (let r = 0; r < tableData.versionColData.length; r++) {
-          for (let c = 0; c < tableData.versionColData[r].length; c++) {
-            const raw = tableData.versionColData[r][c];
-            const loc = { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') };
-
-            if (this.isExcelError(raw)) {
-              this.errorHandler.logError({
-                code: ErrorCode.CELL_EXCEL_ERROR,
-                severity: 'warning',
-                tableName: chineseName,
-                message: `列版本区域单元格包含错误值「${raw}」`,
-                procedure: 'ExportJob.runValidation',
-                location: loc,
-              });
-              continue;
-            }
-
-            const cellVal = String(raw ?? '').trim();
-            if (!cellVal) continue;
-
-            const validation = versionFilter.validateRangeFormat(cellVal);
-            if (!validation.valid && validation.errorCode) {
-              this.errorHandler.logError({
-                code: validation.errorCode,
-                severity: 'warning',
-                tableName: chineseName,
-                message: validation.message || '版本区间格式错误',
-                procedure: 'ExportJob.runValidation',
-                location: loc,
-              });
-            }
-          }
+      // ── 2. 校验列版本区间（versionColData 第0行）
+      if (tableData.versionColData && tableData.versionColData.length > 0) {
+        const cells: { raw: CellValue; row: number; col: number }[] = [];
+        const vcRow = tableData.versionColData[0];
+        for (let c = 0; c < vcRow.length; c++) {
+          cells.push({ raw: vcRow[c], row: 1, col: c + 1 });
         }
+        this.validateVersionCells(cells, chineseName, versionFilter);
       }
 
       // ── 3. 校验主数据区（mainData）── 只检测有字段定义的列 + 有Key的行（Ctrl+A 有效区域）
       if (tableData.mainData.length > 2) {
-        // 确定有效列数：字段定义行（row 0）中非空的列
         const fieldRow = tableData.mainData[0];
         let validColCount = 0;
         for (let c = 0; c < fieldRow.length; c++) {
           const val = String(fieldRow[c] ?? '').trim();
-          if (!val) break; // 遇到空字段定义即为数据区右边界
+          if (!val) break;
           validColCount = c + 1;
         }
 
-        // 从第3行（索引2）开始检测数据行，遇到首列为空即停止（数据区下边界）
-        for (let r = 2; r < tableData.mainData.length; r++) {
+        let cellErrors = 0;
+        const MAX_CELL_ERRORS = 100;
+        for (let r = 2; r < tableData.mainData.length && cellErrors < MAX_CELL_ERRORS; r++) {
           const firstCell = tableData.mainData[r][0];
           if (firstCell == null || String(firstCell).trim() === '') break;
 
-          for (let c = 0; c < validColCount; c++) {
+          for (let c = 0; c < validColCount && cellErrors < MAX_CELL_ERRORS; c++) {
             const raw = tableData.mainData[r][c];
-            const loc = { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') };
 
-            if (this.isExcelError(raw)) {
+            if (isExcelError(raw)) {
+              cellErrors++;
               this.errorHandler.logError({
                 code: ErrorCode.CELL_EXCEL_ERROR,
                 severity: 'warning',
                 tableName: chineseName,
                 message: `数据区域单元格包含错误值「${raw}」`,
                 procedure: 'ExportJob.runValidation',
-                location: loc,
+                location: { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') },
               });
               continue;
             }
 
             if (raw != null && typeof raw === 'string' && raw.length > 0 && raw.trim() === '') {
+              cellErrors++;
               this.errorHandler.logError({
                 code: ErrorCode.CELL_WHITESPACE_ONLY,
                 severity: 'warning',
                 tableName: chineseName,
                 message: '数据区域单元格仅包含空格',
                 procedure: 'ExportJob.runValidation',
-                location: loc,
+                location: { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') },
               });
             }
           }
@@ -467,8 +522,45 @@ export class ExportJob {
   }
 
   /**
-   * 更新导出结果到「表格输出」工作表
+   * 校验版本区间单元格：检查 Excel 错误值和格式合法性
    */
+  private validateVersionCells(
+    cells: { raw: CellValue; row: number; col: number }[],
+    chineseName: string,
+    versionFilter: VersionFilter,
+  ): void {
+    for (const { raw, row, col } of cells) {
+      const str = String(raw ?? '').trim();
+      if (!str) continue;
+
+      const loc = { sheetName: chineseName, row, column: col, cellValue: str };
+
+      if (isExcelError(raw)) {
+        this.errorHandler.logError({
+          code: ErrorCode.CELL_EXCEL_ERROR,
+          severity: 'warning',
+          tableName: chineseName,
+          message: `版本区间单元格包含错误值「${str}」`,
+          procedure: 'ExportJob.runValidation',
+          location: loc,
+        });
+        continue;
+      }
+
+      const validation = versionFilter.validateRangeFormat(str);
+      if (!validation.valid) {
+        this.errorHandler.logError({
+          code: validation.errorCode ?? ErrorCode.VERSION_DATA_FORMAT_ERROR,
+          severity: 'warning',
+          tableName: chineseName,
+          message: validation.message ?? `版本区间格式不正确「${str}」`,
+          procedure: 'ExportJob.runValidation',
+          location: loc,
+        });
+      }
+    }
+  }
+
   /**
    * 更新导出状态到「表格输出」工作表（仅更新工作状态和结果计数，列表和报错已在UI中展示）
    */
@@ -517,7 +609,8 @@ export class ExportJob {
     modifiedFiles: string[],
     startTime: number,
     totalTables: number,
-    changedTables: number
+    changedTables: number,
+    tableDiffs: TableDiff[] = []
   ): ExportResult {
     return {
       success,
@@ -526,6 +619,7 @@ export class ExportJob {
       duration: (Date.now() - startTime) / 1000,
       totalTables,
       changedTables,
+      tableDiffs,
     };
   }
 

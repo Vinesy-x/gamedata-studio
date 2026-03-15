@@ -24,7 +24,14 @@ let deletedSheetNames: string[] = [];
 let freezeCalls: RangeCall[] = [];
 
 function makeMockRange() {
-  return { values: null as unknown[][] | null };
+  return {
+    values: null as unknown[][] | null,
+    hyperlink: null as unknown,
+    format: { font: { color: '', underline: '' } },
+    getEntireRow() {
+      return { delete(_shift?: unknown) { void _shift; } };
+    },
+  };
 }
 
 function makeMockSheet(name?: string) {
@@ -87,6 +94,7 @@ function makeMockContext() {
     const ctx = makeMockContext();
     return callback(ctx);
   }),
+  DeleteShiftDirection: { up: 'up' },
 };
 
 // Mock excelHelper
@@ -404,6 +412,21 @@ describe('TableCreator', () => {
       await creator.createTable(makeConfig({ autoRegister: true }));
       addedSheetNames.push('怪物表');
       rangeCalls = [];
+
+      // unregisterTable 需要在表名对照中找到已注册的怪物表
+      mockLoadSheetSnapshot.mockResolvedValue({
+        name: '表名对照',
+        values: [
+          ['#输出控制#', null, null, null],
+          ['1.0', '怪物表', 'monster', true],
+          [null, null, null, null],
+        ],
+        rowCount: 3,
+        colCount: 4,
+        startRow: 0,
+        startCol: 0,
+      });
+      mockFindMarkerInData.mockReturnValue({ row: 0, col: 0 });
 
       await creator.undoLastCreation();
 

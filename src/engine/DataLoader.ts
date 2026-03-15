@@ -24,28 +24,37 @@ export class DataLoader {
   ): Promise<Map<string, InMemoryTableData>> {
     const result = new Map<string, InMemoryTableData>();
 
-    await Excel.run(async (context) => {
-      for (const [chineseName, tableInfo] of config.tablesToProcess) {
-        if (!tableInfo.shouldOutput) {
-          logger.info(`跳过表 ${chineseName}: 输出开关关闭`);
-          continue;
-        }
+    // 预筛选需要加载的表名
+    const tableNames: string[] = [];
+    for (const [chineseName, tableInfo] of config.tablesToProcess) {
+      if (!tableInfo.shouldOutput) {
+        logger.info(`跳过表 ${chineseName}: 输出开关关闭`);
+        continue;
+      }
+      if (tableInfo.versionRange && !versionFilter.isVersionInRange(tableInfo.versionRange)) {
+        logger.info(`跳过表 ${chineseName}: 版本不在区间 ${tableInfo.versionRange} 内`);
+        continue;
+      }
+      tableNames.push(chineseName);
+    }
 
-        if (tableInfo.versionRange && !versionFilter.isVersionInRange(tableInfo.versionRange)) {
-          logger.info(`跳过表 ${chineseName}: 版本不在区间 ${tableInfo.versionRange} 内`);
+    if (tableNames.length === 0) return result;
+
+    // 批量加载所有工作表（仅 2 次 context.sync，而非 2N 次）
+    await Excel.run(async (context) => {
+      const snapshots = await excelHelper.loadSheetSnapshotsBatch(context, tableNames);
+
+      for (const chineseName of tableNames) {
+        const snap = snapshots.get(chineseName);
+        if (!snap || snap.values.length === 0) {
+          this.errorHandler.log(
+            ErrorCode.SOURCE_SHEET_NOT_FOUND, 'warning', chineseName,
+            `找不到工作表「${chineseName}」`, 'DataLoader.loadAll'
+          );
           continue;
         }
 
         try {
-          const snap = await excelHelper.loadSheetSnapshot(context, chineseName);
-          if (!snap || snap.values.length === 0) {
-            this.errorHandler.log(
-              ErrorCode.SOURCE_SHEET_NOT_FOUND, 'warning', chineseName,
-              `找不到工作表「${chineseName}」`, 'DataLoader.loadAll'
-            );
-            continue;
-          }
-
           const tableData = this.parseTableData(snap.values, chineseName);
           if (tableData) {
             result.set(chineseName, tableData);
@@ -138,10 +147,50 @@ export class DataLoader {
     const dataStartCol = configAreaCol >= 0 ? configAreaCol + 1 : 0;
     // 当 version_r 存在时：从其所在行开始；否则从第0行开始（整个工作表）
     const dataStartRow = versionRRow >= 0 ? versionRRow : 0;
-    const mainData: CellValue[][] = [];
-    for (let r = dataStartRow; r < totalRows; r++) {
-      const row: CellValue[] = [];
+
+    // 确定数据区右边界：从 #配置区域# 后的表头行扫描连续非空单元格
+    // 只导出 currentRegion 内的列，避免备注等额外内容被导出
+    let dataEndCol = totalCols;
+    if (configAreaCol >= 0 && versionRRow >= 0) {
+      dataEndCol = dataStartCol;
       for (let c = dataStartCol; c < totalCols; c++) {
+        const val = String(allValues[versionRRow][c] ?? '').trim();
+        if (val === '') break;
+        dataEndCol = c + 1;
+      }
+    }
+
+    // 动态检测数据起始行：version_r 后面的描述行在 A 列是纯文本（无数字/~），
+    // 数据行在 A 列包含版本号（有数字或~）或为空。跳过所有描述行（支持隐藏行等导致的额外描述行）。
+    // 注意：必须检查 A 列（版本列），而非 dataStartCol（数据列可能本身就是数字）。
+    let dataRowOffset = dataStartRow + 1; // 至少跳过 version_r 行本身
+    if (versionRRow >= 0) {
+      for (let r = dataStartRow + 1; r < totalRows; r++) {
+        const cellVal = String(allValues[r]?.[0] ?? '').trim();
+        // 非空且不含数字/~ → 描述行，继续跳过
+        if (cellVal && !/[\d~]/.test(cellVal)) {
+          dataRowOffset = r + 1;
+          continue;
+        }
+        break;
+      }
+    }
+    let dataEndRow = totalRows;
+    if (configAreaCol >= 0 && versionRRow >= 0) {
+      dataEndRow = dataRowOffset;
+      for (let r = dataRowOffset; r < totalRows; r++) {
+        const firstCell = allValues[r]?.[dataStartCol];
+        if (firstCell == null || String(firstCell).trim() === '') break;
+        dataEndRow = r + 1;
+      }
+      // 表头行始终包含
+      dataEndRow = Math.max(dataEndRow, dataRowOffset);
+    }
+
+    const mainData: CellValue[][] = [];
+    for (let r = dataStartRow; r < dataEndRow; r++) {
+      const row: CellValue[] = [];
+      for (let c = dataStartCol; c < dataEndCol; c++) {
         row.push(allValues[r][c] ?? null);
       }
       mainData.push(row);
@@ -151,7 +200,7 @@ export class DataLoader {
     // 当 #配置区域# 不存在时，没有版本行数据列可提取
     const versionRowData: CellValue[][] = [];
     const versionRowEndCol = configAreaCol >= 0 ? configAreaCol : 0;
-    for (let r = dataStartRow; r < totalRows; r++) {
+    for (let r = dataStartRow; r < dataEndRow; r++) {
       const row: CellValue[] = [];
       for (let c = 0; c < versionRowEndCol; c++) {
         row.push(allValues[r][c] ?? null);
@@ -166,11 +215,12 @@ export class DataLoader {
       versionColData = [];
       // 提取各行左侧标签（version_c 所在列的值，用于识别 roads_0/roads_X）
       versionColLabels = [];
+      const vcDataCols = dataEndCol - dataStartCol;
       for (let r = versionCRow; r < versionRRow; r++) {
         // 标签在 version_c 所在列（第一行是 "version_c" 本身，后续行可能有 roads_0 等）
         versionColLabels.push(allValues[r][versionCCol] ?? null);
         const row: CellValue[] = [];
-        for (let c = versionCCol + 1; c < versionCCol + 1 + (totalCols - dataStartCol); c++) {
+        for (let c = versionCCol + 1; c < versionCCol + 1 + vcDataCols; c++) {
           row.push(c < totalCols ? (allValues[r][c] ?? null) : null);
         }
         versionColData.push(row);

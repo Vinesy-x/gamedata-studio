@@ -47,7 +47,7 @@ describe('DataFilter', () => {
       expect(result.data[2][0]).toBe(1); // 物品A
     });
 
-    it('线路筛选 - roads_0 排除', () => {
+    it('roads_0 不再是总线路 — roads_0=0 不影响目标 roads_1', () => {
       const vf = new VersionFilter(7.5, 'roads_1');
       const df = new DataFilter(vf);
 
@@ -57,13 +57,13 @@ describe('DataFilter', () => {
           ['id=int', 'name=string'],
           ['ID', '名称'],
           [1, '保留'],
-          [2, '排除'],
+          [2, '也保留'],
         ],
         versionRowData: [
           ['version_r', 'roads_0', 'roads_1'],
           ['版本行属', '简体', '简体中文'],
-          ['1', '1', '1'],   // roads_0=1, roads_1=1 → 保留
-          ['1', '0', '1'],   // roads_0=0 → 排除
+          ['1', '1', '1'],   // roads_1=1 → 保留
+          ['1', '0', '1'],   // roads_0=0 但 roads_1=1 → 保留（只看目标线路）
         ],
         versionColData: null,
         versionColLabels: null,
@@ -72,7 +72,7 @@ describe('DataFilter', () => {
       };
 
       const result = df.applyFilters(tableData);
-      expect(result.rowCount).toBe(3); // 2表头 + 1数据
+      expect(result.rowCount).toBe(4); // 2表头 + 2数据（roads_0 不影响）
     });
 
     it('目标线路排除', () => {
@@ -227,7 +227,7 @@ describe('DataFilter', () => {
       expect(result.data[2]).toEqual([1, 'a1', 'c1']);
     });
 
-    it('列线路筛选 — roads_0=0 排除列', () => {
+    it('列线路筛选 — 只检查目标线路（roads_0 不是总线路）', () => {
       const vf = new VersionFilter(7.5, 'roads_1');
       const df = new DataFilter(vf);
 
@@ -245,8 +245,8 @@ describe('DataFilter', () => {
         ],
         versionColData: [
           ['1', '1', '1'],     // version_c 行：所有列版本通过
-          ['1', '1', '0'],     // roads_0：col_b(index=2) roads_0=0 → 排除
-          ['1', '1', '1'],     // roads_1
+          ['1', '1', '0'],     // roads_0：col_b=0（不检查，不是目标线路）
+          ['1', '1', '0'],     // roads_1：col_b=0 → 排除
         ],
         versionColLabels: ['version_c', 'roads_0', 'roads_1'],
         hasVersionRowFlag: true,

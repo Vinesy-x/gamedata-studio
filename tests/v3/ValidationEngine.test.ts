@@ -48,6 +48,7 @@ function makeData(overrides: Partial<TableValidationData> = {}): TableValidation
     versionRowStart: 5,      // version_r 在第5行（1-indexed）
     dataRowStart: 7,         // 数据从第7行开始
     dataColStart: 11,        // 数据从第11列开始（1-indexed）
+    versionColStart: 1,      // 版本区间列号（1-indexed）
     versionValues: [],       // A 列版本值
     roadsValues: [],         // roads 值
     fieldNames: [],
@@ -395,9 +396,9 @@ describe('ValidationEngine', () => {
       expect(errors[0].message).toContain('1.5');
     });
 
-    it('有重叠的版本区间应报 info', () => {
+    it('有重叠的版本区间不应报错（正常覆盖设计）', () => {
       // "1~2.0" → [1, 2.0), "1.5" → [1.5, 99)
-      // 重叠：1.5 ~ 2.0
+      // 重叠是正常的同Key多版本覆盖
       const data = makeData({
         versionValues: ['version_r', '描述行', '1~2.0', '1.5'],
         dataValues: [
@@ -407,8 +408,7 @@ describe('ValidationEngine', () => {
       });
       const results = engine.validateVersionCoverage('测试表', data);
       const infos = results.filter(r => r.severity === 'info');
-      expect(infos).toHaveLength(1);
-      expect(infos[0].message).toContain('重叠');
+      expect(infos).toHaveLength(0);
     });
 
     it('空版本值的行不参与覆盖检查', () => {
@@ -649,94 +649,16 @@ describe('ValidationEngine', () => {
   // ════════════════════════════════════════════════════════════
 
   describe('validateRoadsConsistency', () => {
-    it('roads_0=1 时子线路启用不应报错', () => {
+    it('roads_0 不再作为总线路，各线路独立，不产生一致性警告', () => {
       const data = makeData({
-        // roadsValues 索引从 version_r 行开始，数据行从 index 2 开始
         roadsValues: [
-          ['version_r', 'roads_0', 'roads_1'],  // 表头行
-          ['描述', '', ''],                       // 描述行
-          ['1', '1', '1'],                        // 数据行：roads_0=1, roads_1=1
+          ['version_r', 'roads_0', 'roads_1'],
+          ['描述', '', ''],
+          ['0', '1'],  // roads_0=0, roads_1=1，各自独立
         ],
       });
       const results = engine.validateRoadsConsistency('测试表', data);
       expect(results).toHaveLength(0);
-    });
-
-    it('roads_0=0 且 roads_N=1 应报 warning', () => {
-      const data = makeData({
-        versionRowStart: 5,
-        roadsValues: [
-          ['version_r', 'roads_0', 'roads_1'],
-          ['描述', '', ''],
-          ['0', '1'],  // roads_0=0 但 roads_1=1
-        ],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results).toHaveLength(1);
-      expect(results[0].severity).toBe('warning');
-      expect(results[0].ruleName).toBe('Roads一致性');
-      expect(results[0].message).toContain('roads_0=0');
-      expect(results[0].message).toContain('roads_1=1');
-    });
-
-    it('roads_0=0 且所有子线路都为 0 不应报错', () => {
-      const data = makeData({
-        roadsValues: [
-          ['version_r', 'roads_0', 'roads_1'],
-          ['描述', '', ''],
-          ['0', '0'],
-        ],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results).toHaveLength(0);
-    });
-
-    it('roads_0 为空且子线路启用应报 warning', () => {
-      const data = makeData({
-        versionRowStart: 5,
-        roadsValues: [
-          ['version_r', 'roads_0', 'roads_1'],
-          ['描述', '', ''],
-          ['', '1'],  // roads_0=空 但 roads_1=1
-        ],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results).toHaveLength(1);
-    });
-
-    it('空 roads 行应被跳过', () => {
-      const data = makeData({
-        roadsValues: [[]],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results).toHaveLength(0);
-    });
-
-    it('多行矛盾应分别报出', () => {
-      const data = makeData({
-        versionRowStart: 5,
-        roadsValues: [
-          ['version_r', 'roads_0', 'roads_1', 'roads_2'],
-          ['描述', '', '', ''],
-          ['0', '1', '0'],  // 矛盾：roads_0=0 但 roads_1=1
-          ['0', '0', '1'],  // 矛盾：roads_0=0 但 roads_2=1
-        ],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results).toHaveLength(2);
-    });
-
-    it('定位行号应正确（versionRowStart + index + 2）', () => {
-      const data = makeData({
-        versionRowStart: 10,
-        roadsValues: [
-          ['version_r', 'roads_0', 'roads_1'],
-          ['描述', '', ''],
-          ['0', '1'],
-        ],
-      });
-      const results = engine.validateRoadsConsistency('测试表', data);
-      expect(results[0].location!.row).toBe(14); // 10 + 2 + 2
     });
   });
 
@@ -773,7 +695,7 @@ describe('ValidationEngine', () => {
     });
 
     it('int[] 逗号分隔不通过', () => {
-      expect(engine.checkType('1,2,3', 'int[]')).toBe('格式应为 N|N|N');
+      expect(engine.checkType('1,2,3', 'int[]')).toBe('格式应为 N|N|N（分隔符: |）');
     });
 
     it('int[][] 分号+竖线分隔通过', () => {
@@ -782,7 +704,7 @@ describe('ValidationEngine', () => {
     });
 
     it('int[][] 逗号分隔不通过', () => {
-      expect(engine.checkType('1,2;3,4', 'int[][]')).toBe('格式应为 N|N;N|N');
+      expect(engine.checkType('1,2;3,4', 'int[][]')).toBe('格式应为 N|N;N|N（一维: |, 二维: ;）');
     });
 
     it('未知类型返回 null（不校验）', () => {

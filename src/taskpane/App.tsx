@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import {
   makeStyles,
   tokens,
@@ -18,6 +18,17 @@ import {
   NumberSymbolRegular,
   DataBarVerticalRegular,
   TableSimpleRegular,
+  RocketRegular,
+  WindowWrenchRegular,
+  AirplaneTakeOffRegular,
+  HeartRegular,
+  StarRegular,
+  SparkleRegular,
+  SendRegular,
+  BugRegular,
+  FlagCheckeredRegular,
+  WandRegular,
+  CompassNorthwestRegular,
 } from '@fluentui/react-icons';
 import { ExportTab } from './components/ExportTab';
 import { IdleAnimation } from './components/IdleAnimation';
@@ -33,6 +44,9 @@ import { ExportJob } from '../engine/ExportJob';
 import { GitHandler } from '../git/GitHandler';
 import { GitExecutor } from '../git/GitExecutor';
 import { configManager } from '../v2/ConfigManager';
+import { gdsTokens } from './theme';
+import { useThemeText } from './locales';
+import { ThemeContext } from './index';
 
 const useStyles = makeStyles({
   root: {
@@ -42,7 +56,7 @@ const useStyles = makeStyles({
     minWidth: '280px',
     boxSizing: 'border-box',
     fontFamily: tokens.fontFamilyBase,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: tokens.colorNeutralBackground2,
     overflow: 'hidden',
   },
   banner: {
@@ -51,8 +65,8 @@ const useStyles = makeStyles({
     justifyContent: 'center',
     gap: '14px',
     padding: '8px 14px',
-    backgroundImage: 'linear-gradient(135deg, #0078d4 0%, #1565c0 40%, #0d47a1 100%)',
-    color: 'rgba(255,255,255,0.65)',
+    backgroundImage: gdsTokens.banner.gradient,
+    color: gdsTokens.banner.iconColor,
     position: 'relative' as const,
     overflow: 'hidden' as const,
   },
@@ -62,7 +76,7 @@ const useStyles = makeStyles({
     left: '-100%',
     width: '200%',
     height: '100%',
-    backgroundImage: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 45%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 55%, transparent 100%)',
+    backgroundImage: gdsTokens.banner.shimmer,
     animationName: {
       from: { transform: 'translateX(-30%)' },
       to: { transform: 'translateX(30%)' },
@@ -79,7 +93,7 @@ const useStyles = makeStyles({
     width: '3px',
     height: '3px',
     borderRadius: '50%',
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: gdsTokens.banner.dotColor,
     position: 'relative' as const,
   },
   tabBar: {
@@ -127,10 +141,27 @@ const useStyles = makeStyles({
     height: '100%',
     gap: '12px',
   },
+  footer: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    padding: '8px 14px',
+    marginTop: 'auto',
+    fontSize: '10px',
+    color: tokens.colorNeutralForeground4,
+    fontFamily: gdsTokens.fontMono,
+    letterSpacing: '1px',
+    userSelect: 'none' as const,
+    opacity: 0.35,
+  },
 });
 
 export function App() {
   const styles = useStyles();
+  const { mode: themeMode } = useContext(ThemeContext);
+  const t = useThemeText();
+  const specialTokens = (gdsTokens as Record<string, unknown>)[themeMode] as typeof gdsTokens.game | undefined;
+  const isSpecial = !!specialTokens;
   const { config, loading, error, loadConfig } = useConfig();
   const [selectedTab, setSelectedTab] = useState<string>('export');
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
@@ -156,7 +187,9 @@ export function App() {
     setExportResult(result);
     setIsExporting(false);
     setProgress(null);
-  }, []);
+    // 重新加载配置以更新序列号等导出后变化的字段
+    loadConfig();
+  }, [loadConfig]);
 
   // 协同导出触发回调
   const handleCollabTrigger = useCallback(async (params: CollabTriggerParams) => {
@@ -178,7 +211,7 @@ export function App() {
       // 准备状态文本
       let statusText = result.success ? '导出完成' : '导出失败';
       const resultText = result.success
-        ? `${result.changedTables} 张表已更新`
+        ? (result.changedTables > 0 ? `${result.changedTables} 张表已更新` : '无任何修改')
         : `错误: ${result.errors.filter(e => e.severity === 'error').map(e => e.message).join('; ')}`;
 
       // 自动 Git push
@@ -299,7 +332,7 @@ export function App() {
           <img src="assets/gds-80.png" alt="GameData Studio" className={styles.setupIcon} />
           <Text weight="semibold" size={400}>欢迎使用 GameData Studio</Text>
           <Text className={styles.setupDesc}>
-            当前工作簿尚未初始化。点击下方按钮自动创建配置，即可开始管理游戏数据表。
+            {t.setup.description}
           </Text>
           <Button
             appearance="primary"
@@ -308,7 +341,7 @@ export function App() {
             onClick={handleInitialize}
             size="large"
           >
-            {initializing ? '正在初始化...' : '初始化工作簿'}
+            {initializing ? t.setup.initializingBtn : t.setup.initBtn}
           </Button>
           {initError && (
             <div className={styles.errorBox}>
@@ -317,13 +350,14 @@ export function App() {
           )}
         </div>
         <IdleAnimation />
+        <div className={styles.footer}>vin {__APP_VERSION__}</div>
       </div>
     );
   }
 
   return (
     <div className={styles.root}>
-      <div className={styles.banner}>
+      <div className={styles.banner} style={specialTokens ? { backgroundImage: specialTokens.banner } : undefined}>
         <span className={styles.bannerShimmer} />
         <GridRegular className={styles.bannerIcon} />
         <span className={styles.bannerDot} />
@@ -340,10 +374,10 @@ export function App() {
           onTabSelect={(_, data) => setSelectedTab(data.value as string)}
           size="small"
         >
-          <Tab value="export" icon={<ArrowExportRegular fontSize={14} />}>导出</Tab>
-          <Tab value="manage" icon={<SettingsRegular fontSize={14} />}>管理</Tab>
-          <Tab value="validate" icon={<ShieldCheckmarkRegular fontSize={14} />}>校验</Tab>
-          <Tab value="preview" icon={<EyeRegular fontSize={14} />}>预览</Tab>
+          <Tab value="export" icon={({ game: <RocketRegular fontSize={14} />, cute: <HeartRegular fontSize={14} />, cyber: <SendRegular fontSize={14} />, pixel: <FlagCheckeredRegular fontSize={14} /> } as Record<string, React.ReactNode>)[themeMode] || <ArrowExportRegular fontSize={14} />}>{t.tabExport}</Tab>
+          <Tab value="manage" icon={<SettingsRegular fontSize={14} />}>{t.tabManage}</Tab>
+          <Tab value="validate" icon={({ game: <WindowWrenchRegular fontSize={14} />, cute: <StarRegular fontSize={14} />, cyber: <BugRegular fontSize={14} />, pixel: <WandRegular fontSize={14} /> } as Record<string, React.ReactNode>)[themeMode] || <ShieldCheckmarkRegular fontSize={14} />}>{t.tabValidate}</Tab>
+          <Tab value="preview" icon={({ game: <AirplaneTakeOffRegular fontSize={14} />, cute: <SparkleRegular fontSize={14} />, pixel: <CompassNorthwestRegular fontSize={14} /> } as Record<string, React.ReactNode>)[themeMode] || <EyeRegular fontSize={14} />}>{t.tabPreview}</Tab>
         </TabList>
       </div>
 

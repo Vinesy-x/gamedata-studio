@@ -42,6 +42,11 @@ export class Logger {
     return [...this.logs];
   }
 
+  /** 返回关键进度日志（含 ⏱ 标记 或 WARN/ERROR 级别） */
+  getKeyLogs(): string[] {
+    return this.logs.filter(l => l.includes('⏱') || l.includes('WARN:') || l.includes('ERROR:'));
+  }
+
   clear(): void {
     this.logs = [];
   }

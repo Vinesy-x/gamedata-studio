@@ -333,19 +333,20 @@ describe('VersionPreviewer', () => {
       expect(results[0].excludedRows).toEqual([1]);
     });
 
-    it('roads_0=0 优先于目标线路检查', () => {
+    it('roads_0 不再是总线路 — roads_0=0 不影响目标 roads_1', () => {
       const config = makeConfig({ lineField: 'roads_1' });
       const snapshots = new Map<string, SheetData>();
 
-      snapshots.set('优先级表', makeSheetData({
+      snapshots.set('独立线路表', makeSheetData({
         dataRows: [
-          { versionRange: '1', roads0: '0', roads1: '1', values: [1, '排除', 100] },
+          { versionRange: '1', roads0: '0', roads1: '1', values: [1, '保留', 100] },
         ],
       }));
 
       const results = previewer.previewFromSnapshots('测试版本', 7.5, config, snapshots);
 
-      expect(results[0].excludedRows).toEqual([0]);
+      // roads_0=0 但目标是 roads_1=1，行应保留
+      expect(results[0].excludedRows).toEqual([]);
     });
   });
 
@@ -504,11 +505,11 @@ describe('VersionPreviewer', () => {
       expect(results[0].excludedCols).toEqual([1]); // col_a (index 1) 被 roads_1=0 排除
     });
 
-    it('列版本区间+roads_0+目标线路三重过滤', () => {
+    it('列版本区间+目标线路双重过滤（roads_0 不再是总线路）', () => {
       const config = makeConfig({ lineField: 'roads_1' });
       const snapshots = new Map<string, SheetData>();
 
-      snapshots.set('三重列过滤', makeSheetData({
+      snapshots.set('双重列过滤', makeSheetData({
         headers: ['id=int', 'col_a=string', 'col_b=string', 'col_c=string'],
         descriptions: ['ID', '列A', '列B', '列C'],
         dataRows: [
@@ -518,8 +519,8 @@ describe('VersionPreviewer', () => {
           labels: ['version_c', 'roads_0', 'roads_1'],
           data: [
             ['1', '1', '8',  '1'],     // version_c: col_b 版本8+ → 排除
-            ['1', '1', '1',  '0'],     // roads_0: col_c=0 → 排除
-            ['1', '1', '1',  '1'],     // roads_1: 全部通过（但 col_b/col_c 已被排除）
+            ['1', '1', '1',  '0'],     // roads_0: col_c=0（但不检查，不是目标线路）
+            ['1', '1', '1',  '0'],     // roads_1: col_c=0 → 排除
           ],
         },
       }));
@@ -527,7 +528,7 @@ describe('VersionPreviewer', () => {
       const results = previewer.previewFromSnapshots('测试版本', 3.0, config, snapshots);
 
       expect(results).toHaveLength(1);
-      // col_b(idx 2) 被版本排除, col_c(idx 3) 被 roads_0=0 排除
+      // col_b(idx 2) 被版本排除, col_c(idx 3) 被 roads_1=0 排除
       expect(results[0].excludedCols).toEqual(expect.arrayContaining([2, 3]));
       expect(results[0].excludedCols).toHaveLength(2);
       expect(results[0].filteredCols).toBe(2); // 4 - 2 = 2

@@ -1,11 +1,23 @@
-import ExcelJS from 'exceljs';
 import { CellValue } from '../types/table';
 import { Config } from '../types/config';
 import { logger } from '../utils/Logger';
 
+/** 哈希清单条目：支持旧格式(纯字符串)和新格式(含行数) */
+export type HashManifestEntry = string | { hash: string; rows: number };
+
 /** 哈希清单：记录每张表的数据哈希 */
 export interface HashManifest {
-  [englishName: string]: string;
+  [englishName: string]: HashManifestEntry;
+}
+
+/** 从清单条目中提取哈希值（兼容旧格式） */
+export function getManifestHash(entry: HashManifestEntry): string {
+  return typeof entry === 'string' ? entry : entry.hash;
+}
+
+/** 从清单条目中提取行数（旧格式返回 0） */
+export function getManifestRows(entry: HashManifestEntry): number {
+  return typeof entry === 'string' ? 0 : entry.rows;
 }
 
 export class ExportWriter {
@@ -37,13 +49,22 @@ export class ExportWriter {
     manifest: HashManifest,
     englishName: string
   ): boolean {
-    // GameConfig 总是判定为变更（含动态版本号注入）
-    if (englishName === 'GameConfig') return true;
-
-    const oldHash = manifest[englishName];
-    if (!oldHash) return true;
-
     const newHash = this.computeDataHash(filteredData);
+    return this.hasHashChanged(newHash, manifest, englishName);
+  }
+
+  /**
+   * 基于预计算的哈希值判断是否有变更（避免重复计算哈希）
+   */
+  hasHashChanged(
+    newHash: string,
+    manifest: HashManifest,
+    englishName: string
+  ): boolean {
+    const oldEntry = manifest[englishName];
+    if (!oldEntry) return true;
+
+    const oldHash = getManifestHash(oldEntry);
     return newHash !== oldHash;
   }
 
@@ -55,28 +76,24 @@ export class ExportWriter {
     englishName: string,
     config: Config
   ): Promise<ArrayBuffer> {
-    const workbook = new ExcelJS.Workbook();
+    // 动态导入 exceljs（~925KB），避免阻塞首屏加载
+    const ExcelJS = await import('exceljs');
+    const workbook = new ExcelJS.default.Workbook();
     const sheet = workbook.addWorksheet(englishName);
 
-    for (let r = 0; r < filteredData.length; r++) {
-      const row = sheet.getRow(r + 1);
-      for (let c = 0; c < filteredData[r].length; c++) {
-        const cell = row.getCell(c + 1);
-        let value = filteredData[r][c];
-
-        // GameConfig 特殊处理：第3行第3列替换为版本号.序列号
-        if (
-          englishName === 'GameConfig' &&
-          r === 2 && c === 2
-        ) {
-          value = `${config.outputSettings.versionNumber}.${config.outputSettings.versionSequence}`;
-        }
-
-        cell.value = value as ExcelJS.CellValue;
-        cell.numFmt = '@'; // 文本格式
-      }
-      row.commit();
+    // 整列设置文本格式（避免逐单元格设置 numFmt）
+    const colCount = filteredData[0]?.length ?? 0;
+    for (let c = 1; c <= colCount; c++) {
+      sheet.getColumn(c).numFmt = '@';
     }
+
+    // GameConfig 特殊处理：第3行第3列替换为版本号.序列号
+    if (englishName === 'GameConfig' && filteredData.length > 2 && filteredData[2].length > 2) {
+      filteredData[2][2] = `${config.outputSettings.versionNumber}.${config.outputSettings.versionSequence}`;
+    }
+
+    // 批量添加行（比逐行 getRow/getCell 快很多）
+    sheet.addRows(filteredData as unknown[]);
 
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as ArrayBuffer;

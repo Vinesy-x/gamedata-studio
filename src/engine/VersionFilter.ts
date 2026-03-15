@@ -155,6 +155,12 @@ export class VersionFilter {
       return { valid: true };
     }
 
+    // 纯文本标签（不含数字且不含波浪号）不可能是版本区间，跳过校验
+    // 例如 "版本行属"、"简体"、"韩国版本" 等描述性文字
+    if (!/[\d~]/.test(s)) {
+      return { valid: true };
+    }
+
     // 检查是否使用了横线而非波浪号
     if (s.includes('-') && !s.includes('~')) {
       if (/\d-\d/.test(s)) {

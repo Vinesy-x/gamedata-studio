@@ -1,6 +1,6 @@
 /* global Excel */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useContext } from 'react';
 import {
   makeStyles,
   tokens,
@@ -26,6 +26,10 @@ import { ValidationNavigator } from '../../v3/ValidationNavigator';
 import { VersionFilter } from '../../engine/VersionFilter';
 import { StudioConfigStore, ValidationConfig, createDefaultValidationConfig } from '../../v2/StudioConfigStore';
 import { configManager } from '../../v2/ConfigManager';
+import { gdsTokens } from '../theme';
+import { useThemeText, themeExtraData } from '../locales';
+import { ThemeContext } from '../index';
+import { grantValidateXp } from '../services/PlayerStats';
 
 // ─── 校验规则定义 ───────────────────────────────────────
 
@@ -131,15 +135,15 @@ const useStyles = makeStyles({
     borderRadius: '10px',
   },
   badgeError: {
-    backgroundColor: '#FDE7E9',
+    backgroundColor: gdsTokens.badge.error.bg,
     color: tokens.colorPaletteRedForeground1,
   },
   badgeWarning: {
-    backgroundColor: '#FFF4CE',
-    color: '#9D5D00',
+    backgroundColor: gdsTokens.badge.warning.bg,
+    color: gdsTokens.warning.text,
   },
   badgeInfo: {
-    backgroundColor: '#E8F4FD',
+    backgroundColor: gdsTokens.badge.info.bg,
     color: tokens.colorBrandForeground1,
   },
   summaryTotal: {
@@ -177,7 +181,7 @@ const useStyles = makeStyles({
     color: tokens.colorPaletteRedForeground1,
   },
   resultIconWarning: {
-    color: '#9D5D00',
+    color: gdsTokens.warning.text,
   },
   resultIconInfo: {
     color: tokens.colorBrandForeground1,
@@ -248,9 +252,9 @@ const useStyles = makeStyles({
     alignItems: 'center',
     gap: '8px',
     padding: '12px',
-    backgroundColor: '#E8F5E9',
+    backgroundColor: gdsTokens.success.bg,
     borderRadius: '8px',
-    border: '1px solid #C8E6C9',
+    border: `1px solid ${gdsTokens.success.border}`,
   },
   successIcon: {
     color: tokens.colorPaletteGreenForeground1,
@@ -324,6 +328,11 @@ interface ValidationPanelProps {
 }
 
 export function ValidationPanel({ config }: ValidationPanelProps) {
+  const { mode: themeMode } = useContext(ThemeContext);
+  const isGame = themeMode === 'game';
+  const isCute = themeMode === 'cute';
+  const isSpecial = isGame || isCute;
+  const t = useThemeText();
   const styles = useStyles();
 
   // 校验范围
@@ -336,6 +345,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
 
   // 运行状态
   const [isRunning, setIsRunning] = useState(false);
+  const [progressText, setProgressText] = useState('');
   const [results, setResults] = useState<ValidationResult[] | null>(null);
   const [showDelimiters, setShowDelimiters] = useState(false);
 
@@ -387,7 +397,14 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
     });
   }, []);
 
-  const saveDelimiters = useCallback(async () => {
+  const updateNullEquivalents = useCallback((value: string) => {
+    setValConfig(prev => ({
+      ...prev,
+      nullEquivalents: value.split(',').map(s => s.trim()).filter(Boolean),
+    }));
+  }, []);
+
+  const saveValConfig = useCallback(async () => {
     try {
       await Excel.run(async (context) => {
         await StudioConfigStore.update(context, (data) => {
@@ -435,7 +452,9 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       );
       const engine = new ValidationEngine(versionFilter, valConfig);
 
-      const allResults = await engine.runValidation(tables);
+      const allResults = await engine.runValidation(tables, (tableName, index, total) => {
+        setProgressText(`${tableName} (${index}/${total})`);
+      });
 
       // 按启用的规则过滤
       const ruleNameMap: Record<string, string> = {
@@ -461,6 +480,11 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
 
       const filtered = allResults.filter((r) => enabledRuleNames.has(r.ruleName));
       setResults(filtered);
+
+      // Grant XP for special themes
+      if (isSpecial) {
+        grantValidateXp(enabledRules.size);
+      }
     } catch (err) {
       console.error('校验运行失败', err);
       setResults([]);
@@ -547,7 +571,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <SearchRegular fontSize={14} />
-          <Text className={styles.sectionTitle}>校验范围</Text>
+          <Text className={styles.sectionTitle}>{t.validate.title}</Text>
         </div>
         <div className={styles.scopeRow}>
           <Button
@@ -557,7 +581,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
             onClick={() => setScope('active')}
             disabled={isRunning}
           >
-            当前表
+            {t.validate.scope[0]}
           </Button>
           <Button
             className={scope === 'registered' ? styles.scopeBtnActive : styles.scopeBtn}
@@ -566,7 +590,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
             onClick={() => setScope('registered')}
             disabled={isRunning}
           >
-            已注册表
+            {t.validate.scope[1]}
           </Button>
         </div>
       </div>
@@ -576,22 +600,22 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       {/* 校验规则 */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <Text className={styles.sectionTitle}>校验规则</Text>
+          <Text className={styles.sectionTitle}>{t.validate.title}</Text>
           <Button
             appearance="transparent"
             size="small"
             onClick={toggleAllRules}
             style={{ minWidth: 'auto', padding: '0 4px', fontSize: '11px' }}
           >
-            {enabledRules.size === VALIDATION_RULES.length ? '取消全选' : '全选'}
+            {enabledRules.size === VALIDATION_RULES.length ? t.validate.deselectAll : t.validate.selectAll}
           </Button>
         </div>
         <div className={styles.rulesGrid}>
-          {VALIDATION_RULES.map((rule) => (
+          {VALIDATION_RULES.map((rule, idx) => (
             <div key={rule.key} style={{ display: 'flex', alignItems: 'center' }}>
               <Checkbox
                 className={styles.ruleCheckbox}
-                label={rule.label}
+                label={t.validate.ruleLabels[idx] ?? rule.label}
                 checked={enabledRules.has(rule.key)}
                 onChange={() => toggleRule(rule.key)}
                 disabled={isRunning}
@@ -606,6 +630,11 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
                   style={{ minWidth: 'auto', padding: '0 2px', color: showDelimiters ? tokens.colorBrandForeground1 : tokens.colorNeutralForeground4 }}
                   title="配置类型分隔符"
                 />
+              )}
+              {isSpecial && (
+                <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: isGame ? gdsTokens.game.xpCyan : gdsTokens.cute.xpColor }}>
+                  +{(isGame ? themeExtraData.game : themeExtraData.cute).ruleXp[idx] ?? 30} 经验
+                </span>
               )}
             </div>
           ))}
@@ -622,7 +651,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
                   size="small"
                   value={delim.primary}
                   onChange={(_, d) => updateDelimiter(type, 'primary', d.value)}
-                  onBlur={saveDelimiters}
+                  onBlur={saveValConfig}
                 />
                 {delim.secondary !== undefined && (
                   <>
@@ -632,12 +661,23 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
                       size="small"
                       value={delim.secondary}
                       onChange={(_, d) => updateDelimiter(type, 'secondary', d.value)}
-                      onBlur={saveDelimiters}
+                      onBlur={saveValConfig}
                     />
                   </>
                 )}
               </div>
             ))}
+            <div className={styles.delimiterRow} style={{ marginTop: '4px' }}>
+              <span className={styles.delimiterType}>空值等价</span>
+              <Input
+                size="small"
+                style={{ flex: 1 }}
+                value={(valConfig.nullEquivalents ?? []).join(', ')}
+                onChange={(_, d) => updateNullEquivalents(d.value)}
+                onBlur={saveValConfig}
+                placeholder="null, NULL, N/A"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -646,6 +686,18 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
 
       {/* 运行按钮 */}
       <div className={styles.section}>
+        {isSpecial && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, fontSize: 11 }}>
+            <span style={{ color: isGame ? gdsTokens.game.textMuted : gdsTokens.cute.textMuted }}>
+              {(isGame ? themeExtraData.game : themeExtraData.cute).progressLabel(enabledRules.size, VALIDATION_RULES.length)}
+            </span>
+            <span style={{ color: isGame ? gdsTokens.game.xpColor : gdsTokens.cute.xpColor, fontWeight: 700 }}>
+              {(isGame ? themeExtraData.game : themeExtraData.cute).xpTotal(
+                VALIDATION_RULES.reduce((sum, r, i) => enabledRules.has(r.key) ? sum + ((isGame ? themeExtraData.game : themeExtraData.cute).ruleXp[i] ?? 30) : sum, 0)
+              )}
+            </span>
+          </div>
+        )}
         <Button
           className={styles.runBtn}
           icon={<PlayRegular />}
@@ -654,7 +706,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
           onClick={handleRunValidation}
           disabled={isRunning || enabledRules.size === 0}
         >
-          {isRunning ? '校验中...' : '运行校验'}
+          {isRunning ? t.validate.runningBtn : t.validate.runBtn}
         </Button>
       </div>
 
@@ -662,7 +714,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       {isRunning && (
         <div className={styles.spinnerArea}>
           <Spinner size="small" />
-          <Text className={styles.spinnerText}>正在校验数据表...</Text>
+          <Text className={styles.spinnerText}>{t.validate.validatingProgress} {progressText}</Text>
         </div>
       )}
 
@@ -676,7 +728,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
             {counts && counts.total === 0 ? (
               <div className={styles.successState}>
                 <CheckmarkCircleRegular className={styles.successIcon} />
-                <Text className={styles.successText}>校验通过，未发现问题</Text>
+                <Text className={styles.successText}>{t.validate.passedMessage}</Text>
               </div>
             ) : counts && (
               <div className={styles.summaryRow}>
@@ -744,7 +796,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
         <div className={styles.emptyState}>
           <SearchRegular className={styles.emptyIcon} />
           <Text className={styles.emptyText}>
-            选择校验范围和规则后，点击「运行校验」
+            {t.validate.emptyHint}
           </Text>
         </div>
       )}

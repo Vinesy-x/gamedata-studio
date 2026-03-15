@@ -27,6 +27,14 @@ export interface GitEnvironment {
   errorCode?: number;
 }
 
+export interface TableDiff {
+  tableName: string;       // English name
+  chineseName: string;     // Chinese name
+  totalRows: number;       // rows in current export
+  previousRows: number;    // rows in previous export (0 if new)
+  status: 'new' | 'modified' | 'unchanged';
+}
+
 export interface ExportResult {
   success: boolean;
   modifiedFiles: string[];
@@ -34,6 +42,7 @@ export interface ExportResult {
   duration: number;
   totalTables: number;
   changedTables: number;
+  tableDiffs: TableDiff[];
 }
 
 export interface ExportProgress {
