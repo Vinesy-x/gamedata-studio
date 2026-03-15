@@ -4,6 +4,7 @@ const webpack = require("webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 
+const { execSync } = require("child_process");
 const devCerts = require("office-addin-dev-certs");
 
 module.exports = async (env, options) => {
@@ -64,7 +65,10 @@ module.exports = async (env, options) => {
     },
     plugins: [
       new webpack.DefinePlugin({
-        __APP_VERSION__: JSON.stringify(require("./package.json").version),
+        __APP_VERSION__: JSON.stringify(
+          require("./package.json").version +
+            (dev ? "+" + execSync("git rev-parse --short HEAD").toString().trim() : "")
+        ),
       }),
       new webpack.ProvidePlugin({
         Buffer: ["buffer", "Buffer"],
