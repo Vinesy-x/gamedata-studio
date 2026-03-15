@@ -751,13 +751,13 @@ export function ExportTab({
             {exportResult.modifiedFiles.length > 0 && (
               <div className={styles.resultCard}>
                 <div className={styles.fileList}>
-                  {exportResult.modifiedFiles.map((file, i) => {
+                  {exportResult.modifiedFiles.map((file) => {
                     const diff = exportResult.tableDiffs?.find(d => d.tableName + '.xlsx' === file);
                     const rowDelta = diff ? diff.totalRows - diff.previousRows : 0;
                     const hasDiffDetail = !!diff?.diffDetail;
                     const isExpanded = expandedTable === file;
                     return (
-                      <div key={i}>
+                      <div key={file}>
                         <div
                           className={`${styles.fileItem} ${hasDiffDetail ? styles.fileItemClickable : ''}`}
                           onClick={hasDiffDetail ? () => setExpandedTable(isExpanded ? null : file) : undefined}

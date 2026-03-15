@@ -37,12 +37,16 @@ export function computeTableDiff(
   const newMap = buildMap(newData);
 
   const rows: RowDiff[] = [];
+  let addedCount = 0;
+  let removedCount = 0;
+  let modifiedCount = 0;
 
   // Check new keys: added or modified
   for (const [key, newRow] of newMap) {
     const oldRow = oldMap.get(key);
     if (!oldRow) {
       rows.push({ key, status: 'added' });
+      addedCount++;
     } else {
       // Compare cells
       const maxCols = Math.max(oldRow.length, newRow.length);
@@ -61,6 +65,7 @@ export function computeTableDiff(
       }
       if (cells.length > 0) {
         rows.push({ key, status: 'modified', cells });
+        modifiedCount++;
       }
     }
   }
@@ -69,6 +74,7 @@ export function computeTableDiff(
   for (const key of oldMap.keys()) {
     if (!newMap.has(key)) {
       rows.push({ key, status: 'removed' });
+      removedCount++;
     }
   }
 
@@ -80,9 +86,9 @@ export function computeTableDiff(
   const truncated = rows.length > maxRows;
 
   return {
-    addedCount: rows.filter(r => r.status === 'added').length,
-    removedCount: rows.filter(r => r.status === 'removed').length,
-    modifiedCount: rows.filter(r => r.status === 'modified').length,
+    addedCount,
+    removedCount,
+    modifiedCount,
     rows: truncated ? rows.slice(0, maxRows) : rows,
     totalChanges,
     truncated,

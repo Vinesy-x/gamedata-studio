@@ -148,7 +148,7 @@ export class ExportJob {
         logger.info('创建新的哈希清单');
       }
 
-      // ── 阶段A：筛选 + 哈希对比（纯 CPU，同步完成）
+      // ── 阶段A：筛选 + 哈希对比 + diff 计算（含读取旧文件 I/O）
       const t4 = Date.now();
       const dataFilter = new DataFilter(versionFilter);
       let tableIndex = 0;
@@ -219,7 +219,7 @@ export class ExportJob {
         }
       }
 
-      logger.info(`⏱ 阶段A筛选+哈希: ${Date.now() - t4}ms (${pendingWrites.length} 张表需写入)`);
+      logger.info(`⏱ 阶段A筛选+哈希+diff: ${Date.now() - t4}ms (${pendingWrites.length} 张表需写入)`);
 
       // ── 阶段B：并行生成 xlsx + 写入文件（I/O 密集，8 路并发）
       const t5 = Date.now();
@@ -506,7 +506,7 @@ export class ExportJob {
    */
   private async parseXlsxBuffer(buffer: ArrayBuffer): Promise<CellValue[][]> {
     const ExcelJS = await import('exceljs');
-    const workbook = new ExcelJS.Workbook();
+    const workbook = new ExcelJS.default.Workbook();
     await workbook.xlsx.load(buffer);
     const ws = workbook.worksheets[0];
     if (!ws) return [];

@@ -110,9 +110,9 @@ export function DiffDetailPanel({ diffDetail }: DiffDetailPanelProps) {
       </div>
 
       <div className={styles.rowList}>
-        {diffDetail.rows.map((row, i) => (
+        {diffDetail.rows.map((row) => (
           <div
-            key={i}
+            key={`${row.status}-${row.key}`}
             className={`${styles.rowItem} ${
               row.status === 'added' ? styles.rowAdded :
               row.status === 'removed' ? styles.rowRemoved :
