@@ -130,12 +130,12 @@ function Root() {
     });
   }, []);
 
+  const ctx = useMemo(() => ({ mode: mode || 'light', toggle, setMode }), [mode, toggle, setMode]);
+
   // 首次访问 → 显示主题选择
   if (mode === null) {
     return <ThemePicker onSelect={setMode} />;
   }
-
-  const ctx = useMemo(() => ({ mode, toggle, setMode }), [mode, toggle, setMode]);
 
   return (
     <ThemeContext.Provider value={ctx}>
