@@ -29,6 +29,14 @@ export const spaceText: ThemeTextMap = {
     statFiles: (n) => `${n} 个设备`,
     statWarnings: (n) => `${n} 个异常`,
     statErrors: (n) => `${n} 个故障`,
+    diff: {
+      added: (n) => `+${n} 新载荷`,
+      removed: (n) => `-${n} 已卸载`,
+      modified: (n) => `~${n} 已更新`,
+      truncated: (shown, total) => `显示 ${shown} / 共 ${total} 条变更`,
+      newRow: '新载荷',
+      removedRow: '已卸载',
+    },
     config: {
       version: '航线',
       versionNumber: '航线编号',

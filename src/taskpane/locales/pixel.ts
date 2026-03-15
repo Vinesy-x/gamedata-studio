@@ -29,6 +29,14 @@ export const pixelText: ThemeTextMap = {
     statFiles: (n) => `${n} 个精灵`,
     statWarnings: (n) => `${n} 个陷阱`,
     statErrors: (n) => `${n} 个MISS`,
+    diff: {
+      added: (n) => `+${n} NEW`,
+      removed: (n) => `-${n} DEL`,
+      modified: (n) => `~${n} MOD`,
+      truncated: (shown, total) => `SHOW ${shown} / TOTAL ${total}`,
+      newRow: 'NEW',
+      removedRow: 'DEL',
+    },
     config: {
       version: '副本',
       versionNumber: '副本编号',

@@ -29,6 +29,14 @@ export const cyberText: ThemeTextMap = {
     statFiles: (n) => `${n} 个数据体`,
     statWarnings: (n) => `${n} 个警告`,
     statErrors: (n) => `${n} 个异常`,
+    diff: {
+      added: (n) => `+${n} INSERT`,
+      removed: (n) => `-${n} DELETE`,
+      modified: (n) => `~${n} UPDATE`,
+      truncated: (shown, total) => `SHOW ${shown} / TOTAL ${total}`,
+      newRow: 'INSERT',
+      removedRow: 'DELETE',
+    },
     config: {
       version: '协议',
       versionNumber: '协议版本',

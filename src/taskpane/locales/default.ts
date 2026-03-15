@@ -20,6 +20,14 @@ export const defaultText: ThemeTextMap = {
     statFiles: (n) => `${n} files`,
     statWarnings: (n) => `${n} warnings`,
     statErrors: (n) => `${n} errors`,
+    diff: {
+      added: (n) => `+${n} 新增`,
+      removed: (n) => `-${n} 删除`,
+      modified: (n) => `~${n} 修改`,
+      truncated: (shown, total) => `显示 ${shown} / 共 ${total} 条变更`,
+      newRow: '新增',
+      removedRow: '删除',
+    },
     config: {
       version: '输出版本',
       versionNumber: '版本号',

@@ -33,6 +33,31 @@ export interface TableDiff {
   totalRows: number;       // rows in current export
   previousRows: number;    // rows in previous export (0 if new)
   status: 'new' | 'modified' | 'unchanged';
+  diffDetail?: TableDiffDetail;
+}
+
+export type RowDiffStatus = 'added' | 'removed' | 'modified';
+
+export interface CellDiff {
+  colIndex: number;
+  colName: string;
+  oldValue: string;
+  newValue: string;
+}
+
+export interface RowDiff {
+  key: string;
+  status: RowDiffStatus;
+  cells?: CellDiff[];
+}
+
+export interface TableDiffDetail {
+  addedCount: number;
+  removedCount: number;
+  modifiedCount: number;
+  rows: RowDiff[];
+  totalChanges: number;
+  truncated: boolean;
 }
 
 export interface ExportResult {

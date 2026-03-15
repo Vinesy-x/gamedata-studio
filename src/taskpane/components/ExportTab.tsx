@@ -39,7 +39,10 @@ import {
   FlagCheckeredRegular,
   JoystickRegular,
   HistoryRegular,
+  ChevronRightRegular,
+  ChevronDownRegular,
 } from '@fluentui/react-icons';
+import { DiffDetailPanel } from './DiffDetailPanel';
 import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
 import { ExportJob } from '../../engine/ExportJob';
@@ -260,6 +263,18 @@ const useStyles = makeStyles({
   chineseName: {
     fontSize: '10px',
     color: tokens.colorNeutralForeground3,
+  },
+  fileItemClickable: {
+    cursor: 'pointer',
+    ':hover': {
+      backgroundColor: tokens.colorNeutralBackground1Hover,
+    },
+  },
+  chevron: {
+    color: tokens.colorNeutralForeground3,
+    marginTop: '2px',
+    flexShrink: 0,
+    transition: 'transform 0.15s ease',
   },
   // 警告/错误
   warningCard: {
@@ -516,6 +531,7 @@ export function ExportTab({
     }
   };
 
+  const [expandedTable, setExpandedTable] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [devLogOpen, setDevLogOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
@@ -738,30 +754,46 @@ export function ExportTab({
                   {exportResult.modifiedFiles.map((file, i) => {
                     const diff = exportResult.tableDiffs?.find(d => d.tableName + '.xlsx' === file);
                     const rowDelta = diff ? diff.totalRows - diff.previousRows : 0;
+                    const hasDiffDetail = !!diff?.diffDetail;
+                    const isExpanded = expandedTable === file;
                     return (
-                      <div key={i} className={styles.fileItem}>
-                        <DocumentRegular className={styles.fileIcon} fontSize={13} />
-                        <div className={styles.fileNameGroup}>
-                          <span className={styles.filePath}>{file}</span>
-                          {diff && <span className={styles.chineseName}>{diff.chineseName}</span>}
+                      <div key={i}>
+                        <div
+                          className={`${styles.fileItem} ${hasDiffDetail ? styles.fileItemClickable : ''}`}
+                          onClick={hasDiffDetail ? () => setExpandedTable(isExpanded ? null : file) : undefined}
+                        >
+                          {hasDiffDetail ? (
+                            isExpanded
+                              ? <ChevronDownRegular className={styles.chevron} fontSize={13} />
+                              : <ChevronRightRegular className={styles.chevron} fontSize={13} />
+                          ) : (
+                            <DocumentRegular className={styles.fileIcon} fontSize={13} />
+                          )}
+                          <div className={styles.fileNameGroup}>
+                            <span className={styles.filePath}>{file}</span>
+                            {diff && <span className={styles.chineseName}>{diff.chineseName}</span>}
+                          </div>
+                          {diff && (
+                            <span className={styles.diffInfo}>
+                              {diff.status === 'new' ? (
+                                <span className={styles.diffNewBadge}>{diff.totalRows} 行</span>
+                              ) : diff.previousRows > 0 ? (
+                                <>
+                                  {diff.previousRows} → {diff.totalRows} 行{' '}
+                                  {rowDelta !== 0 && (
+                                    <span className={rowDelta > 0 ? styles.diffPositive : styles.diffNegative}>
+                                      ({rowDelta > 0 ? '+' : ''}{rowDelta})
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <>{diff.totalRows} 行</>
+                              )}
+                            </span>
+                          )}
                         </div>
-                        {diff && (
-                          <span className={styles.diffInfo}>
-                            {diff.status === 'new' ? (
-                              <span className={styles.diffNewBadge}>{diff.totalRows} 行</span>
-                            ) : diff.previousRows > 0 ? (
-                              <>
-                                {diff.previousRows} → {diff.totalRows} 行{' '}
-                                {rowDelta !== 0 && (
-                                  <span className={rowDelta > 0 ? styles.diffPositive : styles.diffNegative}>
-                                    ({rowDelta > 0 ? '+' : ''}{rowDelta})
-                                  </span>
-                                )}
-                              </>
-                            ) : (
-                              <>{diff.totalRows} 行</>
-                            )}
-                          </span>
+                        {isExpanded && diff?.diffDetail && (
+                          <DiffDetailPanel diffDetail={diff.diffDetail} />
                         )}
                       </div>
                     );

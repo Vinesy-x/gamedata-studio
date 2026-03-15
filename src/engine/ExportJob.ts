@@ -1,7 +1,7 @@
 /* global Excel */
 
 import { Config } from '../types/config';
-import { CellValue, ExportResult, ExportProgress, InMemoryTableData, TableDiff } from '../types/table';
+import { CellValue, ExportResult, ExportProgress, InMemoryTableData, TableDiff, TableDiffDetail } from '../types/table';
 import { ErrorCode } from '../types/errors';
 import { ConfigLoader } from './ConfigLoader';
 import { VersionFilter } from './VersionFilter';
@@ -14,6 +14,7 @@ import { logger } from '../utils/Logger';
 import { StudioConfigStore } from '../v2/StudioConfigStore';
 import { GitHandler } from '../git/GitHandler';
 import { GitExecutor } from '../git/GitExecutor';
+import { computeTableDiff } from './DiffComputer';
 
 const MANIFEST_FILE = '_manifest.json';
 
@@ -160,6 +161,7 @@ export class ExportJob {
         currentRows: number;
         previousRows: number;
         isNew: boolean;
+        diffDetail?: TableDiffDetail;
       }
       const pendingWrites: PendingWrite[] = [];
 
@@ -189,7 +191,21 @@ export class ExportJob {
           const previousRows = oldEntry ? getManifestRows(oldEntry) : 0;
           const isNew = !oldEntry;
 
-          pendingWrites.push({ chineseName, englishName, filteredData: filtered.data, newHash, currentRows, previousRows, isNew });
+          // Compute row-level diff for non-new tables
+          let diffDetail: TableDiffDetail | undefined;
+          if (!isNew) {
+            try {
+              const oldBuffer = await this.readFileFromServer(outputDir, `${englishName}.xlsx`);
+              if (oldBuffer) {
+                const oldData = await this.parseXlsxBuffer(oldBuffer);
+                diffDetail = computeTableDiff(oldData, filtered.data);
+              }
+            } catch (err) {
+              logger.warn(`Diff 计算失败: ${englishName}`, err);
+            }
+          }
+
+          pendingWrites.push({ chineseName, englishName, filteredData: filtered.data, newHash, currentRows, previousRows, isNew, diffDetail });
         } catch (err) {
           const errDetail = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
           logger.error(`处理表「${chineseName}」失败`, err);
@@ -224,6 +240,7 @@ export class ExportJob {
           totalRows: pw.currentRows,
           previousRows: pw.previousRows,
           status: pw.isNew ? 'new' : 'modified',
+          diffDetail: pw.diffDetail,
         });
 
         manifest[pw.englishName] = { hash: pw.newHash, rows: pw.currentRows };
@@ -482,6 +499,25 @@ export class ExportJob {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Parse xlsx buffer into CellValue[][] using ExcelJS
+   */
+  private async parseXlsxBuffer(buffer: ArrayBuffer): Promise<CellValue[][]> {
+    const ExcelJS = await import('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const ws = workbook.worksheets[0];
+    if (!ws) return [];
+
+    const data: CellValue[][] = [];
+    ws.eachRow((row, _rowNumber) => {
+      // ExcelJS values is 1-indexed, slice(1) to get 0-indexed array
+      const cells = row.values as (string | number | boolean | null | undefined)[];
+      data.push(cells.slice(1).map(v => v ?? null));
+    });
+    return data;
   }
 
   private arrayBufferToBase64(buffer: ArrayBuffer): string {

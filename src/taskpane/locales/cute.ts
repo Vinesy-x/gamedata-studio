@@ -29,6 +29,14 @@ export const cuteText: ThemeTextMap = {
     statFiles: (n) => `${n} 个宝物`,
     statWarnings: (n) => `${n} 个小麻烦`,
     statErrors: (n) => `${n} 个小问题`,
+    diff: {
+      added: (n) => `+${n} 新发现~`,
+      removed: (n) => `-${n} 消失了`,
+      modified: (n) => `~${n} 变化了`,
+      truncated: (shown, total) => `显示 ${shown} / 共 ${total} 条变化~`,
+      newRow: '新发现',
+      removedRow: '消失了',
+    },
     config: {
       version: '选择世界',
       versionNumber: '章节',

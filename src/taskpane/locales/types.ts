@@ -25,6 +25,14 @@ export interface ThemeTextMap {
     statFiles: (n: number) => string;
     statWarnings: (n: number) => string;
     statErrors: (n: number) => string;
+    diff: {
+      added: (n: number) => string;
+      removed: (n: number) => string;
+      modified: (n: number) => string;
+      truncated: (shown: number, total: number) => string;
+      newRow: string;
+      removedRow: string;
+    };
     config: {
       version: string;
       versionNumber: string;
