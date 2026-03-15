@@ -12,6 +12,8 @@ import { ErrorHandler } from '../utils/ErrorHandler';
 import { excelHelper, isExcelError } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
 import { StudioConfigStore } from '../v2/StudioConfigStore';
+import { GitHandler } from '../git/GitHandler';
+import { GitExecutor } from '../git/GitExecutor';
 
 const MANIFEST_FILE = '_manifest.json';
 
@@ -76,6 +78,24 @@ export class ExportJob {
       const t1 = Date.now();
       await this.detectWriteMode(outputDir);
       logger.info(`⏱ 检测写入模式: ${Date.now() - t1}ms`);
+
+      // 导出前 Git pull（清理本地修改 + 拉取远程最新）
+      const t1b = Date.now();
+      try {
+        const gitHandler = new GitHandler(outputDir);
+        const pullCommands = gitHandler.generatePullCommands();
+        if (pullCommands.length > 0) {
+          const executor = new GitExecutor(this.fileServerBase);
+          const pullResult = await executor.execute(outputDir, pullCommands);
+          if (pullResult.ok) {
+            logger.info(`⏱ Git pull: ${Date.now() - t1b}ms`);
+          } else {
+            logger.warn(`Git pull 失败 (继续导出): ${pullResult.error || pullResult.output}`);
+          }
+        }
+      } catch (err) {
+        logger.warn(`Git pull 异常 (继续导出): ${err instanceof Error ? err.message : err}`);
+      }
 
       // 步骤2: 创建版本筛选器
       this.emitProgress(2, totalSteps, '正在初始化筛选器...');
