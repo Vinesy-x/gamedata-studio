@@ -71,7 +71,16 @@ module.exports = async (env, options) => {
                 require("./package.json").version + "+" +
                 execSync("git rev-parse --short HEAD").toString().trim()
               ),
-              { fileDependencies: [require("path").resolve(__dirname, ".git/HEAD")] }
+              { fileDependencies: (() => {
+                const gitDir = path.resolve(__dirname, ".git");
+                const deps = [path.join(gitDir, "HEAD")];
+                try {
+                  const head = fs.readFileSync(path.join(gitDir, "HEAD"), "utf8").trim();
+                  const m = head.match(/^ref:\s+(.+)$/);
+                  if (m) deps.push(path.join(gitDir, m[1]));
+                } catch {}
+                return deps;
+              })() }
             )
           : JSON.stringify(require("./package.json").version),
       }),
