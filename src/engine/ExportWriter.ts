@@ -1,4 +1,3 @@
-import ExcelJS from 'exceljs';
 import { CellValue } from '../types/table';
 import { Config } from '../types/config';
 import { logger } from '../utils/Logger';
@@ -62,9 +61,6 @@ export class ExportWriter {
     manifest: HashManifest,
     englishName: string
   ): boolean {
-    // GameConfig 总是判定为变更（含动态版本号注入）
-    if (englishName === 'GameConfig') return true;
-
     const oldEntry = manifest[englishName];
     if (!oldEntry) return true;
 
@@ -80,7 +76,9 @@ export class ExportWriter {
     englishName: string,
     config: Config
   ): Promise<ArrayBuffer> {
-    const workbook = new ExcelJS.Workbook();
+    // 动态导入 exceljs（~925KB），避免阻塞首屏加载
+    const ExcelJS = await import('exceljs');
+    const workbook = new ExcelJS.default.Workbook();
     const sheet = workbook.addWorksheet(englishName);
 
     // 整列设置文本格式（避免逐单元格设置 numFmt）
@@ -95,7 +93,7 @@ export class ExportWriter {
     }
 
     // 批量添加行（比逐行 getRow/getCell 快很多）
-    sheet.addRows(filteredData as ExcelJS.CellValue[][]);
+    sheet.addRows(filteredData as unknown[]);
 
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as ArrayBuffer;

@@ -158,7 +158,6 @@ export class ExportJob {
           const newHash = this.exportWriter.computeDataHash(filtered.data);
           const hasChanged = this.exportWriter.hasHashChanged(newHash, manifest, englishName);
           if (!hasChanged) {
-            logger.info(`表 ${chineseName} 无变化，跳过`);
             continue;
           }
 
@@ -304,6 +303,7 @@ export class ExportJob {
    */
   private async detectWriteMode(_outputDir: string): Promise<void> {
     const bases = ['https://localhost:9876', 'http://localhost:9876'];
+    const errors: string[] = [];
     for (const base of bases) {
       try {
         const resp = await this.fetchWithTimeout(`${base}/api/read-file?directory=.&fileName=_probe`);
@@ -324,9 +324,15 @@ export class ExportJob {
           logger.info(`使用本地文件服务: ${base} (POST=${this.usePost})`);
           return;
         }
-      } catch { /* try next */ }
+        errors.push(`${base} → HTTP ${resp.status}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`${base} → ${msg}`);
+      }
     }
-    throw new Error('无法连接文件服务。请先启动：python3 ~/.gamedata-studio/file-server.py');
+    const detail = errors.join('; ');
+    logger.error(`文件服务检测失败: ${detail}`);
+    throw new Error(`无法连接文件服务 (${detail})。请先启动：python3 ~/.gamedata-studio/file-server.py`);
   }
 
   /**

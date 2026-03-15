@@ -70,17 +70,23 @@ export class TableRegistry {
       await excelHelper.writeValues(context, LEGACY_MAPPING, newRowIndex, startCol,
         [[info.versionRange, info.chineseName, info.englishName, info.shouldOutput]]);
 
-      // 为功能表名添加超链接（跳转到对应工作表），保持原有文本和格式
+      // 为功能表名添加超链接（跳转到对应工作表），只加超链接不改文本和格式
       const mappingSheet = context.workbook.worksheets.getItem(LEGACY_MAPPING);
       const hyperlinkCell = mappingSheet.getRangeByIndexes(newRowIndex, startCol + 1, 1, 1);
+      hyperlinkCell.load('values');
+      hyperlinkCell.format.font.load('color, underline');
+      await context.sync();
+
+      const origText = String(hyperlinkCell.values[0][0]);
+      const origColor = hyperlinkCell.format.font.color;
+      const origUnderline = hyperlinkCell.format.font.underline;
       hyperlinkCell.hyperlink = {
         documentReference: `'${info.chineseName}'!A1`,
-        textToDisplay: info.chineseName,
+        textToDisplay: origText,
         screenTip: `跳转到「${info.chineseName}」`,
       };
-      // 恢复默认字体格式（去除超链接的蓝色+下划线）
-      hyperlinkCell.format.font.color = '#000000';
-      hyperlinkCell.format.font.underline = 'None';
+      hyperlinkCell.format.font.color = origColor;
+      hyperlinkCell.format.font.underline = origUnderline;
 
       // 同步到 StudioConfig JSON
       await this.syncToStudioConfig(context);

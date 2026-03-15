@@ -1,6 +1,6 @@
 /* global Excel */
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef, useContext } from 'react';
 import {
   makeStyles,
   tokens,
@@ -19,6 +19,10 @@ import {
 } from '@fluentui/react-icons';
 import { Config } from '../../types/config';
 import { VersionPreviewer, PreviewResult } from '../../v3/VersionPreviewer';
+import { gdsTokens } from '../theme';
+import { useThemeText } from '../locales';
+import { ThemeContext } from '../index';
+import { grantPreviewXp } from '../services/PlayerStats';
 
 const useStyles = makeStyles({
   container: {
@@ -86,7 +90,7 @@ const useStyles = makeStyles({
     whiteSpace: 'nowrap' as const,
     textTransform: 'uppercase' as const,
     letterSpacing: '0.3px',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: tokens.colorNeutralBackground3,
   },
   td: {
     padding: '4px 6px',
@@ -140,18 +144,18 @@ const useStyles = makeStyles({
     flexShrink: 0,
   },
   legendSwatchGray: {
-    backgroundColor: '#E0E0E0',
+    backgroundColor: gdsTokens.badge.secondary.bg,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   legendSwatchYellow: {
-    backgroundColor: '#FFF3CD',
-    border: '1px solid #FFE69C',
+    backgroundColor: gdsTokens.warning.bg,
+    border: `1px solid ${gdsTokens.warning.border}`,
     textDecoration: 'line-through',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: '8px',
-    color: '#6B4000',
+    color: gdsTokens.warning.itemText,
   },
   // 无结果提示
   emptyHint: {
@@ -182,6 +186,11 @@ interface PreviewPanelProps {
 }
 
 export function PreviewPanel({ config }: PreviewPanelProps) {
+  const { mode: themeMode } = useContext(ThemeContext);
+  const isGame = themeMode === 'game';
+  const isCute = themeMode === 'cute';
+  const isSpecial = isGame || isCute;
+  const t = useThemeText();
   const styles = useStyles();
 
   // 版本选择
@@ -259,6 +268,8 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
         outputTableNames
       );
       setResults(previewResults);
+        // Grant XP for special themes
+        grantPreviewXp();
     } catch {
       // 错误已在 VersionPreviewer 内部日志记录
     } finally {
@@ -312,9 +323,9 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
     <div className={styles.container}>
       {/* 版本选择 */}
       <div className={styles.configSection}>
-        <Text className={styles.sectionTitle}>版本预览</Text>
+        <Text className={styles.sectionTitle}>{t.preview.title}</Text>
         <div className={styles.fieldRow}>
-          <span className={styles.fieldLabel}>版本</span>
+          <span className={styles.fieldLabel}>{t.help.terms.version}</span>
           <Dropdown
             size="small"
             value={selectedVersion}
@@ -332,7 +343,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
           </Dropdown>
         </div>
         <div className={styles.fieldRow}>
-          <span className={styles.fieldLabel}>版本号</span>
+          <span className={styles.fieldLabel}>{t.help.terms.versionNumber}</span>
           <Input
             size="small"
             type="number"
@@ -360,10 +371,10 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
           {isPreviewing ? (
             <>
               <Spinner size="tiny" style={{ marginRight: 6 }} />
-              预览中...
+              {t.preview.runningBtn}
             </>
           ) : (
-            `预览 (${outputTableNames.size} 张表)`
+            t.preview.runBtn(outputTableNames.size)
           )}
         </Button>
       </div>
@@ -373,7 +384,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
         <div className={`${styles.tableSection} ${styles.fadeIn}`}>
           <div className={styles.tableHeader}>
             <Text className={styles.sectionTitle}>
-              预览结果 ({results.length})
+              {t.preview.statsTitle} ({results.length})
             </Text>
             <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
               <Button
@@ -400,7 +411,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
           <table className={styles.summaryTable}>
             <thead>
               <tr>
-                <th className={styles.th}>表名</th>
+                <th className={styles.th}>{t.preview.colHeaders[0]}</th>
                 <th className={`${styles.th} ${styles.tdNumber}`}>原始行列</th>
                 <th className={`${styles.th} ${styles.tdNumber}`}>筛选行列</th>
                 <th className={`${styles.th} ${styles.tdNumber}`}>排除行列</th>
@@ -465,7 +476,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
             <span
               className={`${styles.legendSwatch} ${styles.legendSwatchGray}`}
             />
-            <span>灰色 + 删除线 = 排除的行/列（版本区间或线路不匹配）</span>
+            <span>{t.preview.legendExcluded}</span>
           </div>
           <div className={styles.legendRow}>
             <span
@@ -482,7 +493,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
       {!isPreviewing && results.length === 0 && (
         <div className={styles.emptyHint}>
           <Text>
-            选择版本并点击「预览」查看筛选结果
+            {t.preview.emptyHint}
           </Text>
         </div>
       )}

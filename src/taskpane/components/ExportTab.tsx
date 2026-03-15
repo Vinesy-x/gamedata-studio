@@ -20,6 +20,8 @@ import {
 import {
   ArrowExportRegular,
   ArrowUploadRegular,
+  SendRegular,
+  HeartRegular,
   CheckmarkCircleRegular,
   DismissCircleRegular,
   WarningRegular,
@@ -32,6 +34,10 @@ import {
   WeatherSunnyRegular,
   BugRegular,
   MegaphoneRegular,
+  RocketRegular,
+  StarRegular,
+  FlagCheckeredRegular,
+  JoystickRegular,
 } from '@fluentui/react-icons';
 import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
@@ -43,6 +49,9 @@ import { excelHelper } from '../../utils/ExcelHelper';
 import { configManager } from '../../v2/ConfigManager';
 import { operatorIdentity } from '../../v2/OperatorIdentity';
 import { logger } from '../../utils/Logger';
+import { gdsTokens } from '../theme';
+import { useThemeText, themeExtraData } from '../locales';
+import { getLevelInfo, grantExportXp } from '../services/PlayerStats';
 
 const useStyles = makeStyles({
   container: {
@@ -54,32 +63,36 @@ const useStyles = makeStyles({
   },
   // 当前配置区域
   configSection: {
-    padding: '14px 14px 10px',
+    padding: '12px 14px 8px',
+  },
+  sectionTitle: {
+    fontSize: '10px',
+    fontWeight: 600,
+    color: tokens.colorNeutralForeground3,
+    letterSpacing: '0.5px',
+    marginBottom: '8px',
+    textTransform: 'uppercase' as const,
   },
   configCard: {
     backgroundColor: tokens.colorNeutralBackground1,
     borderRadius: '8px',
-    padding: '0',
+    padding: '10px 12px',
     display: 'flex',
     flexDirection: 'column',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
+    gap: '10px',
+    boxShadow: gdsTokens.shadow.sm,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
-    overflow: 'hidden' as const,
   },
   configRow: {
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'space-between',
     fontSize: '12px',
-    padding: '8px 12px',
-    borderBottom: `1px solid ${tokens.colorNeutralStroke3}`,
-    ':last-child': {
-      borderBottom: 'none',
-    },
   },
   configLabel: {
-    color: tokens.colorNeutralForeground3,
+    color: tokens.colorNeutralForeground1,
     minWidth: '60px',
-    fontSize: '11px',
+    fontSize: '12px',
   },
   configValue: {
     fontWeight: 600,
@@ -138,13 +151,18 @@ const useStyles = makeStyles({
   // 结果摘要行：成功/失败 + 耗时 + 统计图标
   resultSummary: {
     display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
+    flexDirection: 'column',
+    gap: '6px',
     padding: '10px 12px',
     backgroundColor: tokens.colorNeutralBackground1,
     borderRadius: '8px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
+    boxShadow: gdsTokens.shadow.sm,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  resultSummaryRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
   },
   resultStatusIcon: {
     fontSize: '18px',
@@ -167,9 +185,7 @@ const useStyles = makeStyles({
   resultStats: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
-    marginLeft: 'auto',
-    flexShrink: 0,
+    gap: '12px',
   },
   statItem: {
     display: 'flex',
@@ -181,7 +197,7 @@ const useStyles = makeStyles({
     color: tokens.colorBrandForeground1,
   },
   statWarnings: {
-    color: '#9D5D00',
+    color: gdsTokens.warning.text,
   },
   statErrors: {
     color: tokens.colorPaletteRedForeground1,
@@ -194,7 +210,7 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
+    boxShadow: gdsTokens.shadow.sm,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   fileList: {
@@ -252,13 +268,13 @@ const useStyles = makeStyles({
   },
   // 警告/错误
   warningCard: {
-    backgroundColor: '#FFF8E1',
+    backgroundColor: gdsTokens.warning.bg,
     borderRadius: '8px',
     padding: '10px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
-    border: '1px solid #FFE082',
+    border: `1px solid ${gdsTokens.warning.border}`,
   },
   warningHeader: {
     display: 'flex',
@@ -266,22 +282,22 @@ const useStyles = makeStyles({
     gap: '6px',
     fontSize: '12px',
     fontWeight: 600,
-    color: '#9D5D00',
+    color: gdsTokens.warning.text,
   },
   warningItem: {
     fontSize: '11px',
-    color: '#6B4000',
+    color: gdsTokens.warning.itemText,
     lineHeight: '1.4',
     wordBreak: 'break-all',
   },
   errorCard: {
-    backgroundColor: '#FFF5F5',
+    backgroundColor: gdsTokens.error.bg,
     borderRadius: '8px',
     padding: '10px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
-    border: '1px solid #FFCDD2',
+    border: `1px solid ${gdsTokens.error.border}`,
   },
   errorHeader: {
     display: 'flex',
@@ -413,6 +429,17 @@ export function ExportTab({
   const [resultDismissed, setResultDismissed] = useState(false);
   // 跟踪导出完成动画的触发时机
   const [showCompletionAnim, setShowCompletionAnim] = useState(false);
+  const isGame = mode === 'game';
+  const isCute = mode === 'cute';
+  const isCyber = mode === 'cyber';
+  const isPixel = mode === 'pixel';
+  const isSpecial = isGame || isCute || isCyber || isPixel;
+  // 特殊主题的 token 快捷访问
+  const st = isGame ? gdsTokens.game : isCyber ? gdsTokens.cyber : isPixel ? gdsTokens.pixel : gdsTokens.cute;
+  const extraData = isGame ? themeExtraData.game : isCyber ? themeExtraData.cyber : isPixel ? themeExtraData.pixel : themeExtraData.cute;
+  const [levelInfo, setLevelInfo] = useState(() => getLevelInfo());
+  const [earnedXp, setEarnedXp] = useState(0);
+  const t = useThemeText();
   const prevExportingRef = useRef(isExporting);
   // Git 按钮错误提示
   const [gitError, setGitError] = useState(false);
@@ -427,6 +454,12 @@ export function ExportTab({
     if (!isExporting && prevExportingRef.current && exportResult) {
       // 导出刚完成 → 触发完成动画
       setShowCompletionAnim(true);
+        // Grant XP for special themes
+        if (exportResult?.success) {
+          const xp = grantExportXp(exportResult.changedTables, exportResult.modifiedFiles.length);
+          setEarnedXp(xp);
+          setLevelInfo(getLevelInfo());
+        }
     }
     prevExportingRef.current = isExporting;
   }, [isExporting, exportResult]);
@@ -556,9 +589,44 @@ export function ExportTab({
     <div className={styles.container}>
       {/* 当前配置 */}
       <div className={styles.configSection}>
-        <div className={styles.configCard}>
+        <div className={styles.sectionTitle}>{t.export.sectionTitle}</div>
+        {isSpecial && (
+          <div style={{
+            background: st.xpBarBg,
+            borderRadius: 6,
+            padding: '8px 12px',
+            marginBottom: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            border: st.xpBarBorder,
+          }}>
+            <span style={{ fontSize: 11, color: st.xpColor, fontWeight: 700, fontFamily: gdsTokens.fontMono, whiteSpace: 'nowrap' }}>
+              {extraData.levelLabel(levelInfo.level)}
+            </span>
+            <div style={{
+              flex: 1,
+              height: 8,
+              borderRadius: 4,
+              background: st.xpTrackBg,
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                width: `${Math.min(levelInfo.progress * 100, 100)}%`,
+                height: '100%',
+                borderRadius: 4,
+                background: st.progressGradient,
+              }} />
+            </div>
+          </div>
+        )}
+        <div className={styles.configCard} style={isSpecial ? {
+          border: st.cardBorder,
+          boxShadow: st.cardShadow,
+          backgroundColor: st.cardBg,
+        } : undefined}>
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>输出版本</span>
+            <span className={styles.configLabel}>{t.export.config.version}</span>
             <Dropdown
               size="small"
               value={config.outputSettings.versionName}
@@ -572,7 +640,7 @@ export function ExportTab({
             </Dropdown>
           </div>
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>版本号</span>
+            <span className={styles.configLabel}>{t.export.config.versionNumber}</span>
             <Input
               size="small"
               value={localVersionNumber}
@@ -583,14 +651,14 @@ export function ExportTab({
             />
           </div>
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>序列号</span>
+            <span className={styles.configLabel}>{t.export.config.sequence}</span>
             <span className={styles.configValue}>
               {config.outputSettings.versionSequence}
             </span>
           </div>
           {currentOperator && (
             <div className={styles.configRow}>
-              <span className={styles.configLabel}>操作员</span>
+              <span className={styles.configLabel}>{t.export.config.operator}</span>
               <span className={styles.configValue}>
                 <PersonRegular fontSize={12} style={{ marginRight: 3 }} />
                 {currentOperator}
@@ -598,7 +666,7 @@ export function ExportTab({
             </div>
           )}
           <div className={styles.configRow}>
-            <span className={styles.configLabel}>协同监听</span>
+            <span className={styles.configLabel}>{t.export.config.monitor}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Switch
                 checked={monitorEnabled}
@@ -606,26 +674,26 @@ export function ExportTab({
                 disabled={isExporting && !monitorEnabled}
               />
               {monitorStatus === 'watching' && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#107C10' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#107C10', display: 'inline-block' }} />
-                  监听中
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: gdsTokens.success.icon }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: gdsTokens.success.icon, display: 'inline-block' }} />
+                  {t.export.config.monitoring}
                 </span>
               )}
               {monitorStatus === 'exporting' && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: tokens.colorBrandForeground1 }}>
                   <Spinner size="extra-tiny" />
-                  正在协同导出...
+                  {t.export.config.monitorExporting}
                 </span>
               )}
               {monitorStatus === 'idle' && !monitorEnabled && (
                 <span style={{ fontSize: '11px', color: tokens.colorNeutralForeground4 }}>
-                  已关闭
+                  {t.export.config.monitorOff}
                 </span>
               )}
             </div>
           </div>
           <div className={styles.configRow} style={{ borderBottom: 'none' }}>
-            <span className={styles.configLabel}>导出目录</span>
+            <span className={styles.configLabel}>{t.export.config.outputDir}</span>
             {outputDir ? (
               <span className={styles.configValuePath} onClick={onNavigateToManage} style={{ cursor: 'pointer' }}>
                 {outputDir}
@@ -633,7 +701,7 @@ export function ExportTab({
             ) : (
               <span className={styles.configValueEmpty} onClick={onNavigateToManage}>
                 <FolderOpenRegular fontSize={12} />
-                点击前往配置
+                {t.export.config.noOutputDir}
               </span>
             )}
           </div>
@@ -645,24 +713,24 @@ export function ExportTab({
         <div className={styles.actionRow}>
           <Button
             className={styles.exportBtn}
-            icon={<ArrowExportRegular />}
+            icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : isCyber ? <SendRegular /> : isPixel ? <FlagCheckeredRegular /> : <ArrowExportRegular />}
             appearance="primary"
             onClick={handleExport}
             disabled={isExporting || !outputDir}
             size="large"
           >
-            {isExporting ? '导出中...' : !outputDir ? '请先选择导出目录' : '开始导出'}
+            {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
           </Button>
           <Button
             className={styles.gitBtn}
-            icon={<ArrowUploadRegular />}
+            icon={isGame ? <SendRegular /> : isCute ? <StarRegular /> : <ArrowUploadRegular />}
             appearance="secondary"
             onClick={handleGitPush}
             disabled={!canGitPush && !gitError}
             size="large"
             style={gitError ? { color: tokens.colorPaletteRedForeground1, borderColor: tokens.colorPaletteRedBorder1 } : undefined}
           >
-            {gitError ? 'Git 失败' : 'Git'}
+            {gitError ? t.export.gitFailBtn : t.export.gitBtn}
           </Button>
         </div>
 
@@ -681,39 +749,57 @@ export function ExportTab({
         {visibleResult && !isExporting ? (
           <div className={`${styles.resultSection} ${styles.resultFadeIn}`}>
             {/* 摘要行：状态 + 耗时 + 统计 */}
-            <div className={styles.resultSummary}>
-              {visibleResult.success ? (
-                <CheckmarkCircleRegular
-                  className={`${styles.resultStatusIcon} ${styles.successColor} ${showCompletionAnim ? styles.successCheckAnim : ''}`}
-                />
-              ) : (
-                <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
-              )}
-              <span className={styles.resultStatusText}>
-                {visibleResult.success
-                  ? (visibleResult.changedTables > 0 ? '导出成功' : '无任何修改')
-                  : '导出失败'}
-              </span>
-              <span className={styles.resultDuration}>
-                {visibleResult.duration.toFixed(1)}s
-              </span>
+            <div className={styles.resultSummary} style={isSpecial ? {
+              border: st.cardBorder,
+              boxShadow: st.cardShadow,
+              backgroundColor: st.cardBg,
+            } : undefined}>
+              <div className={styles.resultSummaryRow}>
+                {isSpecial ? (
+                  <StarRegular style={{ fontSize: 18, color: st.xpColor, flexShrink: 0 }} />
+                ) : visibleResult.success ? (
+                  <CheckmarkCircleRegular
+                    className={`${styles.resultStatusIcon} ${styles.successColor} ${showCompletionAnim ? styles.successCheckAnim : ''}`}
+                  />
+                ) : (
+                  <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
+                )}
+                <span className={styles.resultStatusText} style={isSpecial ? { color: st.xpColor } : undefined}>
+                  {visibleResult.success
+                    ? (visibleResult.changedTables > 0 ? t.export.resultSuccess : t.export.resultNoChange)
+                    : t.export.resultFail}
+                </span>
+                <span className={styles.resultDuration}>
+                  {visibleResult.duration.toFixed(1)}s
+                </span>
+                {isSpecial && visibleResult.success && (
+                  <>
+                    <StarRegular style={{ fontSize: 16, color: st.xpAccent || st.xpColor }} />
+                    <span style={{ color: st.xpAccent || st.xpColor, fontSize: 11, fontWeight: 700 }}>
+                      {extraData.resultXp(earnedXp)}
+                    </span>
+                  </>
+                )}
+              </div>
               <div className={styles.resultStats}>
                 {visibleResult.modifiedFiles.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statFiles}`}>
-                    <DocumentRegular fontSize={13} />
-                    <span className={styles.fileCountBadge}>{visibleResult.modifiedFiles.length}</span>
+                    {t.export.statFiles(visibleResult.modifiedFiles.length)}
                   </span>
                 )}
                 {warnings.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statWarnings}`}>
-                    <WarningRegular fontSize={13} />
-                    {warnings.length}
+                    {t.export.statWarnings(warnings.length)}
                   </span>
                 )}
                 {errors.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statErrors}`}>
-                    <DismissCircleRegular fontSize={13} />
-                    {errors.length}
+                    {t.export.statErrors(errors.length)}
+                  </span>
+                )}
+                {errors.length === 0 && (
+                  <span className={`${styles.statItem} ${styles.statErrors}`} style={{ color: gdsTokens.success.text }}>
+                    {t.export.statErrors(0)}
                   </span>
                 )}
               </div>
@@ -824,9 +910,9 @@ export function ExportTab({
             className={styles.helpBtn}
             appearance="transparent"
             size="small"
-            icon={mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
+            icon={mode === 'pixel' ? <JoystickRegular fontSize={16} /> : mode === 'cyber' ? <BugRegular fontSize={16} /> : mode === 'cute' ? <HeartRegular fontSize={16} /> : mode === 'game' ? <RocketRegular fontSize={16} /> : mode === 'light' ? <WeatherMoonRegular fontSize={16} /> : <WeatherSunnyRegular fontSize={16} />}
             onClick={toggleTheme}
-            title={mode === 'light' ? '切换到深色模式' : '切换到浅色模式'}
+            title={mode === 'light' ? '深色模式' : mode === 'dark' ? '游戏模式' : mode === 'game' ? '可爱模式' : mode === 'cute' ? '赛博朋克' : mode === 'cyber' ? '像素复古' : '浅色模式'}
           />
           <Button
             className={styles.helpBtn}
@@ -870,6 +956,7 @@ export function ExportTab({
                   <Button size="small" appearance={devLogTab === 'all' ? 'primary' : 'subtle'} onClick={() => setDevLogTab('all')}>全部日志</Button>
                 </div>
                 <Button size="small" appearance="subtle" onClick={() => { logger.clear(); setDevLogOpen(false); setTimeout(() => setDevLogOpen(true), 0); }}>清空</Button>
+                <Button size="small" appearance="subtle" onClick={() => { localStorage.removeItem('gds-theme'); localStorage.removeItem('gds-player-stats'); window.location.reload(); }}>重置主题</Button>
               </div>
               <pre style={{
                 fontSize: '11px',
@@ -901,15 +988,24 @@ export function ExportTab({
                 lineHeight: '1.8',
                 color: tokens.colorNeutralForeground1,
               }}>
+                <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.3.0 — 多主题系统 & 设计升级</div>
+                <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px' }}>
+                  <li>全新主题系统：支持 4 种主题循环切换（浅色 → 深色 → 飞船航行 → 二次元冒险）</li>
+                  <li>飞船航行主题：版本→航线、表→设备、校验→维修、预览→试飞，完整 RPG 风格</li>
+                  <li>二次元冒险主题：版本→世界、表→宝典、操作员→冒险者，粉色可爱风格</li>
+                  <li>GDS 设计系统：集中式 design tokens，青色品牌色替换默认蓝</li>
+                  <li>主题文本字典化：locales 架构，新增主题只需一个文件</li>
+                  <li>等级/经验值系统：游戏主题显示 LV 等级条、规则经验值、成就解锁</li>
+                  <li>帮助说明全面适配主题文案</li>
+                  <li>Tab 图标按主题切换（Rocket/Heart/Star 等）</li>
+                </ul>
                 <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.2.0 — 性能大幅优化 & 多项修复</div>
                 <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px' }}>
-                  <li>导出速度提升：POST 单次写入替代 GET 分片（数百次请求→1次），批量 Excel 加载（200次sync→2次），并行写入</li>
-                  <li>校验速度提升：4条规则合并为单次遍历，大表不再卡死（每表上限200条 + 进度显示）</li>
-                  <li>空值等价配置：null/NULL 等值可自定义，跳过类型和必填校验</li>
+                  <li>导出速度提升：POST 单次写入替代 GET 分片，批量 Excel 加载，并行写入</li>
+                  <li>校验速度提升：4条规则合并为单次遍历，大表不再卡死</li>
+                  <li>空值等价配置：null/NULL 等值可自定义</li>
                   <li>线路修正：roads_0 不再是总线路开关，各线路独立控制</li>
-                  <li>隐藏行兼容：动态检测数据起始行，描述行不再被误校验为数据类型</li>
-                  <li>无变更提示：导出数据无修改时显示「无任何修改」而非「导出成功」</li>
-                  <li>底部新增更新公告入口</li>
+                  <li>隐藏行兼容：动态检测数据起始行</li>
                 </ul>
               </div>
             </DialogContent>
