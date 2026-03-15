@@ -74,7 +74,7 @@ export function getStats(): PlayerStatsData {
 /** 获取当前等级信息 */
 export function getLevelInfo() {
   const stats = load();
-  return { ...calcLevel(stats.totalXp), totalXp: stats.totalXp, ...stats };
+  return { ...calcLevel(stats.totalXp), ...stats };
 }
 
 /**

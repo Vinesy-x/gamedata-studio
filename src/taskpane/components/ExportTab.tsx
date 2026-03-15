@@ -700,8 +700,8 @@ export function ExportTab({
                 </span>
                 {isSpecial && exportResult.success && (
                   <>
-                    <StarRegular style={{ fontSize: 16, color: st.xpAccent || st.xpColor }} />
-                    <span style={{ color: st.xpAccent || st.xpColor, fontSize: 11, fontWeight: 700 }}>
+                    <StarRegular style={{ fontSize: 16, color: (st as typeof gdsTokens.game).xpAccent || (st as typeof gdsTokens.game).xpColor }} />
+                    <span style={{ color: (st as typeof gdsTokens.game).xpAccent || (st as typeof gdsTokens.game).xpColor, fontSize: 11, fontWeight: 700 }}>
                       {extraData.resultXp(earnedXp)}
                     </span>
                   </>

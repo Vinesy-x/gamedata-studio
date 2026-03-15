@@ -279,6 +279,10 @@ export function createTableSchema(): TableSchemaDoc {
 
     roadsControl: {
       _description: '线路控制列决定每行/列数据在哪些地区版本下导出。各线路独立控制，导出时只检查当前版本对应的线路列。',
+      roads0: {
+        role: 'roads_0 为总开关列，1=启用，0/空=禁用',
+        values: ['1 = 启用', '0 或空 = 禁用'],
+      },
       roadsN: {
         role: '每个 roads_N 列对应一条线路（如 roads_0=简体、roads_1=简体净化、roads_9=韩国），导出时只检查当前版本配置的目标线路列',
         values: [

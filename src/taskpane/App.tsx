@@ -341,10 +341,10 @@ export function App() {
           onTabSelect={(_, data) => setSelectedTab(data.value as string)}
           size="small"
         >
-          <Tab value="export" icon={({ game: <RocketRegular fontSize={14} />, cute: <HeartRegular fontSize={14} />, cyber: <SendRegular fontSize={14} />, pixel: <FlagCheckeredRegular fontSize={14} /> } as Record<string, React.ReactNode>)[themeMode] || <ArrowExportRegular fontSize={14} />}>{t.tabExport}</Tab>
+          <Tab value="export" icon={(({ game: <RocketRegular fontSize={14} />, cute: <HeartRegular fontSize={14} />, cyber: <SendRegular fontSize={14} />, pixel: <FlagCheckeredRegular fontSize={14} /> } as Record<string, JSX.Element>)[themeMode] || <ArrowExportRegular fontSize={14} />) as JSX.Element}>{t.tabExport}</Tab>
           <Tab value="manage" icon={<SettingsRegular fontSize={14} />}>{t.tabManage}</Tab>
-          <Tab value="validate" icon={({ game: <WindowWrenchRegular fontSize={14} />, cute: <StarRegular fontSize={14} />, cyber: <BugRegular fontSize={14} />, pixel: <WandRegular fontSize={14} /> } as Record<string, React.ReactNode>)[themeMode] || <ShieldCheckmarkRegular fontSize={14} />}>{t.tabValidate}</Tab>
-          <Tab value="preview" icon={({ game: <AirplaneTakeOffRegular fontSize={14} />, cute: <SparkleRegular fontSize={14} />, pixel: <CompassNorthwestRegular fontSize={14} /> } as Record<string, React.ReactNode>)[themeMode] || <EyeRegular fontSize={14} />}>{t.tabPreview}</Tab>
+          <Tab value="validate" icon={(({ game: <WindowWrenchRegular fontSize={14} />, cute: <StarRegular fontSize={14} />, cyber: <BugRegular fontSize={14} />, pixel: <WandRegular fontSize={14} /> } as Record<string, JSX.Element>)[themeMode] || <ShieldCheckmarkRegular fontSize={14} />) as JSX.Element}>{t.tabValidate}</Tab>
+          <Tab value="preview" icon={(({ game: <AirplaneTakeOffRegular fontSize={14} />, cute: <SparkleRegular fontSize={14} />, pixel: <CompassNorthwestRegular fontSize={14} /> } as Record<string, JSX.Element>)[themeMode] || <EyeRegular fontSize={14} />) as JSX.Element}>{t.tabPreview}</Tab>
         </TabList>
       </div>
 

@@ -11,7 +11,8 @@ export type ValidationRuleName =
   | '同Key版本顺序'
   | '必填字段'
   | 'Roads一致性'
-  | '版本区间分隔符';
+  | '版本区间分隔符'
+  | '结果截断';
 
 /** 校验规则配置 */
 export interface ValidationRuleConfig {
