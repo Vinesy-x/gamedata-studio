@@ -10,8 +10,20 @@ Office Web Add-in (Excel 侧边栏), React + TypeScript + Office JS API
 - `npm run lint` — TypeScript 类型检查
 - `git config core.hooksPath scripts/hooks` — 启用 git hooks（克隆后需执行一次）
 
+## 分支策略
+- `main` — 唯一开发分支，所有代码在这里
+- `gh-pages` — 构建产物自动托管，不手动操作
+- 大功能开 feature 分支，完成后合回 main 并删除
+
 ## 版本管理
-- `git push` 时 pre-push hook 自动递增 patch 版本（package.json + installer/setup.iss）
+- 开发模式显示 `version+gitHash`（如 `1.3.26+a7b931f`），通过 git hash 区分构建
+- 版本号只在发布时递增，不随 push 自动变化
+
+## 发布流程
+- `npm run deploy:patch` — bug 修复、小改动（1.3.26 → 1.3.27）
+- `npm run deploy:minor` — 新功能（1.3.27 → 1.4.0）
+- `npm run deploy:major` — 大版本/破坏性改动（1.4.0 → 2.0.0）
+- 以上命令自动完成：递增版本 → 同步 setup.iss → 构建 → 发布到 gh-pages → commit → push
 
 ## Windows 安装包
 - 安装 [Inno Setup](https://jrsoftware.org/isdl.php)
