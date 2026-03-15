@@ -724,9 +724,9 @@ export function ExportTab({
                 )}
               </div>
               <div className={styles.resultStats}>
-                {exportResult.modifiedFiles.length > 0 && (
+                {exportResult.changedTables > 0 && (
                   <span className={`${styles.statItem} ${styles.statFiles}`}>
-                    {t.export.statFiles(exportResult.modifiedFiles.length)}
+                    {t.export.statFiles(exportResult.changedTables)}
                   </span>
                 )}
                 {warnings.length > 0 && (
@@ -748,10 +748,10 @@ export function ExportTab({
             </div>
 
             {/* 修改文件列表 */}
-            {exportResult.modifiedFiles.length > 0 && (
+            {exportResult.changedTables > 0 && (
               <div className={styles.resultCard}>
                 <div className={styles.fileList}>
-                  {exportResult.modifiedFiles.map((file) => {
+                  {exportResult.modifiedFiles.filter(f => !f.startsWith('_')).map((file) => {
                     const diff = exportResult.tableDiffs?.find(d => d.tableName + '.xlsx' === file);
                     const rowDelta = diff ? diff.totalRows - diff.previousRows : 0;
                     const hasDiffDetail = !!diff?.diffDetail;
