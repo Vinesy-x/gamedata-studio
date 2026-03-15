@@ -19,7 +19,6 @@ import {
 } from '@fluentui/react-components';
 import {
   ArrowExportRegular,
-  ArrowUploadRegular,
   SendRegular,
   HeartRegular,
   CheckmarkCircleRegular,
@@ -42,7 +41,6 @@ import {
 import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
 import { ExportJob } from '../../engine/ExportJob';
-import { GitHandler } from '../../git/GitHandler';
 import { ExportResult, ExportProgress } from '../../types/table';
 import { ExportError } from '../../types/errors';
 import { excelHelper } from '../../utils/ExcelHelper';
@@ -125,11 +123,6 @@ const useStyles = makeStyles({
   },
   exportBtn: {
     flex: 1,
-  },
-  gitBtn: {
-    minWidth: 'auto',
-    paddingLeft: '12px',
-    paddingRight: '12px',
   },
   progressArea: {
     display: 'flex',
@@ -425,8 +418,6 @@ export function ExportTab({
   const [changingVersion, setChangingVersion] = useState(false);
   // 版本号本地输入状态（受控模式，确保点导出时能拿到最新值）
   const [localVersionNumber, setLocalVersionNumber] = useState(String(config.outputSettings.versionNumber));
-  // 本地状态：Git 上传后隐藏导出结果，恢复空闲界面
-  const [resultDismissed, setResultDismissed] = useState(false);
   // 跟踪导出完成动画的触发时机
   const [showCompletionAnim, setShowCompletionAnim] = useState(false);
   const isGame = mode === 'game';
@@ -441,14 +432,10 @@ export function ExportTab({
   const [earnedXp, setEarnedXp] = useState(0);
   const t = useThemeText();
   const prevExportingRef = useRef(isExporting);
-  // Git 按钮错误提示
-  const [gitError, setGitError] = useState(false);
 
   // 当新的导出开始时，重置隐藏状态；当导出完成时，触发动画
   useEffect(() => {
     if (isExporting && !prevExportingRef.current) {
-      // 导出开始 → 重置隐藏状态
-      setResultDismissed(false);
       setShowCompletionAnim(false);
     }
     if (!isExporting && prevExportingRef.current && exportResult) {
@@ -505,60 +492,11 @@ export function ExportTab({
     }
 
     onClearResult();
-    setResultDismissed(false);
     onExportStart();
     const job = new ExportJob(onProgress);
     const result = await job.runExport();
     onExportComplete(result);
   }, [localVersionNumber, config.outputSettings.versionNumber, onReloadConfig, onClearResult, onExportStart, onExportComplete, onProgress]);
-
-  const gitHandler = useMemo(
-    () => new GitHandler(config.outputSettings.outputDirectory || ''),
-    [config.outputSettings.outputDirectory]
-  );
-
-  const handleGitPush = useCallback(async () => {
-    if (!exportResult || exportResult.modifiedFiles.length === 0) return;
-
-    // 检查输出目录是否已配置（无目录则无法 git 操作）
-    const outDir = config.outputSettings.outputDirectory || '';
-    if (!outDir) {
-      setGitError(true);
-      setTimeout(() => setGitError(false), 3000);
-      setResultDismissed(true);
-      return;
-    }
-
-    const commitMessage = gitHandler.generateCommitMessage(
-      config.gitCommitTemplate,
-      config.outputSettings.versionName,
-      config.outputSettings.versionNumber,
-      config.outputSettings.versionSequence
-    );
-    const script = gitHandler.getFullPushScript(exportResult.modifiedFiles, commitMessage);
-
-    if (!script) {
-      setGitError(true);
-      setTimeout(() => setGitError(false), 3000);
-      setResultDismissed(true);
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(script);
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = script;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-    }
-
-    // Git 上传后，重置导出结果区域回到空闲状态
-    setResultDismissed(true);
-    onClearResult();
-  }, [exportResult, gitHandler, config, onClearResult]);
 
   const progressValue = progress ? progress.step / progress.totalSteps : 0;
   const outputDir = config.outputSettings.outputDirectory || '';
@@ -580,10 +518,6 @@ export function ExportTab({
   const [devLogOpen, setDevLogOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [devLogTab, setDevLogTab] = useState<'key' | 'all'>('key');
-
-  // 当结果被用户（Git 上传后）主动隐藏时，不显示导出结果
-  const visibleResult = resultDismissed ? null : exportResult;
-  const canGitPush = visibleResult && !isExporting && visibleResult.success && visibleResult.modifiedFiles.length > 0;
 
   return (
     <div className={styles.container}>
@@ -708,7 +642,7 @@ export function ExportTab({
         </div>
       </div>
 
-      {/* 导出 + Git上传 按钮并排 */}
+      {/* 导出按钮（导出完成后自动 Git 推送） */}
       <div className={styles.actionSection}>
         <div className={styles.actionRow}>
           <Button
@@ -720,17 +654,6 @@ export function ExportTab({
             size="large"
           >
             {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
-          </Button>
-          <Button
-            className={styles.gitBtn}
-            icon={isGame ? <SendRegular /> : isCute ? <StarRegular /> : <ArrowUploadRegular />}
-            appearance="secondary"
-            onClick={handleGitPush}
-            disabled={!canGitPush && !gitError}
-            size="large"
-            style={gitError ? { color: tokens.colorPaletteRedForeground1, borderColor: tokens.colorPaletteRedBorder1 } : undefined}
-          >
-            {gitError ? t.export.gitFailBtn : t.export.gitBtn}
           </Button>
         </div>
 
@@ -746,7 +669,7 @@ export function ExportTab({
 
       {/* 导出结果 / 空闲占位 — 可滚动区域 */}
       <div className={styles.resultScrollArea}>
-        {visibleResult && !isExporting ? (
+        {exportResult && !isExporting ? (
           <div className={`${styles.resultSection} ${styles.resultFadeIn}`}>
             {/* 摘要行：状态 + 耗时 + 统计 */}
             <div className={styles.resultSummary} style={isSpecial ? {
@@ -757,7 +680,7 @@ export function ExportTab({
               <div className={styles.resultSummaryRow}>
                 {isSpecial ? (
                   <StarRegular style={{ fontSize: 18, color: st.xpColor, flexShrink: 0 }} />
-                ) : visibleResult.success ? (
+                ) : exportResult.success ? (
                   <CheckmarkCircleRegular
                     className={`${styles.resultStatusIcon} ${styles.successColor} ${showCompletionAnim ? styles.successCheckAnim : ''}`}
                   />
@@ -765,14 +688,14 @@ export function ExportTab({
                   <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
                 )}
                 <span className={styles.resultStatusText} style={isSpecial ? { color: st.xpColor } : undefined}>
-                  {visibleResult.success
-                    ? (visibleResult.changedTables > 0 ? t.export.resultSuccess : t.export.resultNoChange)
+                  {exportResult.success
+                    ? (exportResult.changedTables > 0 ? t.export.resultSuccess : t.export.resultNoChange)
                     : t.export.resultFail}
                 </span>
                 <span className={styles.resultDuration}>
-                  {visibleResult.duration.toFixed(1)}s
+                  {exportResult.duration.toFixed(1)}s
                 </span>
-                {isSpecial && visibleResult.success && (
+                {isSpecial && exportResult.success && (
                   <>
                     <StarRegular style={{ fontSize: 16, color: st.xpAccent || st.xpColor }} />
                     <span style={{ color: st.xpAccent || st.xpColor, fontSize: 11, fontWeight: 700 }}>
@@ -782,9 +705,9 @@ export function ExportTab({
                 )}
               </div>
               <div className={styles.resultStats}>
-                {visibleResult.modifiedFiles.length > 0 && (
+                {exportResult.modifiedFiles.length > 0 && (
                   <span className={`${styles.statItem} ${styles.statFiles}`}>
-                    {t.export.statFiles(visibleResult.modifiedFiles.length)}
+                    {t.export.statFiles(exportResult.modifiedFiles.length)}
                   </span>
                 )}
                 {warnings.length > 0 && (
@@ -806,11 +729,11 @@ export function ExportTab({
             </div>
 
             {/* 修改文件列表 */}
-            {visibleResult.modifiedFiles.length > 0 && (
+            {exportResult.modifiedFiles.length > 0 && (
               <div className={styles.resultCard}>
                 <div className={styles.fileList}>
-                  {visibleResult.modifiedFiles.map((file, i) => {
-                    const diff = visibleResult.tableDiffs?.find(d => d.tableName + '.xlsx' === file);
+                  {exportResult.modifiedFiles.map((file, i) => {
+                    const diff = exportResult.tableDiffs?.find(d => d.tableName + '.xlsx' === file);
                     const rowDelta = diff ? diff.totalRows - diff.previousRows : 0;
                     return (
                       <div key={i} className={styles.fileItem}>
@@ -891,7 +814,7 @@ export function ExportTab({
             )}
           </div>
         ) : !isExporting && (
-          <IdleAnimation active={!isExporting && !(exportResult && !resultDismissed)} />
+          <IdleAnimation active={!isExporting && !exportResult} />
         )}
       </div>
 

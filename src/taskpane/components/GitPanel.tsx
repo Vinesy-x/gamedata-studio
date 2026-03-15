@@ -109,7 +109,7 @@ export function GitPanel({ config, outputDirectory }: GitPanelProps) {
       </div>
 
       <Text className={styles.hint}>
-        v1.0：导出后点击「Git」按钮可复制推送命令到剪贴板。
+        导出时自动同步仓库（pull）并在完成后自动提交推送（push）。
       </Text>
     </div>
   );

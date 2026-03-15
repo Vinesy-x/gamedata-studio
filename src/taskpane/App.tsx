@@ -41,8 +41,6 @@ import { ExportResult, ExportProgress } from '../types/table';
 import { StudioConfigStore } from '../v2/StudioConfigStore';
 import { CollaborationMonitor, CollabTriggerParams } from '../v3/CollaborationMonitor';
 import { ExportJob } from '../engine/ExportJob';
-import { GitHandler } from '../git/GitHandler';
-import { GitExecutor } from '../git/GitExecutor';
 import { configManager } from '../v2/ConfigManager';
 import { gdsTokens } from './theme';
 import { useThemeText } from './locales';
@@ -208,42 +206,11 @@ export function App() {
       setIsExporting(false);
       setProgress(null);
 
-      // 准备状态文本
-      let statusText = result.success ? '导出完成' : '导出失败';
+      // 准备状态文本（Git pull/push 已由 ExportJob 内部自动处理）
+      const statusText = result.success ? '导出完成' : '导出失败';
       const resultText = result.success
         ? (result.changedTables > 0 ? `${result.changedTables} 张表已更新` : '无任何修改')
         : `错误: ${result.errors.filter(e => e.severity === 'error').map(e => e.message).join('; ')}`;
-
-      // 自动 Git push
-      if (result.success && result.modifiedFiles.length > 0) {
-        const fileServerBase = await GitExecutor.detect();
-        if (fileServerBase) {
-          await loadConfig(); // 刷新以获取最新序列号
-          const freshConfig = await new Promise<typeof config>((resolve) => {
-            // loadConfig 是异步的，直接用当前 config 即可
-            resolve(config);
-          });
-
-          const outputDir = freshConfig?.outputSettings.outputDirectory || '';
-          if (outputDir) {
-            const gitHandler = new GitHandler(outputDir);
-            const commitMsg = gitHandler.generateCommitMessage(
-              freshConfig?.gitCommitTemplate || '',
-              params.version,
-              params.versionNumber,
-              freshConfig?.outputSettings.versionSequence || 0
-            );
-            const commands = gitHandler.generatePushCommands(result.modifiedFiles, commitMsg);
-            const executor = new GitExecutor(fileServerBase);
-            const gitResult = await executor.execute(outputDir, commands);
-            if (!gitResult.ok) {
-              statusText = `导出完成(Git失败: ${gitResult.error || 'unknown'})`;
-            }
-          }
-        } else {
-          statusText = '导出完成(Git跳过: file-server未运行)';
-        }
-      }
 
       // 回写状态到 StudioConfig
       await Excel.run(async (context) => {
@@ -265,7 +232,7 @@ export function App() {
     } finally {
       setMonitorStatus(monitorEnabled ? 'watching' : 'idle');
     }
-  }, [config, loadConfig, monitorEnabled]);
+  }, [loadConfig, monitorEnabled]);
 
   // 切换协同监听
   const handleToggleMonitor = useCallback((enabled: boolean) => {

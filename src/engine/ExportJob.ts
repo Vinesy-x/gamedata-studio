@@ -12,6 +12,8 @@ import { ErrorHandler } from '../utils/ErrorHandler';
 import { excelHelper, isExcelError } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
 import { StudioConfigStore } from '../v2/StudioConfigStore';
+import { GitHandler } from '../git/GitHandler';
+import { GitExecutor } from '../git/GitExecutor';
 
 const MANIFEST_FILE = '_manifest.json';
 
@@ -77,8 +79,29 @@ export class ExportJob {
       await this.detectWriteMode(outputDir);
       logger.info(`⏱ 检测写入模式: ${Date.now() - t1}ms`);
 
-      // 步骤2: 创建版本筛选器
-      this.emitProgress(2, totalSteps, '正在初始化筛选器...');
+      // 创建 Git 工具实例（pull 和 push 共用）
+      const gitHandler = this.fileServerBase ? new GitHandler(outputDir) : null;
+      const gitExecutor = this.fileServerBase ? new GitExecutor(this.fileServerBase) : null;
+
+      // 步骤2: 同步表格仓库（git reset + clean + pull）
+      this.emitProgress(2, totalSteps, '正在同步仓库...');
+      if (gitExecutor && gitHandler) {
+        const pullResult = await this.executeGit(gitExecutor, outputDir, gitHandler.generatePullCommands(), 'Git pull');
+        if (!pullResult.ok) {
+          this.errorHandler.logError({
+            code: ErrorCode.FILE_WRITE_FAILED,
+            severity: 'warning',
+            tableName: '',
+            message: `Git 同步失败 (继续导出): ${pullResult.error}`,
+            procedure: 'ExportJob.gitPull',
+          });
+        }
+      } else {
+        logger.warn('文件服务不可用，跳过 Git 同步');
+      }
+
+      // 步骤3: 创建版本筛选器
+      this.emitProgress(3, totalSteps, '正在初始化筛选器...');
       const lineField = this.configLoader.determineOutputLineField(config);
       const versionFilter = new VersionFilter(
         config.outputSettings.versionNumber,
@@ -88,8 +111,8 @@ export class ExportJob {
       logger.info(`筛选参数: 版本=${config.outputSettings.versionNumber}, 线路=${lineField}`);
       logger.info(`输出目录: ${outputDir}`);
 
-      // 步骤3: 加载所有源数据到内存
-      this.emitProgress(3, totalSteps, '正在加载数据表...');
+      // 步骤4: 加载所有源数据到内存
+      this.emitProgress(4, totalSteps, '正在加载数据表...');
       const t2 = Date.now();
       const inMemoryData = await this.dataLoader.loadAll(config, versionFilter);
       logger.info(`⏱ 加载数据表: ${Date.now() - t2}ms (${inMemoryData.size} 张表)`);
@@ -100,17 +123,17 @@ export class ExportJob {
       }
 
       totalTables = inMemoryData.size;
-      // 重新计算总步数: 5 setup + N tables + 2 finalize
-      totalSteps = 5 + totalTables + 2;
+      // 重新计算总步数: 6 setup + N tables + 3 finalize (含 git push)
+      totalSteps = 6 + totalTables + 3;
 
-      // 步骤4: 导出前校验
-      this.emitProgress(4, totalSteps, '正在执行校验...');
+      // 步骤5: 导出前校验
+      this.emitProgress(5, totalSteps, '正在执行校验...');
       const t3 = Date.now();
       this.runValidation(inMemoryData, versionFilter);
       logger.info(`⏱ 导出前校验: ${Date.now() - t3}ms`);
 
-      // 步骤5: 加载哈希清单（用于差异对比）
-      this.emitProgress(5, totalSteps, '正在准备输出...');
+      // 步骤6: 加载哈希清单（用于差异对比）
+      this.emitProgress(6, totalSteps, '正在准备输出...');
       let manifest: HashManifest = {};
 
       try {
@@ -146,7 +169,7 @@ export class ExportJob {
         if (!tableInfo) continue;
 
         const englishName = tableInfo.englishName;
-        this.emitProgress(5 + tableIndex, totalSteps, `正在筛选 ${chineseName} (${tableIndex}/${totalTables})...`, chineseName);
+        this.emitProgress(6 + tableIndex, totalSteps, `正在筛选 ${chineseName} (${tableIndex}/${totalTables})...`, chineseName);
 
         try {
           const filtered = dataFilter.applyFilters(tableData);
@@ -182,7 +205,7 @@ export class ExportJob {
 
       logger.info(`⏱ 阶段A筛选+哈希: ${Date.now() - t4}ms (${pendingWrites.length} 张表需写入)`);
 
-      // ── 阶段B：并行生成 xlsx + 写入文件（I/O 密集，4 路并发）
+      // ── 阶段B：并行生成 xlsx + 写入文件（I/O 密集，8 路并发）
       const t5 = Date.now();
       const WRITE_CONCURRENCY = 8;
       const writeTable = async (pw: PendingWrite) => {
@@ -214,7 +237,7 @@ export class ExportJob {
         const batch = pendingWrites.slice(i, i + WRITE_CONCURRENCY);
         const batchNames = batch.map(pw => pw.chineseName).join('、');
         this.emitProgress(
-          5 + totalTables + Math.floor(i / WRITE_CONCURRENCY),
+          6 + totalTables + Math.floor(i / WRITE_CONCURRENCY),
           totalSteps,
           `正在写入 ${batchNames}...`
         );
@@ -240,12 +263,13 @@ export class ExportJob {
       logger.info(`⏱ 阶段B写入文件: ${Date.now() - t5}ms`);
 
       // 保存哈希清单
-      this.emitProgress(totalSteps - 1, totalSteps, '正在保存清单...');
+      this.emitProgress(totalSteps - 2, totalSteps, '正在保存清单...');
       if (changedTables > 0) {
         try {
           const manifestJson = JSON.stringify(manifest, null, 2);
           const manifestBuffer = new TextEncoder().encode(manifestJson).buffer;
           await this.writeFileToServer(outputDir, MANIFEST_FILE, manifestBuffer);
+          modifiedFiles.push(MANIFEST_FILE);
           logger.info(`哈希清单已保存，共 ${Object.keys(manifest).length} 张表`);
         } catch (err) {
           this.errorHandler.logError({
@@ -254,6 +278,27 @@ export class ExportJob {
             tableName: '',
             message: `保存哈希清单失败: ${err instanceof Error ? err.message : String(err)}`,
             procedure: 'ExportJob.saveManifest',
+          });
+        }
+      }
+
+      // 自动 Git Push
+      this.emitProgress(totalSteps - 1, totalSteps, '正在上传到仓库...');
+      if (changedTables > 0 && gitExecutor && gitHandler) {
+        const commitMessage = gitHandler.generateCommitMessage(
+          config.gitCommitTemplate,
+          config.outputSettings.versionName,
+          config.outputSettings.versionNumber,
+          config.outputSettings.versionSequence
+        );
+        const pushResult = await this.executeGit(gitExecutor, outputDir, gitHandler.generatePushCommands(modifiedFiles, commitMessage), 'Git push');
+        if (!pushResult.ok) {
+          this.errorHandler.logError({
+            code: ErrorCode.FILE_WRITE_FAILED,
+            severity: 'warning',
+            tableName: '',
+            message: `Git 推送失败: ${pushResult.error}`,
+            procedure: 'ExportJob.gitPush',
           });
         }
       }
@@ -296,6 +341,26 @@ export class ExportJob {
       }
     }
     throw new Error('unreachable');
+  }
+
+  /**
+   * 执行 git 命令并记录日志
+   */
+  private async executeGit(executor: GitExecutor, directory: string, commands: string[], label: string): Promise<{ ok: boolean; error?: string }> {
+    const t = Date.now();
+    try {
+      const result = await executor.execute(directory, commands);
+      if (result.ok) {
+        logger.info(`⏱ ${label} 完成: ${Date.now() - t}ms`);
+      } else {
+        logger.error(`${label} 失败: ${result.error}`);
+      }
+      return result;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(`${label} 异常: ${msg}`);
+      return { ok: false, error: msg };
+    }
   }
 
   /**
