@@ -82,10 +82,29 @@ function Update-WebFiles {
     return $true
 }
 
+# Self-update: download latest file-server.ps1 from GitHub
+function Update-Self {
+    $selfPath = $MyInvocation.ScriptName
+    if (-not $selfPath) { $selfPath = $PSCommandPath }
+    if (-not $selfPath) { return }
+    $url = "https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/scripts/file-server.ps1"
+    try {
+        $newContent = (Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10).Content
+        $currentContent = Get-Content -Path $selfPath -Raw -ErrorAction SilentlyContinue
+        if ($newContent -and $newContent -ne $currentContent) {
+            Set-Content -Path $selfPath -Value $newContent -NoNewline -Encoding UTF8
+            Write-Host "  file-server.ps1 updated, restart to apply"
+        }
+    } catch {
+        Write-Host "  Warning: self-update failed: $($_.Exception.Message)"
+    }
+}
+
 # Check and update
 Write-Log "GameData Studio File Server starting..."
 Write-Log "Data dir: $dataDir"
 Write-Log "Web dir: $webDir"
+Update-Self
 if (-not (Update-WebFiles)) {
     Write-Log "ERROR: Update-WebFiles failed, exiting"
     exit 1
