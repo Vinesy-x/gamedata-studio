@@ -92,13 +92,12 @@ const useStyles = makeStyles({
   configRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    justifyContent: 'space-between',
     fontSize: '12px',
   },
   configLabel: {
     color: tokens.colorNeutralForeground1,
-    width: '60px',
-    flexShrink: 0,
+    minWidth: '60px',
     fontSize: '12px',
   },
   configValue: {
