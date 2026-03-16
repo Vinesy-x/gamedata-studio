@@ -42,11 +42,14 @@ import {
   ChevronRightRegular,
   ChevronDownRegular,
   DismissRegular,
+  ArrowUploadRegular,
 } from '@fluentui/react-icons';
 import { DiffDetailPanel } from './DiffDetailPanel';
 import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
 import { ExportJob } from '../../engine/ExportJob';
+import { GitHandler } from '../../git/GitHandler';
+import { GitExecutor } from '../../git/GitExecutor';
 import { ExportResult, ExportProgress } from '../../types/table';
 import { ExportError } from '../../types/errors';
 import { excelHelper } from '../../utils/ExcelHelper';
@@ -519,6 +522,7 @@ export function ExportTab({
     }
 
     onClearResult();
+    setGitPushDone(false);
     onExportStart();
     const job = new ExportJob(onProgress);
     const result = await job.runExport();
@@ -542,6 +546,35 @@ export function ExportTab({
   };
 
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
+  const [gitPushing, setGitPushing] = useState(false);
+  const [gitPushDone, setGitPushDone] = useState(false);
+
+  const handleManualGitPush = useCallback(async () => {
+    if (!exportResult || gitPushing) return;
+    setGitPushing(true);
+    try {
+      const gitHandler = new GitHandler(outputDir);
+      const gitExecutor = new GitExecutor('https://localhost:9876');
+      const commitMessage = gitHandler.generateCommitMessage(
+        config.gitCommitTemplate,
+        config.outputSettings.versionName,
+        config.outputSettings.versionNumber,
+        config.outputSettings.versionSequence
+      );
+      const result = await gitExecutor.execute(outputDir, gitHandler.generatePushCommands(exportResult.modifiedFiles, commitMessage));
+      if (result.ok) {
+        setGitPushDone(true);
+        logger.info('手动 Git 推送成功');
+      } else {
+        logger.error(`手动 Git 推送失败: ${result.error}`);
+      }
+    } catch (err) {
+      logger.error('手动 Git 推送异常', err);
+    } finally {
+      setGitPushing(false);
+    }
+  }, [exportResult, gitPushing, outputDir, config]);
+
   const [helpOpen, setHelpOpen] = useState(false);
   const [devLogOpen, setDevLogOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
@@ -704,6 +737,20 @@ export function ExportTab({
                     {extraData.resultXp(earnedXp)}
                   </span>
                 </>
+              )}
+              {exportResult.success && exportResult.changedTables > 0 && !exportResult.gitPushed && !gitPushDone && (
+                <Button
+                  className={styles.dismissBtn}
+                  appearance="transparent"
+                  size="small"
+                  icon={<ArrowUploadRegular fontSize={14} />}
+                  onClick={handleManualGitPush}
+                  disabled={gitPushing}
+                  title="上传到 Git"
+                />
+              )}
+              {gitPushDone && (
+                <span style={{ fontSize: '10px', color: gdsTokens.success.text, marginLeft: 'auto' }}>已上传</span>
               )}
               <Button
                 className={styles.dismissBtn}

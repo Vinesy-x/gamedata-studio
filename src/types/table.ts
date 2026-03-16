@@ -68,6 +68,7 @@ export interface ExportResult {
   totalTables: number;
   changedTables: number;
   tableDiffs: TableDiff[];
+  gitPushed: boolean;
 }
 
 export interface ExportProgress {

@@ -307,9 +307,10 @@ export class ExportJob {
         }
       }
 
-      // 自动 Git Push
+      // 自动 Git Push（仅在开关打开时执行）
+      let gitPushed = false;
       this.emitProgress(totalSteps - 1, totalSteps, '正在上传到仓库...');
-      if (changedTables > 0 && gitExecutor && gitHandler) {
+      if (changedTables > 0 && config.autoGitPush && gitExecutor && gitHandler) {
         const commitMessage = gitHandler.generateCommitMessage(
           config.gitCommitTemplate,
           config.outputSettings.versionName,
@@ -317,7 +318,9 @@ export class ExportJob {
           config.outputSettings.versionSequence
         );
         const pushResult = await this.executeGit(gitExecutor, outputDir, gitHandler.generatePushCommands(modifiedFiles, commitMessage), 'Git push');
-        if (!pushResult.ok) {
+        if (pushResult.ok) {
+          gitPushed = true;
+        } else {
           this.errorHandler.logError({
             code: ErrorCode.FILE_WRITE_FAILED,
             severity: 'warning',
@@ -335,7 +338,7 @@ export class ExportJob {
       }
       await this.updateExportResults(modifiedFiles);
 
-      return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables, tableDiffs);
+      return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables, tableDiffs, gitPushed);
     } catch (err) {
       logger.error('导出失败', err);
       this.errorHandler.logError({
@@ -699,7 +702,8 @@ export class ExportJob {
     startTime: number,
     totalTables: number,
     changedTables: number,
-    tableDiffs: TableDiff[] = []
+    tableDiffs: TableDiff[] = [],
+    gitPushed = false
   ): ExportResult {
     return {
       success,
@@ -709,6 +713,7 @@ export class ExportJob {
       totalTables,
       changedTables,
       tableDiffs,
+      gitPushed,
     };
   }
 

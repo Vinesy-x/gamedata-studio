@@ -18,9 +18,9 @@ export class GitHandler {
     if (!this.outputDirectory) return [];
     return [
       `cd "${this.outputDirectory}"`,
-      'git reset --hard HEAD',
-      'git clean -fd',
-      'git pull --rebase --autostash',
+      'git reset --hard',
+      'git clean -dfq',
+      'git pull',
     ];
   }
 

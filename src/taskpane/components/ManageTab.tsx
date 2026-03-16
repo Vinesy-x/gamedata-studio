@@ -759,6 +759,13 @@ function ConfigSubPage({ config, onReload, styles }: {
             />
           </div>
           <div className={styles.switchRow}>
+            <Text style={{ fontSize: '11px' }}>自动上传Git</Text>
+            <Switch
+              checked={config.autoGitPush}
+              onChange={(_, d) => handleToggleSwitch('自动上传Git', d.checked)}
+            />
+          </div>
+          <div className={styles.switchRow}>
             <Text style={{ fontSize: '11px' }}>详细差异对比</Text>
             <Switch
               checked={config.detailedDiff}

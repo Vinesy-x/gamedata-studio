@@ -41,4 +41,5 @@ export interface Config {
   staffCodes: Map<string, StaffInfo>;
   showResourcePopup: boolean;
   detailedDiff: boolean;
+  autoGitPush: boolean;
 }
