@@ -322,9 +322,10 @@ export class ExportJob {
           config.gitCommitTemplate,
           config.outputSettings.versionName,
           config.outputSettings.versionNumber,
-          config.outputSettings.versionSequence
+          config.outputSettings.versionSequence,
+          config.operator
         );
-        const pushResult = await this.executeGit(gitExecutor, outputDir, gitHandler.generatePushCommands(modifiedFiles, commitMessage), 'Git push');
+        const pushResult = await this.executeGit(gitExecutor, outputDir, gitHandler.generatePushCommands(modifiedFiles, commitMessage, config.operator), 'Git push');
         if (pushResult.ok) {
           gitPushed = true;
         } else {

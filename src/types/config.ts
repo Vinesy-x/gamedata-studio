@@ -38,5 +38,6 @@ export interface Config {
   tablesToProcess: Map<string, TableInfo>;
   outputSettings: OutputSettings;
   gitCommitTemplate: string;
+  operator: string;
   staffCodes: Map<string, StaffInfo>;
 }

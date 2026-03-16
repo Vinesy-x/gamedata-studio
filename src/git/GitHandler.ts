@@ -29,14 +29,16 @@ export class GitHandler {
    */
   generatePushCommands(
     modifiedFiles: string[],
-    commitMessage: string
+    commitMessage: string,
+    operator?: string
   ): string[] {
     if (!this.outputDirectory || modifiedFiles.length === 0) return [];
 
     const commands: string[] = [`cd "${this.outputDirectory}"`];
 
     // 确保 git 用户信息已配置（仓库级别）
-    commands.push('git config user.name "GameData Studio" 2>nul');
+    const userName = operator || 'GameData Studio';
+    commands.push(`git config user.name "${userName}" 2>nul`);
     commands.push('git config user.email "gamedata-studio@local" 2>nul');
 
     for (const file of modifiedFiles) {
@@ -58,14 +60,15 @@ export class GitHandler {
     template: string,
     versionName: string,
     versionNumber: number,
-    sequenceNumber: number
+    sequenceNumber: number,
+    operator?: string
   ): string {
     const tpl = template || '-{1}{0}数据表提交';
     const verNum = `${versionNumber}.${sequenceNumber}`;
     return tpl
       .replace(/\{0\}/g, verNum)
       .replace(/\{1\}/g, versionName)
-      .replace(/\{2\}/g, '');
+      .replace(/\{2\}/g, operator || '');
   }
 
   /**

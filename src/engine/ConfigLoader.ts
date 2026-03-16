@@ -46,7 +46,8 @@ export class ConfigLoader {
       if (jsonData) {
         // 表列表始终从表名对照读取（单一数据源）
         const snap = await excelHelper.loadSheetSnapshot(context, '表名对照');
-        return this.buildConfigFromJson(jsonData, snap?.values);
+        const collabConfig = await StudioConfigStore.readCollabConfig(context);
+        return this.buildConfigFromJson(jsonData, snap?.values, collabConfig?.operator);
       }
 
       // 4. 最终回退：旧格式三表
@@ -57,7 +58,7 @@ export class ConfigLoader {
   /**
    * 从 JSON 数据构建 Config 对象
    */
-  private buildConfigFromJson(data: StudioConfigData, mappingValues?: SheetData): Config {
+  private buildConfigFromJson(data: StudioConfigData, mappingValues?: SheetData, operator?: string): Config {
     // 版本模板
     const versionTemplates = new Map<string, VersionTemplate>();
     for (const v of data.versions) {
@@ -118,6 +119,7 @@ export class ConfigLoader {
       tablesToProcess,
       outputSettings,
       gitCommitTemplate: data.gitCommitTemplate || '',
+      operator: operator || '',
       staffCodes,
     };
   }
@@ -165,7 +167,7 @@ export class ConfigLoader {
     logger.info('配置加载完成（旧格式兼容模式）');
     return {
       versionTemplates, lineTemplates, tablesToProcess, outputSettings,
-      gitCommitTemplate: gitCommitTemplate || '', staffCodes: staffCodes || new Map(),
+      gitCommitTemplate: gitCommitTemplate || '', operator: '', staffCodes: staffCodes || new Map(),
     };
   }
 

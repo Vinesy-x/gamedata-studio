@@ -573,9 +573,10 @@ export function ExportTab({
         config.gitCommitTemplate,
         config.outputSettings.versionName,
         config.outputSettings.versionNumber,
-        config.outputSettings.versionSequence
+        config.outputSettings.versionSequence,
+        config.operator
       );
-      const result = await gitExecutor.execute(outputDir, gitHandler.generatePushCommands(exportResult.modifiedFiles, commitMessage));
+      const result = await gitExecutor.execute(outputDir, gitHandler.generatePushCommands(exportResult.modifiedFiles, commitMessage, config.operator));
       if (result.ok) {
         setGitPushDone(true);
         logger.info('手动 Git 推送成功');

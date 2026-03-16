@@ -79,7 +79,8 @@ export function GitPanel({ config, outputDirectory }: GitPanelProps) {
       config.gitCommitTemplate,
       config.outputSettings.versionName,
       config.outputSettings.versionNumber,
-      config.outputSettings.versionSequence
+      config.outputSettings.versionSequence,
+      config.operator
     ),
     [gitHandler, config]
   );
