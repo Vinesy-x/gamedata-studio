@@ -17,6 +17,7 @@ export const cyberText: ThemeTextMap = {
   tabPreview: '解码',
 
   export: {
+    subNav: ['执行', '报告', '日志'] as const,
     sectionTitle: '上传准备',
     exportBtn: '开始上传',
     exportingBtn: '上传中...',

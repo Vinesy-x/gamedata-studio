@@ -17,6 +17,7 @@ export const pixelText: ThemeTextMap = {
   tabPreview: '探索',
 
   export: {
+    subNav: ['执行', '战果', '日志'] as const,
     sectionTitle: '过关准备',
     exportBtn: 'GO!',
     exportingBtn: '过关中...',

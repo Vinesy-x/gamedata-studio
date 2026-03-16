@@ -1,7 +1,8 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { IdleAnimation } from './IdleAnimation';
 import { HelpPanel } from './HelpPanel';
-import { CommitHistoryPanel } from './CommitHistoryPanel';
+import { ExportResultSubPage } from './ExportResultSubPage';
+import { ExportLogSubPage } from './ExportLogSubPage';
 import {
   makeStyles,
   tokens,
@@ -21,11 +22,7 @@ import {
   ArrowExportRegular,
   SendRegular,
   HeartRegular,
-  CheckmarkCircleRegular,
-  DismissCircleRegular,
   WarningRegular,
-  DocumentRegular,
-  NavigationRegular,
   FolderOpenRegular,
   QuestionCircleRegular,
   WeatherMoonRegular,
@@ -33,25 +30,19 @@ import {
   BugRegular,
   MegaphoneRegular,
   RocketRegular,
-  StarRegular,
   FlagCheckeredRegular,
   JoystickRegular,
-  HistoryRegular,
-  ChevronRightRegular,
-  ChevronDownRegular,
-  DismissRegular,
-  ArrowUploadRegular,
   ArrowSyncRegular,
+  ArrowExportFilled,
+  DocumentCheckmarkRegular,
+  HistoryRegular,
 } from '@fluentui/react-icons';
-import { DiffDetailPanel } from './DiffDetailPanel';
 import { ThemeContext } from '../index';
 import { Config } from '../../types/config';
 import { ExportJob } from '../../engine/ExportJob';
 import { GitHandler } from '../../git/GitHandler';
 import { GitExecutor } from '../../git/GitExecutor';
 import { ExportResult, ExportProgress } from '../../types/table';
-import { ExportError } from '../../types/errors';
-import { excelHelper } from '../../utils/ExcelHelper';
 import { configManager } from '../../v2/ConfigManager';
 import { logger } from '../../utils/Logger';
 import { gdsTokens } from '../theme';
@@ -409,6 +400,38 @@ const useStyles = makeStyles({
     overflowY: 'auto' as const,
     minHeight: 0,
   },
+  subNav: {
+    display: 'flex',
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  subNavItem: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    padding: '8px 0',
+    fontSize: '12px',
+    color: tokens.colorNeutralForeground3,
+    cursor: 'pointer',
+    borderBottom: '2px solid transparent',
+    userSelect: 'none' as const,
+    ':hover': {
+      backgroundColor: tokens.colorNeutralBackground2,
+    },
+  },
+  subNavActive: {
+    color: tokens.colorBrandForeground1,
+    borderBottomColor: tokens.colorBrandForeground1,
+    fontWeight: 600,
+  },
+  subPageContent: {
+    flex: 1,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 0,
+  },
 });
 
 interface ExportTabProps {
@@ -461,6 +484,8 @@ export function ExportTab({
   const [earnedXp, setEarnedXp] = useState(0);
   const t = useThemeText();
   const prevExportingRef = useRef(isExporting);
+  const [subPage, setSubPage] = useState<'export' | 'result' | 'log'>('export');
+  const [commitMessage, setCommitMessage] = useState('');
 
   // 当新的导出开始时，重置隐藏状态；当导出完成时，触发动画
   useEffect(() => {
@@ -468,14 +493,22 @@ export function ExportTab({
       setShowCompletionAnim(false);
     }
     if (!isExporting && prevExportingRef.current && exportResult) {
-      // 导出刚完成 → 触发完成动画
+      // 导出刚完成 → 切到结果页 + 生成提交信息
       setShowCompletionAnim(true);
-        // Grant XP for special themes
-        if (exportResult?.success) {
-          const xp = grantExportXp(exportResult.changedTables, exportResult.modifiedFiles.length);
-          setEarnedXp(xp);
-          setLevelInfo(getLevelInfo());
-        }
+      setSubPage('result');
+      const gitHandler = new GitHandler(outputDir);
+      setCommitMessage(gitHandler.generateCommitMessage(
+        config.gitCommitTemplate,
+        config.outputSettings.versionName,
+        config.outputSettings.versionNumber,
+        config.outputSettings.versionSequence,
+        config.operator
+      ));
+      if (exportResult?.success) {
+        const xp = grantExportXp(exportResult.changedTables, exportResult.modifiedFiles.length);
+        setEarnedXp(xp);
+        setLevelInfo(getLevelInfo());
+      }
     }
     prevExportingRef.current = isExporting;
   }, [isExporting, exportResult]);
@@ -547,20 +580,6 @@ export function ExportTab({
   const progressValue = progress ? progress.step / progress.totalSteps : 0;
   const outputDir = config.outputSettings.outputDirectory || '';
 
-  const warnings = useMemo(() => exportResult?.errors.filter(e => e.severity === 'warning') || [], [exportResult?.errors]);
-  const errors = useMemo(() => exportResult?.errors.filter(e => e.severity === 'error') || [], [exportResult?.errors]);
-
-  const handleNavigate = async (error: ExportError) => {
-    if (error.location) {
-      await excelHelper.navigateToCell(
-        error.location.sheetName,
-        error.location.row,
-        error.location.column
-      );
-    }
-  };
-
-  const [expandedTable, setExpandedTable] = useState<string | null>(null);
   const [gitPushing, setGitPushing] = useState(false);
   const [gitPushDone, setGitPushDone] = useState(false);
 
@@ -570,13 +589,6 @@ export function ExportTab({
     try {
       const gitHandler = new GitHandler(outputDir);
       const gitExecutor = new GitExecutor('https://localhost:9876');
-      const commitMessage = gitHandler.generateCommitMessage(
-        config.gitCommitTemplate,
-        config.outputSettings.versionName,
-        config.outputSettings.versionNumber,
-        config.outputSettings.versionSequence,
-        config.operator
-      );
       const result = await gitExecutor.execute(outputDir, gitHandler.generatePushCommands(exportResult.modifiedFiles, commitMessage, config.operator));
       if (result.ok) {
         setGitPushDone(true);
@@ -589,346 +601,203 @@ export function ExportTab({
     } finally {
       setGitPushing(false);
     }
-  }, [exportResult, gitPushing, outputDir, config]);
+  }, [exportResult, gitPushing, outputDir, commitMessage, config.operator]);
 
   const [helpOpen, setHelpOpen] = useState(false);
   const [devLogOpen, setDevLogOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [devLogTab, setDevLogTab] = useState<'key' | 'all'>('key');
-  const [historyOpen, setHistoryOpen] = useState(false);
 
   return (
     <div className={styles.container}>
-      {/* 当前配置 */}
-      <div className={styles.configSection}>
-        <div className={styles.sectionTitle}>{t.export.sectionTitle}</div>
-        {isSpecial && (
-          <div style={{
-            background: st.xpBarBg,
-            borderRadius: 6,
-            padding: '8px 12px',
-            marginBottom: 8,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            border: st.xpBarBorder,
-          }}>
-            <span style={{ fontSize: 11, color: st.xpColor, fontWeight: 700, fontFamily: gdsTokens.fontMono, whiteSpace: 'nowrap' }}>
-              {extraData.levelLabel(levelInfo.level)}
-            </span>
-            <div style={{
-              flex: 1,
-              height: 8,
-              borderRadius: 4,
-              background: st.xpTrackBg,
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                width: `${Math.min(levelInfo.progress * 100, 100)}%`,
-                height: '100%',
-                borderRadius: 4,
-                background: st.progressGradient,
-              }} />
-            </div>
-          </div>
-        )}
-        <div className={styles.configCard} style={isSpecial ? {
-          border: st.cardBorder,
-          boxShadow: st.cardShadow,
-          backgroundColor: st.cardBg,
-        } : undefined}>
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>{t.export.config.version}</span>
-            <Dropdown
-              size="small"
-              value={config.outputSettings.versionName}
-              onOptionSelect={(_, d) => handleVersionChange(d.optionValue || '')}
-              disabled={isExporting || changingVersion}
-              style={{ minWidth: 100 }}
-            >
-              {versionNames.map(name => (
-                <Option key={name} value={name} text={name}>{name}</Option>
-              ))}
-            </Dropdown>
-          </div>
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>{t.export.config.versionNumber}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', minWidth: 100, justifyContent: 'flex-end' }}>
-              <Input
-                size="small"
-                value={localVersionNumber}
-                onChange={(_, d) => setLocalVersionNumber(d.value)}
-                onBlur={(e) => handleVersionNumberChange(e.target.value)}
-                disabled={isExporting}
-                style={{ width: 68 }}
-              />
-              <Button
-                appearance="transparent"
-                size="small"
-                icon={<HistoryRegular fontSize={14} />}
-                onClick={() => setHistoryOpen(true)}
-                title={t.commitHistory.title}
-                disabled={!outputDir}
-                style={{ minWidth: 'auto', padding: '2px' }}
-              />
-            </div>
-          </div>
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>{t.export.config.sequence}</span>
-            <span className={styles.configValue}>
-              {config.outputSettings.versionSequence}
-            </span>
-          </div>
-          <div className={styles.configRow} style={{ borderBottom: 'none' }}>
-            <span className={styles.configLabel}>{t.export.config.outputDir}</span>
-            {outputDir ? (
-              <span className={styles.configValuePath} onClick={onNavigateToManage} style={{ cursor: 'pointer' }}>
-                {outputDir}
-              </span>
-            ) : (
-              <span className={styles.configValueEmpty} onClick={onNavigateToManage}>
-                <FolderOpenRegular fontSize={12} />
-                {t.export.config.noOutputDir}
-              </span>
-            )}
-          </div>
+      {/* 子页签导航 */}
+      <div className={styles.subNav}>
+        <div
+          className={`${styles.subNavItem} ${subPage === 'export' ? styles.subNavActive : ''}`}
+          onClick={() => setSubPage('export')}
+        >
+          <ArrowExportFilled fontSize={13} />
+          {t.export.subNav[0]}
+        </div>
+        <div
+          className={`${styles.subNavItem} ${subPage === 'result' ? styles.subNavActive : ''}`}
+          onClick={() => setSubPage('result')}
+        >
+          <DocumentCheckmarkRegular fontSize={13} />
+          {t.export.subNav[1]}
+        </div>
+        <div
+          className={`${styles.subNavItem} ${subPage === 'log' ? styles.subNavActive : ''}`}
+          onClick={() => setSubPage('log')}
+        >
+          <HistoryRegular fontSize={13} />
+          {t.export.subNav[2]}
         </div>
       </div>
 
-      {/* 导出按钮 / 导出结果摘要（完成后覆盖按钮区域） */}
-      <div className={styles.actionSection}>
-        {exportResult && !isExporting ? (
-          <div className={`${styles.resultSummary} ${styles.resultFadeIn}`} style={isSpecial ? {
-            border: st.cardBorder,
-            boxShadow: st.cardShadow,
-            backgroundColor: st.cardBg,
-          } : undefined}>
-            <div className={styles.resultSummaryRow}>
-              {isSpecial ? (
-                <StarRegular style={{ fontSize: 18, color: st.xpColor, flexShrink: 0 }} />
-              ) : exportResult.success ? (
-                <CheckmarkCircleRegular
-                  className={`${styles.resultStatusIcon} ${styles.successColor} ${showCompletionAnim ? styles.successCheckAnim : ''}`}
-                />
-              ) : (
-                <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
-              )}
-              <span className={styles.resultStatusText} style={isSpecial ? { color: st.xpColor } : undefined}>
-                {exportResult.success
-                  ? (exportResult.changedTables > 0 ? t.export.resultSuccess : t.export.resultNoChange)
-                  : t.export.resultFail}
-              </span>
-              <span className={styles.resultDuration}>
-                {exportResult.duration.toFixed(1)}s
-              </span>
-              {isSpecial && exportResult.success && (
-                <>
-                  <StarRegular style={{ fontSize: 16, color: (st as typeof gdsTokens.game).xpAccent || (st as typeof gdsTokens.game).xpColor }} />
-                  <span style={{ color: (st as typeof gdsTokens.game).xpAccent || (st as typeof gdsTokens.game).xpColor, fontSize: 11, fontWeight: 700 }}>
-                    {extraData.resultXp(earnedXp)}
+      {/* 子页内容 */}
+      <div className={styles.subPageContent}>
+        {subPage === 'export' && (
+          <>
+            {/* 当前配置 */}
+            <div className={styles.configSection}>
+              <div className={styles.sectionTitle}>{t.export.sectionTitle}</div>
+              {isSpecial && (
+                <div style={{
+                  background: st.xpBarBg,
+                  borderRadius: 6,
+                  padding: '8px 12px',
+                  marginBottom: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  border: st.xpBarBorder,
+                }}>
+                  <span style={{ fontSize: 11, color: st.xpColor, fontWeight: 700, fontFamily: gdsTokens.fontMono, whiteSpace: 'nowrap' }}>
+                    {extraData.levelLabel(levelInfo.level)}
                   </span>
+                  <div style={{
+                    flex: 1,
+                    height: 8,
+                    borderRadius: 4,
+                    background: st.xpTrackBg,
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      width: `${Math.min(levelInfo.progress * 100, 100)}%`,
+                      height: '100%',
+                      borderRadius: 4,
+                      background: st.progressGradient,
+                    }} />
+                  </div>
+                </div>
+              )}
+              <div className={styles.configCard} style={isSpecial ? {
+                border: st.cardBorder,
+                boxShadow: st.cardShadow,
+                backgroundColor: st.cardBg,
+              } : undefined}>
+                <div className={styles.configRow}>
+                  <span className={styles.configLabel}>{t.export.config.version}</span>
+                  <Dropdown
+                    size="small"
+                    value={config.outputSettings.versionName}
+                    onOptionSelect={(_, d) => handleVersionChange(d.optionValue || '')}
+                    disabled={isExporting || changingVersion}
+                    style={{ minWidth: 100 }}
+                  >
+                    {versionNames.map(name => (
+                      <Option key={name} value={name} text={name}>{name}</Option>
+                    ))}
+                  </Dropdown>
+                </div>
+                <div className={styles.configRow}>
+                  <span className={styles.configLabel}>{t.export.config.versionNumber}</span>
+                  <Input
+                    size="small"
+                    value={localVersionNumber}
+                    onChange={(_, d) => setLocalVersionNumber(d.value)}
+                    onBlur={(e) => handleVersionNumberChange(e.target.value)}
+                    disabled={isExporting}
+                    style={{ width: 80 }}
+                  />
+                </div>
+                <div className={styles.configRow}>
+                  <span className={styles.configLabel}>{t.export.config.sequence}</span>
+                  <span className={styles.configValue}>
+                    {config.outputSettings.versionSequence}
+                  </span>
+                </div>
+                <div className={styles.configRow} style={{ borderBottom: 'none' }}>
+                  <span className={styles.configLabel}>{t.export.config.outputDir}</span>
+                  {outputDir ? (
+                    <span className={styles.configValuePath} onClick={onNavigateToManage} style={{ cursor: 'pointer' }}>
+                      {outputDir}
+                    </span>
+                  ) : (
+                    <span className={styles.configValueEmpty} onClick={onNavigateToManage}>
+                      <FolderOpenRegular fontSize={12} />
+                      {t.export.config.noOutputDir}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 导出按钮 */}
+            <div className={styles.actionSection}>
+              {serverOnline === false ? (
+                <div style={{
+                  padding: '10px 12px',
+                  fontSize: '11px',
+                  lineHeight: '1.6',
+                  backgroundColor: gdsTokens.warning.bg,
+                  borderRadius: '8px',
+                  border: `1px solid ${gdsTokens.warning.border}`,
+                  color: gdsTokens.warning.text,
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <WarningRegular fontSize={14} />
+                    文件服务未启动
+                  </div>
+                  <div>Windows：重启电脑或运行开始菜单中的 GameData Studio Server</div>
+                  <div>Mac：终端执行 <code style={{ fontSize: '10px', backgroundColor: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: '2px' }}>python3 ~/.gamedata-studio/file-server.py &</code></div>
+                  <Button size="small" appearance="primary" icon={<ArrowSyncRegular />} style={{ marginTop: '6px' }} onClick={() => { setServerOnline(null); setTimeout(() => { fetch('https://localhost:9876/api/read-file?directory=.&fileName=_probe').then(() => setServerOnline(true)).catch(() => setServerOnline(false)); }, 500); }}>
+                    重新检测
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className={styles.actionRow}>
+                    <Button
+                      className={styles.exportBtn}
+                      icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : isCyber ? <SendRegular /> : isPixel ? <FlagCheckeredRegular /> : <ArrowExportRegular />}
+                      appearance="primary"
+                      onClick={handleExport}
+                      disabled={isExporting || !outputDir}
+                      size="large"
+                    >
+                      {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
+                    </Button>
+                  </div>
+
+                  {isExporting && progress && (
+                    <div className={styles.progressArea}>
+                      <ProgressBar value={progressValue} />
+                      <Text className={styles.progressText}>
+                        [{progress.step}/{progress.totalSteps}] {progress.message}
+                      </Text>
+                    </div>
+                  )}
                 </>
               )}
-              {exportResult.success && exportResult.changedTables > 0 && !exportResult.gitPushed && !gitPushDone && (
-                <Button
-                  className={styles.dismissBtn}
-                  appearance="transparent"
-                  size="small"
-                  icon={<ArrowUploadRegular fontSize={14} />}
-                  onClick={handleManualGitPush}
-                  disabled={gitPushing}
-                  title="上传到 Git"
-                />
-              )}
-              {gitPushDone && (
-                <span style={{ fontSize: '10px', color: gdsTokens.success.text, marginLeft: 'auto' }}>已上传</span>
-              )}
-              <Button
-                className={styles.dismissBtn}
-                appearance="transparent"
-                size="small"
-                icon={<DismissRegular fontSize={18} />}
-                onClick={onClearResult}
-              />
-            </div>
-            <div className={styles.resultStats}>
-              {exportResult.changedTables > 0 && (
-                <span className={`${styles.statItem} ${styles.statFiles}`}>
-                  {t.export.statFiles(exportResult.changedTables)}
-                </span>
-              )}
-              {warnings.length > 0 && (
-                <span className={`${styles.statItem} ${styles.statWarnings}`}>
-                  {t.export.statWarnings(warnings.length)}
-                </span>
-              )}
-              {errors.length > 0 && (
-                <span className={`${styles.statItem} ${styles.statErrors}`}>
-                  {t.export.statErrors(errors.length)}
-                </span>
-              )}
-              {errors.length === 0 && (
-                <span className={`${styles.statItem} ${styles.statErrors}`} style={{ color: gdsTokens.success.text }}>
-                  {t.export.statErrors(0)}
-                </span>
-              )}
-            </div>
-          </div>
-        ) : serverOnline === false ? (
-          <div style={{
-            padding: '10px 12px',
-            fontSize: '11px',
-            lineHeight: '1.6',
-            backgroundColor: gdsTokens.warning.bg,
-            borderRadius: '8px',
-            border: `1px solid ${gdsTokens.warning.border}`,
-            color: gdsTokens.warning.text,
-          }}>
-            <div style={{ fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <WarningRegular fontSize={14} />
-              文件服务未启动
-            </div>
-            <div>Windows：重启电脑或运行开始菜单中的 GameData Studio Server</div>
-            <div>Mac：终端执行 <code style={{ fontSize: '10px', backgroundColor: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: '2px' }}>python3 ~/.gamedata-studio/file-server.py &</code></div>
-            <Button size="small" appearance="primary" icon={<ArrowSyncRegular />} style={{ marginTop: '6px' }} onClick={() => { setServerOnline(null); setTimeout(() => { fetch('https://localhost:9876/api/read-file?directory=.&fileName=_probe').then(() => setServerOnline(true)).catch(() => setServerOnline(false)); }, 500); }}>
-              重新检测
-            </Button>
-          </div>
-        ) : (
-          <>
-            <div className={styles.actionRow}>
-              <Button
-                className={styles.exportBtn}
-                icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : isCyber ? <SendRegular /> : isPixel ? <FlagCheckeredRegular /> : <ArrowExportRegular />}
-                appearance="primary"
-                onClick={handleExport}
-                disabled={isExporting || !outputDir}
-                size="large"
-              >
-                {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
-              </Button>
             </div>
 
-            {isExporting && progress && (
-              <div className={styles.progressArea}>
-                <ProgressBar value={progressValue} />
-                <Text className={styles.progressText}>
-                  [{progress.step}/{progress.totalSteps}] {progress.message}
-                </Text>
-              </div>
-            )}
+            {/* 空闲动画 */}
+            <div className={styles.resultScrollArea}>
+              <IdleAnimation active={!isExporting && !exportResult} />
+            </div>
           </>
         )}
-      </div>
 
-      {/* 导出结果详情 / 空闲占位 — 可滚动区域 */}
-      <div className={styles.resultScrollArea}>
-        {exportResult && !isExporting ? (
-          <div className={`${styles.resultSection} ${styles.resultFadeIn}`}>
+        {subPage === 'result' && (
+          <ExportResultSubPage
+            config={config}
+            exportResult={exportResult}
+            isExporting={isExporting}
+            showCompletionAnim={showCompletionAnim}
+            outputDir={outputDir}
+            commitMessage={commitMessage}
+            onCommitMessageChange={setCommitMessage}
+            onGitPush={handleManualGitPush}
+            gitPushing={gitPushing}
+            gitPushDone={gitPushDone}
+            mode={mode}
+          />
+        )}
 
-            {/* 修改文件列表 */}
-            {exportResult.changedTables > 0 && (
-              <div className={styles.resultCard}>
-                <div className={styles.fileList}>
-                  {exportResult.modifiedFiles.filter(f => !f.startsWith('_')).map((file) => {
-                    const diff = exportResult.tableDiffs?.find(d => d.tableName + '.xlsx' === file);
-                    const rowDelta = diff ? diff.totalRows - diff.previousRows : 0;
-                    const hasDiffDetail = !!diff?.diffDetail;
-                    const isExpanded = expandedTable === file;
-                    return (
-                      <div key={file}>
-                        <div
-                          className={`${styles.fileItem} ${hasDiffDetail ? styles.fileItemClickable : ''}`}
-                          onClick={hasDiffDetail ? () => setExpandedTable(isExpanded ? null : file) : undefined}
-                        >
-                          {hasDiffDetail ? (
-                            isExpanded
-                              ? <ChevronDownRegular className={styles.chevron} fontSize={13} />
-                              : <ChevronRightRegular className={styles.chevron} fontSize={13} />
-                          ) : (
-                            <DocumentRegular className={styles.fileIcon} fontSize={13} />
-                          )}
-                          <div className={styles.fileNameGroup}>
-                            <span className={styles.filePath}>{file}</span>
-                            {diff && <span className={styles.chineseName}>{diff.chineseName}</span>}
-                          </div>
-                          {diff && (
-                            <span className={styles.diffInfo}>
-                              {diff.status === 'new' ? (
-                                <span className={styles.diffNewBadge}>{diff.totalRows} 行</span>
-                              ) : diff.previousRows > 0 ? (
-                                <>
-                                  {diff.previousRows} → {diff.totalRows} 行{' '}
-                                  {rowDelta !== 0 && (
-                                    <span className={rowDelta > 0 ? styles.diffPositive : styles.diffNegative}>
-                                      ({rowDelta > 0 ? '+' : ''}{rowDelta})
-                                    </span>
-                                  )}
-                                </>
-                              ) : (
-                                <>{diff.totalRows} 行</>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                        {isExpanded && diff?.diffDetail && (
-                          <DiffDetailPanel diffDetail={diff.diffDetail} />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 校验警告 */}
-            {warnings.length > 0 && (
-              <div className={styles.warningCard}>
-                <div className={styles.warningHeader}>
-                  <WarningRegular fontSize={16} />
-                  <span>[dataValidation] 共 {warnings.length} 处警告</span>
-                </div>
-                {warnings.slice(0, 10).map((w, i) => (
-                  <div key={i} className={styles.warningItem}>
-                    [{w.code}] {w.message}
-                    {w.tableName && ` (工作表: ${w.tableName})`}
-                    {w.location && (
-                      <Button
-                        className={styles.navigateLink}
-                        appearance="transparent"
-                        size="small"
-                        icon={<NavigationRegular fontSize={10} />}
-                        onClick={() => handleNavigate(w)}
-                      />
-                    )}
-                  </div>
-                ))}
-                {warnings.length > 10 && (
-                  <div className={styles.warningItem}>
-                    ...等共 {warnings.length} 处
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 错误 */}
-            {errors.length > 0 && (
-              <div className={styles.errorCard}>
-                <div className={styles.errorHeader}>
-                  <DismissCircleRegular fontSize={16} />
-                  <span>错误 ({errors.length})</span>
-                </div>
-                {errors.map((e, i) => (
-                  <div key={i} className={styles.errorItem}>
-                    [{e.code}] {e.message}
-                    {e.tableName && ` (工作表: ${e.tableName})`}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : !isExporting && (
-          <IdleAnimation active={!isExporting && !exportResult} />
+        {subPage === 'log' && (
+          <ExportLogSubPage outputDirectory={outputDir} />
         )}
       </div>
 
@@ -1019,19 +888,6 @@ export function ExportTab({
               }}>
                 {(devLogTab === 'key' ? logger.getKeyLogs() : logger.getLogs()).join('\n') || '（暂无日志）'}
               </pre>
-            </DialogContent>
-          </DialogBody>
-        </DialogSurface>
-      </Dialog>
-
-      {/* 提交历史对话框 */}
-      <Dialog open={historyOpen} onOpenChange={(_, data) => setHistoryOpen(data.open)}>
-        <DialogSurface style={{ maxWidth: '100%', width: '100%', margin: 0, borderRadius: 0, maxHeight: '100vh' }}>
-          <DialogBody style={{ padding: 0 }}>
-            <DialogContent style={{ padding: 0, overflow: 'auto', maxHeight: '80vh' }}>
-              {historyOpen && outputDir && (
-                <CommitHistoryPanel outputDirectory={outputDir} />
-              )}
             </DialogContent>
           </DialogBody>
         </DialogSurface>

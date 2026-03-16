@@ -13,6 +13,7 @@ export interface ThemeTextMap {
 
   // --- ExportTab ---
   export: {
+    subNav: readonly [string, string, string];
     sectionTitle: string;
     exportBtn: string;
     exportingBtn: string;

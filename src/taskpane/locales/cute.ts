@@ -17,6 +17,7 @@ export const cuteText: ThemeTextMap = {
   tabPreview: '冒险',
 
   export: {
+    subNav: ['出发', '成果', '日记'] as const,
     sectionTitle: '冒险准备',
     exportBtn: '出发吧~',
     exportingBtn: '出发中...',

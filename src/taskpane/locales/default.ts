@@ -8,6 +8,7 @@ export const defaultText: ThemeTextMap = {
   tabPreview: '预览',
 
   export: {
+    subNav: ['导出', '结果', '日志'] as const,
     sectionTitle: 'Export Settings',
     exportBtn: '开始导出',
     exportingBtn: '导出中...',

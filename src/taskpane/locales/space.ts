@@ -17,6 +17,7 @@ export const spaceText: ThemeTextMap = {
   tabPreview: '试飞',
 
   export: {
+    subNav: ['发射', '报告', '日志'] as const,
     sectionTitle: '发射准备',
     exportBtn: '发射！',
     exportingBtn: '发射中...',
