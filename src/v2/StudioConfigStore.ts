@@ -31,8 +31,6 @@ export interface StudioConfigData {
   gitCommitTemplate: string;
   /** 功能开关 */
   switches: Record<string, boolean>;
-  /** 输出控制（表名对照） */
-  tables: TableInfo[];
 
   /**
    * 数据表工作表格式说明（纯文档，不参与业务逻辑）
@@ -150,7 +148,6 @@ export function createDefaultConfig(): StudioConfigData {
     staff: [{ id: 1, name: '默认用户', code: 'default', machineCode: '' }],
     gitCommitTemplate: 'update: v{version} data export',
     switches: { '自动弹出路径': false },
-    tables: [],
     tableSchema: createTableSchema(),
     validationConfig: createDefaultValidationConfig(),
   };
@@ -473,16 +470,6 @@ export class StudioConfigStore {
     const sheet = context.workbook.worksheets.add(SHEET_CONFIG);
     const configData = data ?? createDefaultConfig();
 
-    // 默认注册 配置表 GameConfig
-    if (configData.tables.length === 0) {
-      configData.tables.push({
-        chineseName: '配置表',
-        englishName: 'GameConfig',
-        shouldOutput: true,
-        versionRange: '1.0',
-      });
-    }
-
     sheet.getRange('A1').values = [[JSON.stringify(configData)]];
     // 表可见，供网页端用户查看协同导出区域
     sheet.visibility = Excel.SheetVisibility.visible;
@@ -620,31 +607,9 @@ export class StudioConfigStore {
     const outputHeader = sheet.getRangeByIndexes(0, 3, 1, 1);
     outputHeader.format.fill.color = '#FFA500';
 
-    // 写入已注册的表数据（无背景色）
-    if (configData.tables.length > 0) {
-      const rows = configData.tables.map(t => [t.versionRange, t.chineseName, t.englishName, t.shouldOutput]);
-      sheet.getRangeByIndexes(1, 0, rows.length, 4).values = rows;
-
-      // 为功能表名列添加超链接（跳转到对应工作表），只加超链接不改文本和格式
-      const nameColRange = sheet.getRangeByIndexes(1, 1, configData.tables.length, 1);
-      nameColRange.load('values');
-      nameColRange.format.font.load('color, underline');
-      await context.sync();
-
-      for (let i = 0; i < configData.tables.length; i++) {
-        const name = configData.tables[i].chineseName;
-        const cellRange = sheet.getRangeByIndexes(1 + i, 1, 1, 1);
-        const origColor = nameColRange.format.font.color;
-        const origUnderline = nameColRange.format.font.underline;
-        cellRange.hyperlink = {
-          documentReference: `'${name}'!A1`,
-          textToDisplay: String(nameColRange.values[i][0]),
-          screenTip: `跳转到「${name}」`,
-        };
-        cellRange.format.font.color = origColor;
-        cellRange.format.font.underline = origUnderline;
-      }
-    }
+    // 写入默认表（GameConfig）
+    const defaultTables = [['1.0', '配置表', 'GameConfig', true]];
+    sheet.getRangeByIndexes(1, 0, defaultTables.length, 4).values = defaultTables;
 
     // 列宽
     sheet.getRangeByIndexes(0, 0, 1, 1).format.columnWidth = 100;

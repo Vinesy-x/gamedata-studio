@@ -88,8 +88,6 @@ export class TableRegistry {
       hyperlinkCell.format.font.color = origColor;
       hyperlinkCell.format.font.underline = origUnderline;
 
-      // 同步到 StudioConfig JSON
-      await this.syncToStudioConfig(context);
       logger.info(`已注册表「${info.chineseName}」→「${info.englishName}」`);
     });
   }
@@ -115,7 +113,6 @@ export class TableRegistry {
           updates.shouldOutput ?? snap.values[r]?.[pos.col + 3] ?? null,
         ];
         await excelHelper.writeValues(context, LEGACY_MAPPING, r + snap.startRow, pos.col + snap.startCol, [newRow]);
-        await this.syncToStudioConfig(context);
         logger.info(`已更新表「${chineseName}」的注册信息`);
         return;
       }
@@ -147,9 +144,6 @@ export class TableRegistry {
       }
       if (!found) throw new Error(`未找到已注册的表「${chineseName}」`);
 
-      // 同步到 StudioConfig JSON
-      await this.syncToStudioConfig(context);
-
       // 删除实际工作表
       if (deleteSheet) {
         const ws = context.workbook.worksheets.getItemOrNullObject(chineseName);
@@ -180,20 +174,6 @@ export class TableRegistry {
     });
   }
 
-  /**
-   * 将表名对照的数据同步到 StudioConfig JSON
-   */
-  private async syncToStudioConfig(context: Excel.RequestContext): Promise<void> {
-    const snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
-    if (!snap) return;
-
-    const tables = this.parseLegacyTableList(snap.values);
-    const tableArray = Array.from(tables.values());
-
-    await StudioConfigStore.update(context, (data) => {
-      data.tables = tableArray;
-    });
-  }
 
   /**
    * 创建表名对照工作表

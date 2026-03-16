@@ -126,16 +126,7 @@ export class TemplateFactory {
         if (key) data.switches[key] = val;
       }
 
-      // ── 输出控制 ──
-      const tableRows = this.readBlockData(mappingData, '#输出控制#', 4);
-      if (tableRows.length > 0) {
-        data.tables = tableRows.map(r => ({
-          versionRange: String(r[0] ?? '').trim(),
-          chineseName: String(r[1] ?? '').trim(),
-          englishName: String(r[2] ?? '').trim(),
-          shouldOutput: String(r[3] ?? '').trim().toLowerCase() === 'true',
-        })).filter(t => t.chineseName && t.englishName);
-      }
+      // ── 输出控制 —— tables 不再存入 JSON，表名对照是单一数据源 ──
 
       await StudioConfigStore.create(context, data);
       logger.info('migrateFromLegacy: 迁移完成 (JSON 格式)');

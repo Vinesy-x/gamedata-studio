@@ -94,21 +94,13 @@ export class ConfigLoader {
         .replace('{0}', versionStr).replace('{1}', outputSettings.versionName);
     }
 
-    // 表列表（优先从表名对照读取，保证与工作表实时同步）
+    // 表列表（从表名对照读取，单一数据源）
     const tablesToProcess = new Map<string, TableInfo>();
     if (mappingValues) {
       const tables = this.parseTableList(mappingValues);
       if (tables) {
         for (const [name, info] of tables) {
           tablesToProcess.set(name, info);
-        }
-      }
-    }
-    // 回退到 JSON 中的表列表
-    if (tablesToProcess.size === 0) {
-      for (const t of data.tables) {
-        if (t.chineseName && t.englishName) {
-          tablesToProcess.set(t.chineseName, { ...t });
         }
       }
     }
