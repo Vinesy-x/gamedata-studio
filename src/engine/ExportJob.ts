@@ -15,6 +15,7 @@ import { StudioConfigStore } from '../v2/StudioConfigStore';
 import { GitHandler } from '../git/GitHandler';
 import { GitExecutor } from '../git/GitExecutor';
 import { computeTableDiff } from './DiffComputer';
+import { clientSettings } from '../utils/ClientSettings';
 
 const MANIFEST_FILE = '_manifest.json';
 
@@ -214,7 +215,7 @@ export class ExportJob {
 
       // ── 阶段A2：并行读取旧文件计算 diff（仅在开启详细差异对比时执行）
       const t4b = Date.now();
-      const diffTasks = config.detailedDiff ? pendingWrites.filter(pw => !pw.isNew) : [];
+      const diffTasks = clientSettings.get('detailedDiff') ? pendingWrites.filter(pw => !pw.isNew) : [];
       if (diffTasks.length > 0) {
         const diffResults = await Promise.allSettled(
           diffTasks.map(async (pw) => {
@@ -316,7 +317,7 @@ export class ExportJob {
       // 自动 Git Push（仅在开关打开时执行）
       let gitPushed = false;
       this.emitProgress(totalSteps - 1, totalSteps, '正在上传到仓库...');
-      if (changedTables > 0 && config.autoGitPush && gitExecutor && gitHandler) {
+      if (changedTables > 0 && clientSettings.get('autoGitPush') && gitExecutor && gitHandler) {
         const commitMessage = gitHandler.generateCommitMessage(
           config.gitCommitTemplate,
           config.outputSettings.versionName,

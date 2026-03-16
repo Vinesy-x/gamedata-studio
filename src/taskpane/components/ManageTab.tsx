@@ -1,6 +1,7 @@
 /* global Excel */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useReducer } from 'react';
+import { clientSettings } from '../../utils/ClientSettings';
 import {
   makeStyles,
   tokens,
@@ -292,7 +293,7 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
   const [newVersionName, setNewVersionName] = useState('');
   const [newVersionGitDir, setNewVersionGitDir] = useState('');
   const [syncing, setSyncing] = useState(false);
-  const [studioConfigVisible, setStudioConfigVisible] = useState(false);
+  const [, forceUpdate] = useReducer(x => x + 1, 0);
 
   // Git 目录行内编辑
   const [editingGitDir, setEditingGitDir] = useState<string | null>(null);
@@ -458,9 +459,6 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
     <>
       <div className={styles.sectionHeader}>
         <Text className={styles.sectionTitle}>{t.manage.sectionTitle}</Text>
-        <Button icon={<ArrowSyncRegular />} appearance="subtle" size="small" onClick={onReload}>
-          {'刷新'}
-        </Button>
       </div>
 
       {statusMsg && (
@@ -773,59 +771,22 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
             />
           </div>
           <div className={styles.switchRow}>
-            <Text style={{ fontSize: '11px' }}>自动弹出路径</Text>
-            <Switch
-              checked={config.showResourcePopup}
-              onChange={(_, d) => handleToggleSwitch('自动弹出路径', d.checked)}
-            />
-          </div>
-          <div className={styles.switchRow}>
             <Text style={{ fontSize: '11px' }}>自动上传Git</Text>
             <Switch
-              checked={config.autoGitPush}
-              onChange={(_, d) => handleToggleSwitch('自动上传Git', d.checked)}
+              checked={clientSettings.get('autoGitPush')}
+              onChange={(_, d) => { clientSettings.set('autoGitPush', d.checked); forceUpdate(); }}
             />
           </div>
           <div className={styles.switchRow}>
             <Text style={{ fontSize: '11px' }}>详细差异对比</Text>
             <Switch
-              checked={config.detailedDiff}
-              onChange={(_, d) => handleToggleSwitch('详细差异对比', d.checked)}
+              checked={clientSettings.get('detailedDiff')}
+              onChange={(_, d) => { clientSettings.set('detailedDiff', d.checked); forceUpdate(); }}
             />
           </div>
         </div>
       </div>
 
-      {/* StudioConfig 工具 */}
-      <div className={styles.section}>
-        <Text style={{ fontSize: '12px', fontWeight: 600 }}>StudioConfig</Text>
-        <div className={styles.card}>
-          <div className={styles.switchRow}>
-            <Text style={{ fontSize: '11px' }}>显示配置表</Text>
-            <Switch
-              checked={studioConfigVisible}
-              onChange={async (_, d) => {
-                try {
-                  await Excel.run(async (context) => {
-                    const sheet = context.workbook.worksheets.getItemOrNullObject(SHEET_CONFIG);
-                    sheet.load('isNullObject');
-                    await context.sync();
-                    if (!sheet.isNullObject) {
-                      sheet.visibility = d.checked
-                        ? Excel.SheetVisibility.visible
-                        : Excel.SheetVisibility.hidden;
-                      await context.sync();
-                    }
-                  });
-                  setStudioConfigVisible(d.checked);
-                } catch (err) {
-                  logger.error('切换 StudioConfig 可见性失败', err);
-                }
-              }}
-            />
-          </div>
-        </div>
-      </div>
     </>
   );
 }

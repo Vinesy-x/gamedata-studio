@@ -39,7 +39,4 @@ export interface Config {
   outputSettings: OutputSettings;
   gitCommitTemplate: string;
   staffCodes: Map<string, StaffInfo>;
-  showResourcePopup: boolean;
-  detailedDiff: boolean;
-  autoGitPush: boolean;
 }

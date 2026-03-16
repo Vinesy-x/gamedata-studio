@@ -111,11 +111,6 @@ export class ConfigLoader {
       if (s.name) staffCodes.set(s.name, { ...s });
     }
 
-    // 配置开关
-    const showResourcePopup = data.switches['自动弹出路径'] ?? false;
-    const detailedDiff = data.switches['详细差异对比'] ?? false;
-    const autoGitPush = data.switches['自动上传Git'] ?? true;
-
     logger.info('配置加载完成 (JSON 格式)');
     return {
       versionTemplates,
@@ -124,9 +119,6 @@ export class ConfigLoader {
       outputSettings,
       gitCommitTemplate: data.gitCommitTemplate || '',
       staffCodes,
-      showResourcePopup,
-      detailedDiff,
-      autoGitPush,
     };
   }
 
@@ -153,8 +145,6 @@ export class ConfigLoader {
     const outputSettings = this.parseOutputSettings(controlSnap.values);
     const tablesToProcess = this.parseTableList(mappingSnap.values);
     const gitCommitTemplate = this.parseGitCommitTemplate(settingsSnap.values);
-    const showResourcePopup = this.parseConfigSwitch(settingsSnap.values);
-
     if (!versionTemplates || !lineTemplates || !outputSettings || !tablesToProcess) {
       return null;
     }
@@ -176,7 +166,6 @@ export class ConfigLoader {
     return {
       versionTemplates, lineTemplates, tablesToProcess, outputSettings,
       gitCommitTemplate: gitCommitTemplate || '', staffCodes: staffCodes || new Map(),
-      showResourcePopup, detailedDiff: false, autoGitPush: true,
     };
   }
 
