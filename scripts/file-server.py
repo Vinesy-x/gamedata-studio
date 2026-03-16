@@ -26,7 +26,9 @@ WEB_DIR = os.path.join(DATA_DIR, 'web')
 VERSION_FILE = os.path.join(WEB_DIR, 'version.txt')
 
 GITHUB_PAGES = 'https://vinesy-x.github.io/gamedata-studio'
+GITHUB_RAW = 'https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main'
 REMOTE_VERSION_URL = f'{GITHUB_PAGES}/version.txt'
+SELF_PATH = os.path.abspath(__file__)
 
 # Files to download from GitHub Pages
 DIST_FILES = [
@@ -104,6 +106,20 @@ def check_and_update():
         print(f'  Updated to v{remote_version}')
     else:
         print('  Some files failed to download, will retry next time')
+
+    # Self-update: download latest file-server.py from GitHub
+    self_update_url = f'{GITHUB_RAW}/scripts/file-server.py'
+    new_script = fetch_url(self_update_url)
+    if new_script:
+        try:
+            current = open(SELF_PATH, 'rb').read()
+            if new_script != current:
+                with open(SELF_PATH, 'wb') as f:
+                    f.write(new_script)
+                print('  file-server.py updated, restart to apply')
+        except Exception as e:
+            print(f'  Warning: self-update failed: {e}')
+
     return True
 
 
