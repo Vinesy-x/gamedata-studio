@@ -1,5 +1,6 @@
 # GameData Studio - Local File Server (Windows)
 # Usage: Double-click start-file-server.bat
+param([switch]$Restarted)
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
@@ -82,29 +83,33 @@ function Update-WebFiles {
     return $true
 }
 
-# Self-update: download latest file-server.ps1 from GitHub
+# Self-update: download latest file-server.ps1 from GitHub, auto-restart if updated
 function Update-Self {
-    $selfPath = $MyInvocation.ScriptName
-    if (-not $selfPath) { $selfPath = $PSCommandPath }
-    if (-not $selfPath) { return }
+    $selfPath = $PSCommandPath
+    if (-not $selfPath) { return $false }
     $url = "https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/scripts/file-server.ps1"
     try {
         $newContent = (Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10).Content
         $currentContent = Get-Content -Path $selfPath -Raw -ErrorAction SilentlyContinue
         if ($newContent -and $newContent -ne $currentContent) {
             Set-Content -Path $selfPath -Value $newContent -NoNewline -Encoding UTF8
-            Write-Host "  file-server.ps1 updated, restart to apply"
+            Write-Log "file-server.ps1 updated, restarting..."
+            return $true
         }
     } catch {
-        Write-Host "  Warning: self-update failed: $($_.Exception.Message)"
+        Write-Log "Warning: self-update failed: $($_.Exception.Message)"
     }
+    return $false
 }
 
 # Check and update
 Write-Log "GameData Studio File Server starting..."
 Write-Log "Data dir: $dataDir"
 Write-Log "Web dir: $webDir"
-Update-Self
+if (-not $Restarted -and (Update-Self)) {
+    Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$PSCommandPath`" -Restarted" -WindowStyle Normal
+    exit
+}
 if (-not (Update-WebFiles)) {
     Write-Log "ERROR: Update-WebFiles failed, exiting"
     exit 1
