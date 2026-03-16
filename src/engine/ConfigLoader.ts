@@ -46,8 +46,20 @@ export class ConfigLoader {
       if (jsonData) {
         // 表列表始终从表名对照读取（单一数据源）
         const snap = await excelHelper.loadSheetSnapshot(context, '表名对照');
-        const collabConfig = await StudioConfigStore.readCollabConfig(context);
-        return this.buildConfigFromJson(jsonData, snap?.values, collabConfig?.operator);
+        // 直接从 StudioConfig B7 读取操作人（row 6, col 1）
+        let operator = '';
+        try {
+          const cfgSheet = context.workbook.worksheets.getItemOrNullObject(SHEET_CONFIG);
+          cfgSheet.load('isNullObject');
+          await context.sync();
+          if (!cfgSheet.isNullObject) {
+            const cell = cfgSheet.getRangeByIndexes(6, 1, 1, 1);
+            cell.load('values');
+            await context.sync();
+            operator = String(cell.values[0][0] ?? '').trim();
+          }
+        } catch { /* ignore */ }
+        return this.buildConfigFromJson(jsonData, snap?.values, operator);
       }
 
       // 4. 最终回退：旧格式三表
