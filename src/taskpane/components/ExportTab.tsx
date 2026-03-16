@@ -980,35 +980,40 @@ export function ExportTab({
         </DialogSurface>
       </Dialog>
 
-      {/* 开发者日志对话框 */}
+      {/* 开发者工具对话框 */}
       <Dialog open={devLogOpen} onOpenChange={(_, data) => setDevLogOpen(data.open)}>
         <DialogSurface style={{ maxWidth: '100%', width: '100%', margin: 0, borderRadius: 0, maxHeight: '100vh' }}>
-          <DialogBody style={{ padding: 0 }}>
-            <DialogContent style={{ padding: '12px', overflow: 'auto', maxHeight: '80vh' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <Button size="small" appearance={devLogTab === 'key' ? 'primary' : 'subtle'} onClick={() => setDevLogTab('key')}>关键进度</Button>
-                  <Button size="small" appearance={devLogTab === 'all' ? 'primary' : 'subtle'} onClick={() => setDevLogTab('all')}>全部日志</Button>
-                </div>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <Button size="small" appearance="outline" onClick={async () => {
-                    for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
-                      try { await fetch(`${base}/api/restart`); logger.info('文件服务重启请求已发送'); return; } catch { /* try next */ }
-                    }
-                    logger.warn('文件服务不可用，无法重启');
-                  }}>重启文件服务</Button>
-                  <Button size="small" appearance="outline" onClick={() => { logger.clear(); setDevLogOpen(false); setTimeout(() => setDevLogOpen(true), 0); }}>清空</Button>
-                  <Button size="small" appearance="outline" onClick={() => { localStorage.removeItem('gds-theme'); localStorage.removeItem('gds-player-stats'); window.location.reload(); }}>重置主题</Button>
-                </div>
+          <DialogBody style={{ padding: 0, display: 'flex', flexDirection: 'column', maxHeight: '85vh' }}>
+            {/* 固定工具栏 */}
+            <div style={{ padding: '10px 12px 0', flexShrink: 0 }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>开发者工具</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
+                <Button size="small" appearance="outline" onClick={async () => {
+                  for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
+                    try { await fetch(`${base}/api/restart`); logger.info('文件服务重启请求已发送'); return; } catch { /* try next */ }
+                  }
+                  logger.warn('文件服务不可用，无法重启');
+                }}>重启文件服务</Button>
+                <Button size="small" appearance="outline" onClick={() => { localStorage.removeItem('gds-theme'); localStorage.removeItem('gds-player-stats'); window.location.reload(); }}>重置主题</Button>
               </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${tokens.colorNeutralStroke2}`, paddingTop: '8px' }}>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <Button size="small" appearance={devLogTab === 'key' ? 'primary' : 'subtle'} onClick={() => setDevLogTab('key')}>关键</Button>
+                  <Button size="small" appearance={devLogTab === 'all' ? 'primary' : 'subtle'} onClick={() => setDevLogTab('all')}>全部</Button>
+                </div>
+                <Button size="small" appearance="subtle" onClick={() => { logger.clear(); setDevLogOpen(false); setTimeout(() => setDevLogOpen(true), 0); }}>清空</Button>
+              </div>
+            </div>
+            {/* 可滚动日志区 */}
+            <DialogContent style={{ padding: '8px 12px 12px', overflow: 'auto', flex: 1 }}>
               <pre style={{
-                fontSize: '11px',
+                fontSize: '10px',
                 fontFamily: '"Cascadia Code", "Fira Code", Consolas, monospace',
                 lineHeight: '1.5',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-all',
                 margin: 0,
-                color: tokens.colorNeutralForeground1,
+                color: tokens.colorNeutralForeground2,
               }}>
                 {(devLogTab === 'key' ? logger.getKeyLogs() : logger.getLogs()).join('\n') || '（暂无日志）'}
               </pre>
