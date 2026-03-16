@@ -92,7 +92,7 @@ const useStyles = makeStyles({
   configRow: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: '8px',
     fontSize: '12px',
   },
   configLabel: {
