@@ -270,13 +270,16 @@ export class ExportJob {
           if (results[j].status === 'rejected') {
             const err = (results[j] as PromiseRejectedResult).reason;
             const pw = batch[j];
-            const errDetail = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+            const errMsg = err instanceof Error ? err.message : String(err);
+            const hint = /permission|denied|EBUSY|locked/i.test(errMsg)
+              ? '（文件可能被 Excel 或其他程序占用，请关闭后重试）'
+              : '';
             logger.error(`写入表「${pw.chineseName}」失败`, err);
             this.errorHandler.logError({
               code: ErrorCode.FILE_WRITE_FAILED,
               severity: 'warning',
               tableName: pw.chineseName,
-              message: `写入表「${pw.chineseName}」失败: ${errDetail}`,
+              message: `写入「${pw.englishName}.xlsx」失败: ${errMsg}${hint}`,
               procedure: 'ExportJob.writeTable',
             });
           }
