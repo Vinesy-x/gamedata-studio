@@ -19,7 +19,7 @@ fi
 npx webpack --mode production
 
 # Publish to gh-pages
-npx gh-pages -d dist --dest . --add -m "Release v$VERSION"
+npx gh-pages -d dist --dest . -m "Release v$VERSION"
 
 # Commit version bump and push
 git add package.json package-lock.json installer/setup.iss
