@@ -226,12 +226,14 @@ while ($listener.IsListening) {
         try {
             $psi = New-Object System.Diagnostics.ProcessStartInfo
             $psi.FileName = "cmd.exe"
-            $psi.Arguments = "/c $scriptText"
+            $psi.Arguments = "/c chcp 65001 >nul && $scriptText"
             $psi.WorkingDirectory = $dir
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError = $true
             $psi.UseShellExecute = $false
             $psi.CreateNoWindow = $true
+            $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+            $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
             $proc = [System.Diagnostics.Process]::Start($psi)
             $stdout = $proc.StandardOutput.ReadToEnd()
             $stderr = $proc.StandardError.ReadToEnd()
@@ -239,16 +241,19 @@ while ($listener.IsListening) {
             $exitCode = $proc.ExitCode
             Write-Log "[git-push] exitCode=$exitCode"
 
+            # Build JSON safely (avoid ConvertTo-Json issues with empty strings)
+            $safeOut = ($stdout -replace '\\', '\\\\' -replace '"', '\"' -replace "`r`n", '\n' -replace "`n", '\n').Trim()
+            $safeErr = ($stderr -replace '\\', '\\\\' -replace '"', '\"' -replace "`r`n", '\n' -replace "`n", '\n').Trim()
             if ($exitCode -eq 0) {
-                $body = "{`"ok`":true,`"output`":$(($stdout | ConvertTo-Json)),`"exitCode`":0}"
+                $body = "{`"ok`":true,`"output`":`"$safeOut`",`"exitCode`":0}"
             } else {
-                $body = "{`"ok`":false,`"output`":$(($stdout | ConvertTo-Json)),`"error`":$(($stderr | ConvertTo-Json)),`"exitCode`":$exitCode}"
+                $body = "{`"ok`":false,`"output`":`"$safeOut`",`"error`":`"$safeErr`",`"exitCode`":$exitCode}"
             }
             $msg = [System.Text.Encoding]::UTF8.GetBytes($body)
             $res.OutputStream.Write($msg, 0, $msg.Length)
         } catch {
+            $errMsg = $_.Exception.Message -replace '\\', '\\\\' -replace '"', '\"'
             $res.StatusCode = 500
-            $errMsg = $_.Exception.Message -replace '"', '\"'
             $msg = [System.Text.Encoding]::UTF8.GetBytes("{`"error`":`"$errMsg`"}")
             $res.OutputStream.Write($msg, 0, $msg.Length)
         }
