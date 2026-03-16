@@ -84,70 +84,61 @@ export class DataLoader {
     const totalRows = allValues.length;
     const totalCols = allValues[0]?.length || 0;
 
-    // 定位关键标记（同时检测重复）
+    // 定位关键标记（找到即停，重复检测交给校验引擎）
     let versionRRow = -1;
     let configAreaCol = -1;
     let versionCRow = -1;
     let versionCCol = -1;
 
-    // 单次遍历收集所有标记位置
-    const markers: { name: string; row: number; col: number }[] = [];
+    // 查找 version_r（在任意列，但通常在A列）
     for (let r = 0; r < totalRows; r++) {
       for (let c = 0; c < totalCols; c++) {
         const val = String(allValues[r][c] ?? '').trim();
-        if (val === 'version_r' || val === 'version_c' || val === '#配置区域#') {
-          markers.push({ name: val, row: r, col: c });
+        if (val === 'version_r') {
+          versionRRow = r;
+          break;
+        }
+      }
+      if (versionRRow >= 0) break;
+    }
+
+    if (versionRRow === -1) {
+      logger.info(`工作表「${chineseName}」找不到 version_r 标记，默认包含所有行`);
+    }
+
+    // 查找 #配置区域#（在 version_r 所在行扫描，仅当 version_r 存在时）
+    if (versionRRow >= 0) {
+      for (let c = 0; c < totalCols; c++) {
+        const val = String(allValues[versionRRow][c] ?? '').trim();
+        if (val === '#配置区域#') {
+          configAreaCol = c;
+          break;
         }
       }
     }
 
-    // 检测重复标记
-    const markerCounts = new Map<string, typeof markers>();
-    for (const m of markers) {
-      const list = markerCounts.get(m.name) || [];
-      list.push(m);
-      markerCounts.set(m.name, list);
-    }
-    const duplicateErrorMap: Record<string, number> = {
-      'version_r': ErrorCode.DUPLICATE_VERSION_R,
-      'version_c': ErrorCode.DUPLICATE_VERSION_C,
-      '#配置区域#': ErrorCode.DUPLICATE_CONFIG_AREA,
-    };
-    for (const [name, locs] of markerCounts) {
-      if (locs.length > 1) {
-        const positions = locs.map(l => `(${l.row + 1},${l.col + 1})`).join('、');
-        this.errorHandler.log(
-          duplicateErrorMap[name], 'warning', chineseName,
-          `工作表「${chineseName}」发现 ${locs.length} 个「${name}」标记，位于 ${positions}，将使用第一个`,
-          'DataLoader.parseTableData'
-        );
-      }
-    }
-
-    // 取第一个匹配
-    const versionRMarker = markers.find(m => m.name === 'version_r');
-    if (versionRMarker) {
-      versionRRow = versionRMarker.row;
-    } else {
-      logger.info(`工作表「${chineseName}」找不到 version_r 标记，默认包含所有行`);
-    }
-
-    // #配置区域# 必须在 version_r 同行
-    const configAreaMarkers = markers.filter(m => m.name === '#配置区域#' && m.row === versionRRow);
-    if (configAreaMarkers.length > 0) {
-      configAreaCol = configAreaMarkers[0].col;
-    } else if (versionRRow >= 0) {
+    if (configAreaCol === -1) {
       logger.info(`工作表「${chineseName}」找不到 #配置区域# 标记，默认使用整个工作表范围`);
     }
 
-    // version_c 必须在 version_r 之前
+    // 查找 version_c（在 version_r 之前的行中查找，仅当 version_r 存在时）
     let hasVersionCol = false;
-    const versionCMarker = markers.find(m => m.name === 'version_c' && (versionRRow < 0 || m.row < versionRRow));
-    if (versionCMarker) {
-      versionCRow = versionCMarker.row;
-      versionCCol = versionCMarker.col;
-      hasVersionCol = true;
-    } else if (versionRRow >= 0) {
+    if (versionRRow > 0) {
+      for (let r = 0; r < versionRRow; r++) {
+        for (let c = 0; c < totalCols; c++) {
+          const val = String(allValues[r][c] ?? '').trim();
+          if (val === 'version_c') {
+            versionCRow = r;
+            versionCCol = c;
+            hasVersionCol = true;
+            break;
+          }
+        }
+        if (hasVersionCol) break;
+      }
+    }
+
+    if (versionRRow >= 0 && !hasVersionCol) {
       logger.info(`工作表「${chineseName}」找不到 version_c 标记，默认包含所有列`);
     }
 

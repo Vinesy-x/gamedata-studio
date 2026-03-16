@@ -58,6 +58,7 @@ export class ValidationEngine {
       tableResults.push(...this.validateVersionFormat(tableName, data));
       tableResults.push(...this.validateVersionCoverageAndOrder(tableName, data));
       tableResults.push(...this.validateRoadsConsistency(tableName, data));
+      if (data.markerWarnings) tableResults.push(...data.markerWarnings);
       for (let i = 0; i < tableResults.length; i++) results.push(tableResults[i]);
     }
 
@@ -616,6 +617,32 @@ export class ValidationEngine {
     // 定位 version_c（可选，在 version_r 上方）
     const versionCPos = excelHelper.findMarkerInData(allValues, 'version_c');
 
+    // 检测重复标记
+    const markerWarnings: ValidationResult[] = [];
+    const markerTargets = ['version_r', 'version_c', '#配置区域#'];
+    const markerLocs = new Map<string, { row: number; col: number }[]>();
+    for (const t of markerTargets) markerLocs.set(t, []);
+    for (let r = 0; r < allValues.length; r++) {
+      for (let c = 0; c < allValues[r].length; c++) {
+        const val = String(allValues[r][c] ?? '').trim();
+        if (markerLocs.has(val)) {
+          markerLocs.get(val)!.push({ row: r, col: c });
+        }
+      }
+    }
+    for (const [marker, locs] of markerLocs) {
+      if (locs.length > 1) {
+        const positions = locs.map(l => `(${l.row + 1 + startRow},${l.col + 1 + startCol})`).join('、');
+        markerWarnings.push({
+          tableName,
+          severity: 'warning',
+          ruleName: '重复标记',
+          message: `发现 ${locs.length} 个「${marker}」标记，位于 ${positions}`,
+          location: { sheetName: tableName, row: locs[1].row + 1 + startRow, column: locs[1].col + 1 + startCol },
+        });
+      }
+    }
+
     // version_r 所在行号（1-indexed，用于结果定位）
     const versionRowStart = versionRRow + 1 + startRow;
     // 数据列起始（1-indexed）
@@ -716,6 +743,8 @@ export class ValidationEngine {
       dataValues,
       versionCValues,
       versionCRowStart,
+      markerWarnings: markerWarnings.length > 0 ? markerWarnings : undefined,
     };
   }
+
 }

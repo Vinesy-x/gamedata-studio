@@ -12,6 +12,7 @@ export type ValidationRuleName =
   | '必填字段'
   | 'Roads一致性'
   | '版本区间分隔符'
+  | '重复标记'
   | '结果截断';
 
 /** 校验规则配置 */
@@ -65,4 +66,6 @@ export interface TableValidationData {
   versionCValues?: string[];
   /** version_c 所在行号（1-indexed，仅在有 version_c 时存在） */
   versionCRowStart?: number;
+  /** 解析阶段发现的重复标记警告 */
+  markerWarnings?: ValidationResult[];
 }
