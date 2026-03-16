@@ -138,6 +138,16 @@ class FileHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        # API: server info (returns DATA_DIR for self-update)
+        if path == '/api/server-info':
+            body = json.dumps({"dataDir": DATA_DIR, "selfPath": SELF_PATH})
+            self.send_response(200)
+            self._cors()
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(body.encode())
+            return
+
         # API: read file
         if path == '/api/read-file':
             self._handle_read(parsed)
