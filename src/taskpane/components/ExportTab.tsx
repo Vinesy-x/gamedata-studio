@@ -588,7 +588,20 @@ export function ExportTab({
     setGitPushing(true);
     try {
       const gitHandler = new GitHandler(outputDir);
-      const gitExecutor = new GitExecutor('https://localhost:9876');
+      // 检测可用的 file-server 地址
+      let serverBase = '';
+      for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
+        try {
+          const resp = await fetch(`${base}/api/read-file?directory=.&fileName=_probe`);
+          if (resp.ok || resp.status === 404) { serverBase = base; break; }
+        } catch { /* try next */ }
+      }
+      if (!serverBase) {
+        logger.error('手动 Git 推送失败: 文件服务不可用');
+        setGitPushing(false);
+        return;
+      }
+      const gitExecutor = new GitExecutor(serverBase);
       const result = await gitExecutor.execute(outputDir, gitHandler.generatePushCommands(exportResult.modifiedFiles, commitMessage, config.operator));
       if (result.ok) {
         setGitPushDone(true);
