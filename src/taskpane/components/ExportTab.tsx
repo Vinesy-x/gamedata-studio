@@ -183,8 +183,9 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
   },
   dismissBtn: {
-    minWidth: 'auto',
-    padding: '2px',
+    minWidth: '28px',
+    minHeight: '28px',
+    padding: '4px',
     marginLeft: 'auto',
     color: tokens.colorNeutralForeground3,
     ':hover': {
@@ -746,7 +747,7 @@ export function ExportTab({
                 className={styles.dismissBtn}
                 appearance="transparent"
                 size="small"
-                icon={<DismissRegular fontSize={14} />}
+                icon={<DismissRegular fontSize={18} />}
                 onClick={onClearResult}
               />
             </div>
