@@ -47,7 +47,7 @@ export class ConfigManager {
       const r = await this.loadLegacySnap(context, '#版本列表#', LEGACY_SETTINGS);
       if (!r) { logger.error('addVersion: 找不到 #版本列表#'); return; }
       const pos = excelHelper.findMarkerInData(r.snap.values, '#版本列表#')!;
-      const rows = excelHelper.readBlockBelow(r.snap.values, pos.row, pos.col, 4);
+      const rows = excelHelper.readBlockBelow(r.snap.values, pos.row, pos.col, 3);
       const absRow = pos.row + 1 + rows.length + r.snap.startRow;
       const absCol = pos.col + r.snap.startCol;
       const sheet = context.workbook.worksheets.getItem(r.sheetName);
@@ -72,7 +72,7 @@ export class ConfigManager {
       const r = await this.loadLegacySnap(context, '#版本列表#', LEGACY_SETTINGS);
       if (!r) { logger.error('updateVersion: 找不到 #版本列表#'); return; }
       const pos = excelHelper.findMarkerInData(r.snap.values, '#版本列表#')!;
-      const rows = excelHelper.readBlockBelow(r.snap.values, pos.row, pos.col, 4);
+      const rows = excelHelper.readBlockBelow(r.snap.values, pos.row, pos.col, 3);
       const idx = rows.findIndex(row => String(row[0] ?? '').trim() === oldName);
       if (idx === -1) { logger.warn(`updateVersion: 未找到「${oldName}」`); return; }
       const absRow = pos.row + 1 + idx + r.snap.startRow;
@@ -102,7 +102,7 @@ export class ConfigManager {
       const r = await this.loadLegacySnap(context, '#版本列表#', LEGACY_SETTINGS);
       if (!r) { logger.error('deleteVersion: 找不到 #版本列表#'); return; }
       const pos = excelHelper.findMarkerInData(r.snap.values, '#版本列表#')!;
-      const rows = excelHelper.readBlockBelow(r.snap.values, pos.row, pos.col, 4);
+      const rows = excelHelper.readBlockBelow(r.snap.values, pos.row, pos.col, 3);
       const idx = rows.findIndex(row => String(row[0] ?? '').trim() === name);
       if (idx === -1) { logger.warn(`deleteVersion: 未找到「${name}」`); return; }
       const absRow = pos.row + 1 + idx + r.snap.startRow;
@@ -177,7 +177,7 @@ export class ConfigManager {
       const r = await this.loadLegacySnap(context, '#人员代码#', LEGACY_SETTINGS);
       if (!r) { logger.error('addStaff: 找不到 #人员代码#'); return; }
       const pos = excelHelper.findMarkerInData(r.snap.values, '#人员代码#')!;
-      const rows = excelHelper.readBlockBelow(r.snap.values, pos.row, pos.col, 4);
+      const rows = excelHelper.readBlockBelow(r.snap.values, pos.row, pos.col, 3);
       const absRow = pos.row + 1 + rows.length + r.snap.startRow;
       const absCol = pos.col + r.snap.startCol;
       const sheet = context.workbook.worksheets.getItem(r.sheetName);
@@ -200,7 +200,7 @@ export class ConfigManager {
       const r = await this.loadLegacySnap(context, '#人员代码#', LEGACY_SETTINGS);
       if (!r) { logger.error('updateStaff: 找不到 #人员代码#'); return; }
       const pos = excelHelper.findMarkerInData(r.snap.values, '#人员代码#')!;
-      const rows = excelHelper.readBlockBelow(r.snap.values, pos.row, pos.col, 4);
+      const rows = excelHelper.readBlockBelow(r.snap.values, pos.row, pos.col, 3);
       const idx = rows.findIndex(row => String(row[1] ?? '').trim() === name);
       if (idx === -1) { logger.warn(`updateStaff: 未找到「${name}」`); return; }
       const absRow = pos.row + 1 + idx + r.snap.startRow;

@@ -532,13 +532,13 @@ describe('ConfigManager', () => {
       };
       mockLoadSheetSnapshot.mockResolvedValue(snap);
       mockFindMarkerInData.mockReturnValue({ row: 0, col: 0 });
-      mockReadBlockBelow.mockReturnValue([[1, '张三', 'zs', 'MC001']]);
+      mockReadBlockBelow.mockReturnValue([[1, '张三', 'zs']]);
 
-      await cm.addStaff({ id: 2, name: '李四', code: 'ls', machineCode: 'MC002' });
+      await cm.addStaff({ id: 2, name: '李四', code: 'ls' });
 
       expect(rangeCalls[0].row).toBe(2);
-      expect(rangeCalls[0].colCount).toBe(4);
-      expect(rangeCalls[0].values).toEqual([[2, '李四', 'ls', 'MC002']]);
+      expect(rangeCalls[0].colCount).toBe(3);
+      expect(rangeCalls[0].values).toEqual([[2, '李四', 'ls']]);
     });
   });
 
@@ -549,27 +549,27 @@ describe('ConfigManager', () => {
       const snap: SheetSnapshot = {
         name: '配置设置表',
         values: [
-          ['#人员代码#', null, null, null],
-          [1, '张三', 'zs', 'MC001'],
-          [2, '李四', 'ls', 'MC002'],
+          ['#人员代码#', null, null],
+          [1, '张三', 'zs'],
+          [2, '李四', 'ls'],
         ],
         rowCount: 3,
-        colCount: 4,
+        colCount: 3,
         startRow: 0,
         startCol: 0,
       };
       mockLoadSheetSnapshot.mockResolvedValue(snap);
       mockFindMarkerInData.mockReturnValue({ row: 0, col: 0 });
       mockReadBlockBelow.mockReturnValue([
-        [1, '张三', 'zs', 'MC001'],
-        [2, '李四', 'ls', 'MC002'],
+        [1, '张三', 'zs'],
+        [2, '李四', 'ls'],
       ]);
 
-      await cm.updateStaff('李四', { id: 2, name: '李四改', code: 'ls2', machineCode: 'MC003' });
+      await cm.updateStaff('李四', { id: 2, name: '李四改', code: 'ls2' });
 
       // matchIndex = 1 (row[1] === '李四'), targetRow = 0 + 1 + 1 = 2
       expect(rangeCalls[0].row).toBe(2);
-      expect(rangeCalls[0].values).toEqual([[2, '李四改', 'ls2', 'MC003']]);
+      expect(rangeCalls[0].values).toEqual([[2, '李四改', 'ls2']]);
     });
   });
 });
