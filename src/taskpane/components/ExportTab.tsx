@@ -27,7 +27,6 @@ import {
   WarningRegular,
   DocumentRegular,
   NavigationRegular,
-  PersonRegular,
   FolderOpenRegular,
   QuestionCircleRegular,
   WeatherMoonRegular,
@@ -54,7 +53,6 @@ import { ExportResult, ExportProgress } from '../../types/table';
 import { ExportError } from '../../types/errors';
 import { excelHelper } from '../../utils/ExcelHelper';
 import { configManager } from '../../v2/ConfigManager';
-import { operatorIdentity } from '../../v2/OperatorIdentity';
 import { logger } from '../../utils/Logger';
 import { gdsTokens } from '../theme';
 import { useThemeText, themeExtraData } from '../locales';
@@ -486,7 +484,6 @@ export function ExportTab({
     setLocalVersionNumber(String(config.outputSettings.versionNumber));
   }, [config.outputSettings.versionNumber]);
 
-  const currentOperator = operatorIdentity.get();
   const versionNames = useMemo(
     () => Array.from(config.versionTemplates.keys()),
     [config.versionTemplates]
@@ -652,15 +649,6 @@ export function ExportTab({
               {config.outputSettings.versionSequence}
             </span>
           </div>
-          {currentOperator && (
-            <div className={styles.configRow}>
-              <span className={styles.configLabel}>{t.export.config.operator}</span>
-              <span className={styles.configValue}>
-                <PersonRegular fontSize={12} style={{ marginRight: 3 }} />
-                {currentOperator}
-              </span>
-            </div>
-          )}
           <div className={styles.configRow} style={{ borderBottom: 'none' }}>
             <span className={styles.configLabel}>{t.export.config.outputDir}</span>
             {outputDir ? (
