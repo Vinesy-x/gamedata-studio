@@ -87,10 +87,7 @@ export class ExportWriter {
       sheet.getColumn(c).numFmt = '@';
     }
 
-    // GameConfig 特殊处理：第3行第3列替换为版本号.序列号
-    if (englishName === 'GameConfig' && filteredData.length > 2 && filteredData[2].length > 2) {
-      filteredData[2][2] = `${config.outputSettings.versionNumber}.${config.outputSettings.versionSequence}`;
-    }
+    // GameConfig 版本注入已在 ExportJob Phase A 中完成（哈希计算前）
 
     // 批量添加行（比逐行 getRow/getCell 快很多）
     sheet.addRows(filteredData as unknown[]);

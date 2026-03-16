@@ -179,6 +179,12 @@ export class ExportJob {
             continue;
           }
 
+          // GameConfig 特殊处理：在哈希计算前注入版本号.序列号
+          // 这样同版本号+序列号时哈希不变，不会每次都重新导出
+          if (englishName === 'GameConfig' && filtered.data.length > 2 && filtered.data[2].length > 2) {
+            filtered.data[2][2] = `${config.outputSettings.versionNumber}.${config.outputSettings.versionSequence}`;
+          }
+
           const newHash = this.exportWriter.computeDataHash(filtered.data);
           const hasChanged = this.exportWriter.hasHashChanged(newHash, manifest, englishName);
           if (!hasChanged) {
