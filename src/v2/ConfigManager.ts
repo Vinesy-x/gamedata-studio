@@ -181,7 +181,7 @@ export class ConfigManager {
       const absRow = pos.row + 1 + rows.length + r.snap.startRow;
       const absCol = pos.col + r.snap.startCol;
       const sheet = context.workbook.worksheets.getItem(r.sheetName);
-      sheet.getRangeByIndexes(absRow, absCol, 1, 4).values = [[staff.id, staff.name, staff.code, staff.machineCode]];
+      sheet.getRangeByIndexes(absRow, absCol, 1, 3).values = [[staff.id, staff.name, staff.code]];
       await context.sync();
     });
   }
@@ -206,7 +206,7 @@ export class ConfigManager {
       const absRow = pos.row + 1 + idx + r.snap.startRow;
       const absCol = pos.col + r.snap.startCol;
       const sheet = context.workbook.worksheets.getItem(r.sheetName);
-      sheet.getRangeByIndexes(absRow, absCol, 1, 4).values = [[updated.id, updated.name, updated.code, updated.machineCode]];
+      sheet.getRangeByIndexes(absRow, absCol, 1, 3).values = [[updated.id, updated.name, updated.code]];
       await context.sync();
     });
   }

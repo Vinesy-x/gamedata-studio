@@ -15,6 +15,7 @@ import { logger } from '../utils/Logger';
 
 import { SHEET_CONFIG, templateFactory } from '../v2/TemplateFactory';
 import { StudioConfigStore, StudioConfigData } from '../v2/StudioConfigStore';
+import { operatorIdentity } from '../v2/OperatorIdentity';
 
 export class ConfigLoader {
   private errorHandler: ErrorHandler;
@@ -46,20 +47,7 @@ export class ConfigLoader {
       if (jsonData) {
         // 表列表始终从表名对照读取（单一数据源）
         const snap = await excelHelper.loadSheetSnapshot(context, '表名对照');
-        // 直接从 StudioConfig B7 读取操作人（row 6, col 1）
-        let operator = '';
-        try {
-          const cfgSheet = context.workbook.worksheets.getItemOrNullObject(SHEET_CONFIG);
-          cfgSheet.load('isNullObject');
-          await context.sync();
-          if (!cfgSheet.isNullObject) {
-            const cell = cfgSheet.getRangeByIndexes(6, 1, 1, 1);
-            cell.load('values');
-            await context.sync();
-            operator = String(cell.values[0][0] ?? '').trim();
-          }
-        } catch { /* ignore */ }
-        return this.buildConfigFromJson(jsonData, snap?.values, operator);
+        return this.buildConfigFromJson(jsonData, snap?.values);
       }
 
       // 4. 最终回退：旧格式三表
@@ -70,7 +58,7 @@ export class ConfigLoader {
   /**
    * 从 JSON 数据构建 Config 对象
    */
-  private buildConfigFromJson(data: StudioConfigData, mappingValues?: SheetData, operator?: string): Config {
+  private buildConfigFromJson(data: StudioConfigData, mappingValues?: SheetData): Config {
     // 版本模板
     const versionTemplates = new Map<string, VersionTemplate>();
     for (const v of data.versions) {
@@ -131,7 +119,7 @@ export class ConfigLoader {
       tablesToProcess,
       outputSettings,
       gitCommitTemplate: data.gitCommitTemplate || '',
-      operator: operator || '',
+      operator: operatorIdentity.get() || '',
       staffCodes,
     };
   }
@@ -179,7 +167,7 @@ export class ConfigLoader {
     logger.info('配置加载完成（旧格式兼容模式）');
     return {
       versionTemplates, lineTemplates, tablesToProcess, outputSettings,
-      gitCommitTemplate: gitCommitTemplate || '', operator: '', staffCodes: staffCodes || new Map(),
+      gitCommitTemplate: gitCommitTemplate || '', operator: operatorIdentity.get() || '', staffCodes: staffCodes || new Map(),
     };
   }
 
@@ -270,7 +258,6 @@ export class ConfigLoader {
         id: Number(row[0]) || 0,
         name,
         code: String(row[2] ?? '').trim(),
-        machineCode: String(row[3] ?? '').trim(),
       });
     }
 

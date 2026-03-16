@@ -29,7 +29,6 @@ export interface StaffInfo {
   id: number;
   name: string;
   code: string;
-  machineCode: string;
 }
 
 export interface Config {

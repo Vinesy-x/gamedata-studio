@@ -108,7 +108,6 @@ export class TemplateFactory {
           id: Number(r[0]) || 0,
           name: String(r[1] ?? '').trim(),
           code: String(r[2] ?? '').trim(),
-          machineCode: String(r[3] ?? '').trim(),
         })).filter(s => s.name);
       }
 

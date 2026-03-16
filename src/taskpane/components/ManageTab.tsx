@@ -345,7 +345,7 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
     setSaving(true);
     try {
       const nextId = staffList.length > 0 ? Math.max(...staffList.map(s => s.id)) + 1 : 1;
-      await configManager.addStaff({ id: nextId, name, code, machineCode: '' });
+      await configManager.addStaff({ id: nextId, name, code });
       setNewStaffName('');
       setNewStaffCode('');
       setAddingStaff(false);
