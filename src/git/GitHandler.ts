@@ -34,9 +34,9 @@ export class GitHandler {
 
     const commands: string[] = [`cd "${this.outputDirectory}"`];
 
-    for (const file of modifiedFiles) {
-      commands.push(`git add "${file}"`);
-    }
+    // 批量 add：用一条命令添加所有文件
+    const files = modifiedFiles.map(f => `"${f}"`).join(' ');
+    commands.push(`git add ${files}`);
 
     commands.push(`git commit -m "${commitMessage}"`);
     commands.push('git push');
