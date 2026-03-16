@@ -38,12 +38,23 @@ export class GitExecutor {
       const timer = setTimeout(() => controller.abort(), 60000);
       const resp = await fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
 
-      const data = await resp.json();
+      const text = await resp.text();
+      if (!text) {
+        return { ok: false, output: '', error: `Server returned empty response (HTTP ${resp.status})` };
+      }
+
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return { ok: false, output: '', error: `Invalid JSON from server: ${text.slice(0, 200)}` };
+      }
+
       return {
         ok: !!data.ok,
-        output: data.output || '',
-        error: data.error,
-        exitCode: data.exitCode,
+        output: (data.output as string) || '',
+        error: data.error as string | undefined,
+        exitCode: data.exitCode as number | undefined,
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

@@ -260,20 +260,22 @@ while ($listener.IsListening) {
             $exitCode = $proc.ExitCode
             Write-Log "[git-push] exitCode=$exitCode"
 
-            # Build JSON safely (avoid ConvertTo-Json issues with empty strings)
-            $safeOut = ($stdout -replace '\\', '\\\\' -replace '"', '\"' -replace "`r`n", '\n' -replace "`n", '\n').Trim()
-            $safeErr = ($stderr -replace '\\', '\\\\' -replace '"', '\"' -replace "`r`n", '\n' -replace "`n", '\n').Trim()
-            if ($exitCode -eq 0) {
-                $body = "{`"ok`":true,`"output`":`"$safeOut`",`"exitCode`":0}"
-            } else {
-                $body = "{`"ok`":false,`"output`":`"$safeOut`",`"error`":`"$safeErr`",`"exitCode`":$exitCode}"
+            $result = @{
+                ok = ($exitCode -eq 0)
+                output = if ($stdout) { $stdout.Trim() } else { "" }
+                exitCode = $exitCode
             }
+            if ($exitCode -ne 0 -and $stderr) {
+                $result.error = $stderr.Trim()
+            }
+            $body = $result | ConvertTo-Json -Compress
             $msg = [System.Text.Encoding]::UTF8.GetBytes($body)
             $res.OutputStream.Write($msg, 0, $msg.Length)
         } catch {
-            $errMsg = $_.Exception.Message -replace '\\', '\\\\' -replace '"', '\"'
+            $errMsg = $_.Exception.Message
             $res.StatusCode = 500
-            $msg = [System.Text.Encoding]::UTF8.GetBytes("{`"error`":`"$errMsg`"}")
+            $errBody = @{ error = $errMsg } | ConvertTo-Json -Compress
+            $msg = [System.Text.Encoding]::UTF8.GetBytes($errBody)
             $res.OutputStream.Write($msg, 0, $msg.Length)
         }
         $res.Close()
