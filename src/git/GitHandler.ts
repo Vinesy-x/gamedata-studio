@@ -18,8 +18,9 @@ export class GitHandler {
     if (!this.outputDirectory) return [];
     return [
       `cd "${this.outputDirectory}"`,
-      'git checkout -- .',
-      'git pull --ff-only',
+      'git reset --hard HEAD',
+      'git clean -fd',
+      'git pull --rebase --autostash',
     ];
   }
 
@@ -34,9 +35,9 @@ export class GitHandler {
 
     const commands: string[] = [`cd "${this.outputDirectory}"`];
 
-    // 批量 add：用一条命令添加所有文件
-    const files = modifiedFiles.map(f => `"${f}"`).join(' ');
-    commands.push(`git add ${files}`);
+    for (const file of modifiedFiles) {
+      commands.push(`git add "${file}"`);
+    }
 
     commands.push(`git commit -m "${commitMessage}"`);
     commands.push('git push');
