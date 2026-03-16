@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useContext, Fragment } from 'react';
+import { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import {
   makeStyles,
   tokens,
@@ -45,7 +45,6 @@ import { configManager } from '../v2/ConfigManager';
 import { gdsTokens } from './theme';
 import { useThemeText } from './locales';
 import { ThemeContext } from './index';
-import { checkFileServerUpdate } from '../utils/FileServerUpdater';
 
 const useStyles = makeStyles({
   root: {
@@ -173,18 +172,8 @@ export function App() {
   const monitorRef = useRef<CollaborationMonitor | null>(null);
   const isExportingRef = useRef(false);
 
-  const [serverUpdateMsg, setServerUpdateMsg] = useState<string | null>(null);
-
   useEffect(() => {
     loadConfig();
-    // 检测 file-server 是否需要更新
-    checkFileServerUpdate().then(({ needsManualUpdate, updated }) => {
-      if (updated) {
-        setServerUpdateMsg('文件服务已自动更新，请重启 file-server 生效');
-      } else if (needsManualUpdate) {
-        setServerUpdateMsg('文件服务版本过旧，请重新下载 file-server.py 并重启');
-      }
-    });
   }, [loadConfig]);
 
   // 保持 isExportingRef 同步
@@ -363,20 +352,6 @@ export function App() {
         </TabList>
       </div>
 
-      {serverUpdateMsg && (
-        <div style={{
-          padding: '6px 14px',
-          fontSize: '11px',
-          backgroundColor: tokens.colorPaletteYellowBackground1,
-          color: tokens.colorPaletteYellowForeground2,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}>
-          <span>{serverUpdateMsg}</span>
-          <Button appearance="transparent" size="small" onClick={() => setServerUpdateMsg(null)} style={{ minWidth: 'auto', padding: '0 4px' }}>✕</Button>
-        </div>
-      )}
       <div className={styles.tabContent}>
         {selectedTab === 'export' && config && (
           <ExportTab
