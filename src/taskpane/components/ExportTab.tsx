@@ -991,6 +991,12 @@ export function ExportTab({
                   <Button size="small" appearance={devLogTab === 'all' ? 'primary' : 'subtle'} onClick={() => setDevLogTab('all')}>全部日志</Button>
                 </div>
                 <div style={{ display: 'flex', gap: '4px' }}>
+                  <Button size="small" appearance="outline" onClick={async () => {
+                    for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
+                      try { await fetch(`${base}/api/restart`); logger.info('文件服务重启请求已发送'); return; } catch { /* try next */ }
+                    }
+                    logger.warn('文件服务不可用，无法重启');
+                  }}>重启文件服务</Button>
                   <Button size="small" appearance="outline" onClick={() => { logger.clear(); setDevLogOpen(false); setTimeout(() => setDevLogOpen(true), 0); }}>清空</Button>
                   <Button size="small" appearance="outline" onClick={() => { localStorage.removeItem('gds-theme'); localStorage.removeItem('gds-player-stats'); window.location.reload(); }}>重置主题</Button>
                 </div>
