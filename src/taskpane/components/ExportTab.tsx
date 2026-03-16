@@ -514,12 +514,22 @@ export function ExportTab({
   const handleServerUpdate = useCallback(async () => {
     setServerUpdating(true);
     const base = serverBaseRef.current;
+    let restartRequested = false;
     try {
-      await fetch(`${base}/api/restart`);
-    } catch { /* server 关闭连接是正常的 */ }
-    // 轮询等待 server 重启完成（每 1s 检查一次，最多 10s）
-    for (let i = 0; i < 10; i++) {
-      await new Promise(r => setTimeout(r, 1000));
+      const resp = await fetch(`${base}/api/restart`);
+      restartRequested = resp.ok;
+    } catch { /* server 关闭连接是正常的，也算成功 */
+      restartRequested = true;
+    }
+    if (!restartRequested) {
+      // 老版本 server 没有 /api/restart，需手动重启
+      logger.warn('文件服务版本过旧，无法远程重启，请手动重启');
+      setServerUpdating(false);
+      return;
+    }
+    // 轮询等待 server 重启完成（每 2s 检查一次，最多 30s）
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, 2000));
       if (await checkServerVersion(base)) {
         setServerNeedsUpdate(false);
         break;
