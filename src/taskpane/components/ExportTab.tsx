@@ -489,6 +489,23 @@ export function ExportTab({
     [config.versionTemplates]
   );
 
+  // 检测 file-server 是否在线
+  const [serverOnline, setServerOnline] = useState<boolean | null>(null);
+  useEffect(() => {
+    const check = async () => {
+      for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
+        try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 3000);
+          const resp = await fetch(`${base}/api/read-file?directory=.&fileName=_probe`, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
+          if (resp.ok || resp.status === 404) { setServerOnline(true); return; }
+        } catch { /* try next */ }
+      }
+      setServerOnline(false);
+    };
+    check();
+  }, []);
+
   const handleVersionChange = useCallback(async (newVersionName: string) => {
     if (newVersionName === config.outputSettings.versionName) return;
     setChangingVersion(true);
@@ -743,6 +760,26 @@ export function ExportTab({
                 </span>
               )}
             </div>
+          </div>
+        ) : serverOnline === false ? (
+          <div style={{
+            padding: '10px 12px',
+            fontSize: '11px',
+            lineHeight: '1.6',
+            backgroundColor: gdsTokens.warning.bg,
+            borderRadius: '8px',
+            border: `1px solid ${gdsTokens.warning.border}`,
+            color: gdsTokens.warning.text,
+          }}>
+            <div style={{ fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <WarningRegular fontSize={14} />
+              文件服务未启动
+            </div>
+            <div>Windows：重启电脑或运行开始菜单中的 GameData Studio Server</div>
+            <div>Mac：终端执行 <code style={{ fontSize: '10px', backgroundColor: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: '2px' }}>python3 ~/.gamedata-studio/file-server.py &</code></div>
+            <Button size="small" appearance="primary" style={{ marginTop: '6px' }} onClick={() => { setServerOnline(null); setTimeout(() => { fetch('https://localhost:9876/api/read-file?directory=.&fileName=_probe').then(() => setServerOnline(true)).catch(() => setServerOnline(false)); }, 500); }}>
+              重新检测
+            </Button>
           </div>
         ) : (
           <>
