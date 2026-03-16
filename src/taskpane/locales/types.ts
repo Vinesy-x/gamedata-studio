@@ -20,6 +20,9 @@ export interface ThemeTextMap {
     disabledBtn: string;
     gitBtn: string;
     gitFailBtn: string;
+    pushBtn: string;
+    pushingBtn: string;
+    pushDone: string;
     resultSuccess: string;
     resultNoChange: string;
     resultFail: string;

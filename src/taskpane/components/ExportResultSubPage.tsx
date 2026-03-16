@@ -399,7 +399,7 @@ export const ExportResultSubPage: React.FC<ExportResultSubPageProps> = ({
           />
           <div className={styles.commitActions}>
             {gitPushDone ? (
-              <span className={styles.pushDoneText}>已上传</span>
+              <span className={styles.pushDoneText}>{t.export.pushDone}</span>
             ) : (
               <Button
                 appearance="primary"
@@ -408,7 +408,7 @@ export const ExportResultSubPage: React.FC<ExportResultSubPageProps> = ({
                 onClick={onGitPush}
                 disabled={gitPushing || !commitMessage.trim()}
               >
-                {gitPushing ? '推送中...' : '提交推送'}
+                {gitPushing ? t.export.pushingBtn : t.export.pushBtn}
               </Button>
             )}
           </div>
