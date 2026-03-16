@@ -196,9 +196,12 @@ const useStyles = makeStyles({
 interface ManageTabProps {
   config: Config;
   onReloadConfig: () => void;
+  monitorEnabled: boolean;
+  monitorStatus: 'idle' | 'watching' | 'exporting';
+  onToggleMonitor: (enabled: boolean) => void;
 }
 
-export function ManageTab({ config, onReloadConfig }: ManageTabProps) {
+export function ManageTab({ config, onReloadConfig, monitorEnabled, monitorStatus, onToggleMonitor }: ManageTabProps) {
   const t = useThemeText();
   const styles = useStyles();
   const [subPage, setSubPage] = useState<ManageSubPage>('config');
@@ -232,7 +235,7 @@ export function ManageTab({ config, onReloadConfig }: ManageTabProps) {
 
       <div className={styles.content}>
         {subPage === 'config' && (
-          <ConfigSubPage config={config} onReload={onReloadConfig} styles={styles} />
+          <ConfigSubPage config={config} onReload={onReloadConfig} styles={styles} monitorEnabled={monitorEnabled} monitorStatus={monitorStatus} onToggleMonitor={onToggleMonitor} />
         )}
         {subPage === 'tables' && (
           <TablesSubPage
@@ -258,10 +261,13 @@ function roadsDisplayName(lineField: string): string {
 
 // ─── 配置管理子面板 ───
 
-function ConfigSubPage({ config, onReload, styles }: {
+function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus, onToggleMonitor }: {
   config: Config;
   onReload: () => void;
   styles: ReturnType<typeof useStyles>;
+  monitorEnabled: boolean;
+  monitorStatus: 'idle' | 'watching' | 'exporting';
+  onToggleMonitor: (enabled: boolean) => void;
 }) {
   const t = useThemeText();
   const [editingGit, setEditingGit] = useState(false);
@@ -751,6 +757,21 @@ function ConfigSubPage({ config, onReload, styles }: {
       <div className={styles.section}>
         <Text style={{ fontSize: '12px', fontWeight: 600 }}>功能开关</Text>
         <div className={styles.card}>
+          <div className={styles.switchRow}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Text style={{ fontSize: '11px' }}>协同监听</Text>
+              {monitorStatus === 'watching' && (
+                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#059669', display: 'inline-block' }} />
+              )}
+              {monitorStatus === 'exporting' && (
+                <Spinner size="extra-tiny" />
+              )}
+            </div>
+            <Switch
+              checked={monitorEnabled}
+              onChange={(_, d) => onToggleMonitor(d.checked)}
+            />
+          </div>
           <div className={styles.switchRow}>
             <Text style={{ fontSize: '11px' }}>自动弹出路径</Text>
             <Switch

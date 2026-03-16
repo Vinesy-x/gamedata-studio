@@ -383,6 +383,9 @@ export function App() {
           <ManageTab
             config={config}
             onReloadConfig={loadConfig}
+            monitorEnabled={monitorEnabled}
+            monitorStatus={monitorStatus}
+            onToggleMonitor={handleToggleMonitor}
           />
         )}
 

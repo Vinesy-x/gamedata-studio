@@ -661,33 +661,6 @@ export function ExportTab({
               </span>
             </div>
           )}
-          <div className={styles.configRow}>
-            <span className={styles.configLabel}>{t.export.config.monitor}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Switch
-                checked={monitorEnabled}
-                onChange={(_, data) => onToggleMonitor(data.checked)}
-                disabled={isExporting && !monitorEnabled}
-              />
-              {monitorStatus === 'watching' && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: gdsTokens.success.icon }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: gdsTokens.success.icon, display: 'inline-block' }} />
-                  {t.export.config.monitoring}
-                </span>
-              )}
-              {monitorStatus === 'exporting' && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: tokens.colorBrandForeground1 }}>
-                  <Spinner size="extra-tiny" />
-                  {t.export.config.monitorExporting}
-                </span>
-              )}
-              {monitorStatus === 'idle' && !monitorEnabled && (
-                <span style={{ fontSize: '11px', color: tokens.colorNeutralForeground4 }}>
-                  {t.export.config.monitorOff}
-                </span>
-              )}
-            </div>
-          </div>
           <div className={styles.configRow} style={{ borderBottom: 'none' }}>
             <span className={styles.configLabel}>{t.export.config.outputDir}</span>
             {outputDir ? (
