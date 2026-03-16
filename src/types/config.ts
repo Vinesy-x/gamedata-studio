@@ -40,4 +40,5 @@ export interface Config {
   gitCommitTemplate: string;
   staffCodes: Map<string, StaffInfo>;
   showResourcePopup: boolean;
+  detailedDiff: boolean;
 }

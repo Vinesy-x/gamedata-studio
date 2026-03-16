@@ -758,6 +758,13 @@ function ConfigSubPage({ config, onReload, styles }: {
               onChange={(_, d) => handleToggleSwitch('自动弹出路径', d.checked)}
             />
           </div>
+          <div className={styles.switchRow}>
+            <Text style={{ fontSize: '11px' }}>详细差异对比</Text>
+            <Switch
+              checked={config.detailedDiff}
+              onChange={(_, d) => handleToggleSwitch('详细差异对比', d.checked)}
+            />
+          </div>
         </div>
       </div>
 

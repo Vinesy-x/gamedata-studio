@@ -207,9 +207,9 @@ export class ExportJob {
 
       logger.info(`⏱ 阶段A筛选+哈希: ${Date.now() - t4}ms (${pendingWrites.length} 张表需写入)`);
 
-      // ── 阶段A2：并行读取旧文件计算 diff（不阻塞主流程）
+      // ── 阶段A2：并行读取旧文件计算 diff（仅在开启详细差异对比时执行）
       const t4b = Date.now();
-      const diffTasks = pendingWrites.filter(pw => !pw.isNew);
+      const diffTasks = config.detailedDiff ? pendingWrites.filter(pw => !pw.isNew) : [];
       if (diffTasks.length > 0) {
         const diffResults = await Promise.allSettled(
           diffTasks.map(async (pw) => {

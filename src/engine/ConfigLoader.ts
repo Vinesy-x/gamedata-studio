@@ -121,6 +121,7 @@ export class ConfigLoader {
 
     // 配置开关
     const showResourcePopup = data.switches['自动弹出路径'] ?? false;
+    const detailedDiff = data.switches['详细差异对比'] ?? false;
 
     logger.info('配置加载完成 (JSON 格式)');
     return {
@@ -131,6 +132,7 @@ export class ConfigLoader {
       gitCommitTemplate: data.gitCommitTemplate || '',
       staffCodes,
       showResourcePopup,
+      detailedDiff,
     };
   }
 
@@ -180,7 +182,7 @@ export class ConfigLoader {
     return {
       versionTemplates, lineTemplates, tablesToProcess, outputSettings,
       gitCommitTemplate: gitCommitTemplate || '', staffCodes: staffCodes || new Map(),
-      showResourcePopup,
+      showResourcePopup, detailedDiff: false,
     };
   }
 
