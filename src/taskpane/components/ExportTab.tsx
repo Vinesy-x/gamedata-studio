@@ -797,7 +797,7 @@ export function ExportTab({
         )}
 
         {subPage === 'log' && (
-          <ExportLogSubPage outputDirectory={outputDir} />
+          <ExportLogSubPage config={config} />
         )}
       </div>
 
