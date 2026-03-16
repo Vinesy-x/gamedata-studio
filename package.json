@@ -1,6 +1,6 @@
 {
   "name": "gamedata-studio",
-  "version": "1.5.4",
+  "version": "1.6.0",
   "description": "GameData Studio — Excel Add-in for RPG/MMO game data management",
   "private": true,
   "scripts": {
