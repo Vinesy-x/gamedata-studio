@@ -140,7 +140,7 @@ export function createDefaultConfig(): StudioConfigData {
     versions: [{ name: '默认', lineId: 0, lineField: 'roads_0', gitDirectory: '' }],
     lines: [{ id: 0, field: 'roads_0', remark: '默认线路' }],
     staff: [{ id: 1, name: '默认用户', code: 'default' }],
-    gitCommitTemplate: 'update: v{version} data export',
+    gitCommitTemplate: '-{1}{0}数据表提交',
     switches: { '自动弹出路径': false },
     validationConfig: createDefaultValidationConfig(),
   };
