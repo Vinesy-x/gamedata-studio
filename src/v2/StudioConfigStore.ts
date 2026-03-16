@@ -32,12 +32,6 @@ export interface StudioConfigData {
   /** 功能开关 */
   switches: Record<string, boolean>;
 
-  /**
-   * 数据表工作表格式说明（纯文档，不参与业务逻辑）
-   * 供 AI 或外部工具按照此规范自动生成数据表
-   */
-  tableSchema?: TableSchemaDoc;
-
   /** 校验配置 */
   validationConfig?: ValidationConfig;
 }
@@ -148,7 +142,6 @@ export function createDefaultConfig(): StudioConfigData {
     staff: [{ id: 1, name: '默认用户', code: 'default', machineCode: '' }],
     gitCommitTemplate: 'update: v{version} data export',
     switches: { '自动弹出路径': false },
-    tableSchema: createTableSchema(),
     validationConfig: createDefaultValidationConfig(),
   };
 }
@@ -385,12 +378,9 @@ export class StudioConfigStore {
 
     try {
       const data = JSON.parse(String(raw)) as StudioConfigData;
-      // 自动补全 tableSchema（确保已有配置也包含格式说明）
-      if (!data.tableSchema) {
-        data.tableSchema = createTableSchema();
-        sheet.getRange('A1').values = [[JSON.stringify(data)]];
-        await context.sync();
-      }
+      // 清理遗留字段（tableSchema 已移到 B1，tables 已移除）
+      delete (data as unknown as Record<string, unknown>).tableSchema;
+      delete (data as unknown as Record<string, unknown>).tables;
       return data;
     } catch {
       logger.error('StudioConfigStore.load: JSON 解析失败');
@@ -410,10 +400,12 @@ export class StudioConfigStore {
       throw new Error(`工作表「${SHEET_CONFIG}」不存在`);
     }
 
-    // 每次保存时确保 tableSchema 为最新版本
-    data.tableSchema = createTableSchema();
-    const json = JSON.stringify(data);
-    sheet.getRange('A1').values = [[json]];
+    // tableSchema 不存入 A1 主配置，单独写到 B1
+    const dataToSave = { ...data };
+    delete (dataToSave as unknown as Record<string, unknown>).tableSchema;
+    delete (dataToSave as unknown as Record<string, unknown>).tables;
+    sheet.getRange('A1').values = [[JSON.stringify(dataToSave)]];
+    sheet.getRange('B1').values = [[JSON.stringify(createTableSchema())]];
 
     // 同步协同导出区域的下拉列表和值
     this.syncCollabDropdowns(sheet, data);
@@ -471,6 +463,7 @@ export class StudioConfigStore {
     const configData = data ?? createDefaultConfig();
 
     sheet.getRange('A1').values = [[JSON.stringify(configData)]];
+    sheet.getRange('B1').values = [[JSON.stringify(createTableSchema())]];
     // 表可见，供网页端用户查看协同导出区域
     sheet.visibility = Excel.SheetVisibility.visible;
     // StudioConfig 放在最前面
