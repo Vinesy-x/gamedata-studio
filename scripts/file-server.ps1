@@ -2,7 +2,7 @@
 # Usage: Double-click start-file-server.bat
 param([switch]$Restarted)
 
-$ServerVersion = "1.6.1"
+$ServerVersion = "1.7.0"
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
