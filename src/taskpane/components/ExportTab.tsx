@@ -41,6 +41,7 @@ import {
   HistoryRegular,
   ChevronRightRegular,
   ChevronDownRegular,
+  DismissRegular,
 } from '@fluentui/react-icons';
 import { DiffDetailPanel } from './DiffDetailPanel';
 import { ThemeContext } from '../index';
@@ -179,6 +180,15 @@ const useStyles = makeStyles({
   resultDuration: {
     fontSize: '11px',
     color: tokens.colorNeutralForeground3,
+  },
+  dismissBtn: {
+    minWidth: 'auto',
+    padding: '2px',
+    marginLeft: 'auto',
+    color: tokens.colorNeutralForeground3,
+    ':hover': {
+      color: tokens.colorNeutralForeground1,
+    },
   },
   resultStats: {
     display: 'flex',
@@ -661,91 +671,102 @@ export function ExportTab({
         </div>
       </div>
 
-      {/* 导出按钮（导出完成后自动 Git 推送） */}
+      {/* 导出按钮 / 导出结果摘要（完成后覆盖按钮区域） */}
       <div className={styles.actionSection}>
-        <div className={styles.actionRow}>
-          <Button
-            className={styles.exportBtn}
-            icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : isCyber ? <SendRegular /> : isPixel ? <FlagCheckeredRegular /> : <ArrowExportRegular />}
-            appearance="primary"
-            onClick={handleExport}
-            disabled={isExporting || !outputDir}
-            size="large"
-          >
-            {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
-          </Button>
-        </div>
-
-        {isExporting && progress && (
-          <div className={styles.progressArea}>
-            <ProgressBar value={progressValue} />
-            <Text className={styles.progressText}>
-              [{progress.step}/{progress.totalSteps}] {progress.message}
-            </Text>
+        {exportResult && !isExporting ? (
+          <div className={`${styles.resultSummary} ${styles.resultFadeIn}`} style={isSpecial ? {
+            border: st.cardBorder,
+            boxShadow: st.cardShadow,
+            backgroundColor: st.cardBg,
+          } : undefined}>
+            <div className={styles.resultSummaryRow}>
+              {isSpecial ? (
+                <StarRegular style={{ fontSize: 18, color: st.xpColor, flexShrink: 0 }} />
+              ) : exportResult.success ? (
+                <CheckmarkCircleRegular
+                  className={`${styles.resultStatusIcon} ${styles.successColor} ${showCompletionAnim ? styles.successCheckAnim : ''}`}
+                />
+              ) : (
+                <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
+              )}
+              <span className={styles.resultStatusText} style={isSpecial ? { color: st.xpColor } : undefined}>
+                {exportResult.success
+                  ? (exportResult.changedTables > 0 ? t.export.resultSuccess : t.export.resultNoChange)
+                  : t.export.resultFail}
+              </span>
+              <span className={styles.resultDuration}>
+                {exportResult.duration.toFixed(1)}s
+              </span>
+              {isSpecial && exportResult.success && (
+                <>
+                  <StarRegular style={{ fontSize: 16, color: (st as typeof gdsTokens.game).xpAccent || (st as typeof gdsTokens.game).xpColor }} />
+                  <span style={{ color: (st as typeof gdsTokens.game).xpAccent || (st as typeof gdsTokens.game).xpColor, fontSize: 11, fontWeight: 700 }}>
+                    {extraData.resultXp(earnedXp)}
+                  </span>
+                </>
+              )}
+              <Button
+                className={styles.dismissBtn}
+                appearance="transparent"
+                size="small"
+                icon={<DismissRegular fontSize={14} />}
+                onClick={onClearResult}
+              />
+            </div>
+            <div className={styles.resultStats}>
+              {exportResult.changedTables > 0 && (
+                <span className={`${styles.statItem} ${styles.statFiles}`}>
+                  {t.export.statFiles(exportResult.changedTables)}
+                </span>
+              )}
+              {warnings.length > 0 && (
+                <span className={`${styles.statItem} ${styles.statWarnings}`}>
+                  {t.export.statWarnings(warnings.length)}
+                </span>
+              )}
+              {errors.length > 0 && (
+                <span className={`${styles.statItem} ${styles.statErrors}`}>
+                  {t.export.statErrors(errors.length)}
+                </span>
+              )}
+              {errors.length === 0 && (
+                <span className={`${styles.statItem} ${styles.statErrors}`} style={{ color: gdsTokens.success.text }}>
+                  {t.export.statErrors(0)}
+                </span>
+              )}
+            </div>
           </div>
+        ) : (
+          <>
+            <div className={styles.actionRow}>
+              <Button
+                className={styles.exportBtn}
+                icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : isCyber ? <SendRegular /> : isPixel ? <FlagCheckeredRegular /> : <ArrowExportRegular />}
+                appearance="primary"
+                onClick={handleExport}
+                disabled={isExporting || !outputDir}
+                size="large"
+              >
+                {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
+              </Button>
+            </div>
+
+            {isExporting && progress && (
+              <div className={styles.progressArea}>
+                <ProgressBar value={progressValue} />
+                <Text className={styles.progressText}>
+                  [{progress.step}/{progress.totalSteps}] {progress.message}
+                </Text>
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {/* 导出结果 / 空闲占位 — 可滚动区域 */}
+      {/* 导出结果详情 / 空闲占位 — 可滚动区域 */}
       <div className={styles.resultScrollArea}>
         {exportResult && !isExporting ? (
           <div className={`${styles.resultSection} ${styles.resultFadeIn}`}>
-            {/* 摘要行：状态 + 耗时 + 统计 */}
-            <div className={styles.resultSummary} style={isSpecial ? {
-              border: st.cardBorder,
-              boxShadow: st.cardShadow,
-              backgroundColor: st.cardBg,
-            } : undefined}>
-              <div className={styles.resultSummaryRow}>
-                {isSpecial ? (
-                  <StarRegular style={{ fontSize: 18, color: st.xpColor, flexShrink: 0 }} />
-                ) : exportResult.success ? (
-                  <CheckmarkCircleRegular
-                    className={`${styles.resultStatusIcon} ${styles.successColor} ${showCompletionAnim ? styles.successCheckAnim : ''}`}
-                  />
-                ) : (
-                  <DismissCircleRegular className={`${styles.resultStatusIcon} ${styles.failColor}`} />
-                )}
-                <span className={styles.resultStatusText} style={isSpecial ? { color: st.xpColor } : undefined}>
-                  {exportResult.success
-                    ? (exportResult.changedTables > 0 ? t.export.resultSuccess : t.export.resultNoChange)
-                    : t.export.resultFail}
-                </span>
-                <span className={styles.resultDuration}>
-                  {exportResult.duration.toFixed(1)}s
-                </span>
-                {isSpecial && exportResult.success && (
-                  <>
-                    <StarRegular style={{ fontSize: 16, color: (st as typeof gdsTokens.game).xpAccent || (st as typeof gdsTokens.game).xpColor }} />
-                    <span style={{ color: (st as typeof gdsTokens.game).xpAccent || (st as typeof gdsTokens.game).xpColor, fontSize: 11, fontWeight: 700 }}>
-                      {extraData.resultXp(earnedXp)}
-                    </span>
-                  </>
-                )}
-              </div>
-              <div className={styles.resultStats}>
-                {exportResult.changedTables > 0 && (
-                  <span className={`${styles.statItem} ${styles.statFiles}`}>
-                    {t.export.statFiles(exportResult.changedTables)}
-                  </span>
-                )}
-                {warnings.length > 0 && (
-                  <span className={`${styles.statItem} ${styles.statWarnings}`}>
-                    {t.export.statWarnings(warnings.length)}
-                  </span>
-                )}
-                {errors.length > 0 && (
-                  <span className={`${styles.statItem} ${styles.statErrors}`}>
-                    {t.export.statErrors(errors.length)}
-                  </span>
-                )}
-                {errors.length === 0 && (
-                  <span className={`${styles.statItem} ${styles.statErrors}`} style={{ color: gdsTokens.success.text }}>
-                    {t.export.statErrors(0)}
-                  </span>
-                )}
-              </div>
-            </div>
 
             {/* 修改文件列表 */}
             {exportResult.changedTables > 0 && (
