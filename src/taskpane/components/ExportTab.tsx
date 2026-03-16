@@ -991,6 +991,15 @@ export function ExportTab({
                 lineHeight: '1.8',
                 color: tokens.colorNeutralForeground1,
               }}>
+                <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.4.0 — 导出 Diff 详情 & 体验优化</div>
+                <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px' }}>
+                  <li>导出 Diff 详情：点击文件行展开查看逐行变更，新增/删除/修改的 key 一目了然</li>
+                  <li>单元格级对比：修改行显示具体字段变化（旧值 → 新值）</li>
+                  <li>导出结果覆盖按钮区域，关闭按钮一键回到待导出状态</li>
+                  <li>提交历史查看与回退功能，自动 push 的安全网</li>
+                  <li>结果列表隐藏 _manifest.json，只显示数据表</li>
+                  <li>新增赛博朋克、像素复古两套主题</li>
+                </ul>
                 <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.3.0 — 多主题系统 & 设计升级</div>
                 <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px' }}>
                   <li>全新主题系统：支持 4 种主题循环切换（浅色 → 深色 → 飞船航行 → 二次元冒险）</li>
