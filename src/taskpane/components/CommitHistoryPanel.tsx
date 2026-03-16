@@ -6,10 +6,7 @@ import {
   Spinner,
   Text,
 } from '@fluentui/react-components';
-import {
-  ArrowResetRegular,
-  WarningRegular,
-} from '@fluentui/react-icons';
+import { ArrowResetRegular } from '@fluentui/react-icons';
 import { GitHandler } from '../../git/GitHandler';
 import { GitExecutor } from '../../git/GitExecutor';
 import { useThemeText } from '../locales';
@@ -20,45 +17,73 @@ interface CommitEntry {
   hash: string;
   shortHash: string;
   date: string;
+  author: string;
   message: string;
 }
 
+function formatDate(raw: string): string {
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${mm}-${dd} ${hh}:${min}`;
+}
+
 const useStyles = makeStyles({
-  container: {
+  root: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
-    padding: '12px',
     height: '100%',
-    overflow: 'auto',
+    overflow: 'hidden',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 12px 8px 12px',
+    flexShrink: 0,
   },
   title: {
     fontSize: '14px',
     fontWeight: 600,
-    marginBottom: '4px',
   },
-  commitItem: {
+  scrollArea: {
+    flex: 1,
+    overflow: 'auto',
+    padding: '0 12px 12px 12px',
     display: 'flex',
-    alignItems: 'center',
+    flexDirection: 'column',
     gap: '8px',
+  },
+  card: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
     padding: '8px 10px',
     borderRadius: '6px',
     backgroundColor: tokens.colorNeutralBackground1,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
     boxShadow: gdsTokens.shadow.sm,
+    cursor: 'pointer',
+    transitionProperty: 'border-color',
+    transitionDuration: '0.15s',
   },
-  commitInfo: {
-    flex: 1,
+  cardRow1: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   commitHash: {
     fontSize: '11px',
     fontFamily: '"Cascadia Code", "Fira Code", Consolas, monospace',
     color: tokens.colorBrandForeground1,
     fontWeight: 600,
+  },
+  commitDate: {
+    fontSize: '10px',
+    color: tokens.colorNeutralForeground3,
   },
   commitMessage: {
     fontSize: '12px',
@@ -67,27 +92,9 @@ const useStyles = makeStyles({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap' as const,
   },
-  commitDate: {
+  commitAuthor: {
     fontSize: '10px',
     color: tokens.colorNeutralForeground3,
-  },
-  rollbackBtn: {
-    minWidth: 'auto',
-    flexShrink: 0,
-  },
-  confirmBar: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '8px 10px',
-    borderRadius: '6px',
-    backgroundColor: gdsTokens.error.bg,
-    border: `1px solid ${gdsTokens.error.border}`,
-  },
-  confirmText: {
-    fontSize: '11px',
-    color: tokens.colorPaletteRedForeground1,
-    flex: 1,
   },
   emptyText: {
     fontSize: '12px',
@@ -98,7 +105,7 @@ const useStyles = makeStyles({
   statusText: {
     fontSize: '11px',
     textAlign: 'center' as const,
-    padding: '8px 0',
+    padding: '4px 0',
   },
 });
 
@@ -119,14 +126,16 @@ function parseCommitLog(output: string): CommitEntry[] {
     .filter(Boolean)
     .map((line) => {
       const parts = line.split('||');
-      if (parts.length < 3) return null;
+      if (parts.length < 4) return null;
       const hash = parts[0];
       const date = parts[1];
-      const message = parts.slice(2).join('||');
+      const author = parts[2];
+      const message = parts.slice(3).join('||');
       return {
         hash,
         shortHash: hash.substring(0, 7),
         date: date.trim(),
+        author: author.trim(),
         message: message.trim(),
       };
     })
@@ -143,7 +152,7 @@ export function CommitHistoryPanel({ outputDirectory }: CommitHistoryPanelProps)
   const [commits, setCommits] = useState<CommitEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [confirmHash, setConfirmHash] = useState<string | null>(null);
+  const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [rolling, setRolling] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
 
@@ -188,15 +197,15 @@ export function CommitHistoryPanel({ outputDirectory }: CommitHistoryPanelProps)
       const handler = new GitHandler(outputDirectory);
       const executor = new GitExecutor(base);
       const cmds = handler.generateResetCommands(hash);
-      logger.info(`[CommitHistory] 回退到 ${hash}`);
+      logger.info(`[CommitHistory] rollback to ${hash}`);
       const result = await executor.execute(outputDirectory, cmds);
       if (result.ok) {
         setStatusMsg(t.commitHistory.rollbackSuccess);
-        setConfirmHash(null);
+        setSelectedHash(null);
         await loadCommits();
       } else {
         setStatusMsg(`${t.commitHistory.rollbackFail}: ${result.error || ''}`);
-        logger.error(`[CommitHistory] 回退失败: ${result.error}`);
+        logger.error(`[CommitHistory] rollback failed: ${result.error}`);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -207,84 +216,72 @@ export function CommitHistoryPanel({ outputDirectory }: CommitHistoryPanelProps)
   }, [outputDirectory, loadCommits, t.commitHistory]);
 
   return (
-    <div className={styles.container}>
-      <Text className={styles.title}>{t.commitHistory.title}</Text>
+    <div className={styles.root}>
+      {/* Fixed header */}
+      <div className={styles.header}>
+        <Text className={styles.title}>{t.commitHistory.title}</Text>
+        {selectedHash && (
+          <Button
+            size="small"
+            appearance="primary"
+            icon={<ArrowResetRegular fontSize={14} />}
+            onClick={() => handleRollback(selectedHash)}
+            disabled={rolling}
+          >
+            {rolling ? t.commitHistory.rolling : t.commitHistory.rollbackBtn}
+          </Button>
+        )}
+      </div>
 
-      {loading && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
-          <Spinner size="small" label={t.commitHistory.loading} />
-        </div>
-      )}
-
-      {error && (
-        <div className={styles.statusText} style={{ color: tokens.colorPaletteRedForeground1 }}>
-          {error}
-        </div>
-      )}
-
-      {statusMsg && (
-        <div className={styles.statusText} style={{
-          color: statusMsg.includes(t.commitHistory.rollbackSuccess)
-            ? gdsTokens.success.text
-            : tokens.colorPaletteRedForeground1,
-        }}>
-          {statusMsg}
-        </div>
-      )}
-
-      {!loading && !error && commits.length === 0 && (
-        <div className={styles.emptyText}>{t.commitHistory.empty}</div>
-      )}
-
-      {commits.map((commit) => (
-        <div key={commit.hash}>
-          <div className={styles.commitItem}>
-            <div className={styles.commitInfo}>
-              <span className={styles.commitHash}>{commit.shortHash}</span>
-              <span className={styles.commitMessage} title={commit.message}>{commit.message}</span>
-              <span className={styles.commitDate}>{commit.date}</span>
-            </div>
-            {confirmHash !== commit.hash && (
-              <Button
-                className={styles.rollbackBtn}
-                size="small"
-                appearance="subtle"
-                icon={<ArrowResetRegular fontSize={14} />}
-                onClick={() => { setConfirmHash(commit.hash); setStatusMsg(''); }}
-                disabled={rolling}
-              >
-                {t.commitHistory.rollbackBtn}
-              </Button>
-            )}
+      {/* Scrollable card list */}
+      <div className={styles.scrollArea}>
+        {loading && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+            <Spinner size="small" label={t.commitHistory.loading} />
           </div>
-          {confirmHash === commit.hash && (
-            <div className={styles.confirmBar} style={{ marginTop: 4 }}>
-              <WarningRegular fontSize={16} style={{ color: tokens.colorPaletteRedForeground1, flexShrink: 0 }} />
-              <span className={styles.confirmText}>
-                {t.commitHistory.confirmMessage(commit.shortHash)}
-              </span>
-              <Button
-                size="small"
-                appearance="primary"
-                style={{ backgroundColor: tokens.colorPaletteRedBackground3, flexShrink: 0 }}
-                onClick={() => handleRollback(commit.hash)}
-                disabled={rolling}
-              >
-                {rolling ? t.commitHistory.rolling : t.commitHistory.confirmBtn}
-              </Button>
-              <Button
-                size="small"
-                appearance="subtle"
-                onClick={() => setConfirmHash(null)}
-                disabled={rolling}
-                style={{ flexShrink: 0 }}
-              >
-                {t.commitHistory.cancelBtn}
-              </Button>
+        )}
+
+        {error && (
+          <div className={styles.statusText} style={{ color: tokens.colorPaletteRedForeground1 }}>
+            {error}
+          </div>
+        )}
+
+        {statusMsg && (
+          <div className={styles.statusText} style={{
+            color: statusMsg.includes(t.commitHistory.rollbackSuccess)
+              ? gdsTokens.success.text
+              : tokens.colorPaletteRedForeground1,
+          }}>
+            {statusMsg}
+          </div>
+        )}
+
+        {!loading && !error && commits.length === 0 && (
+          <div className={styles.emptyText}>{t.commitHistory.empty}</div>
+        )}
+
+        {commits.map((commit) => (
+          <div
+            key={commit.hash}
+            className={styles.card}
+            style={selectedHash === commit.hash
+              ? { outline: `1.5px solid ${tokens.colorBrandForeground1}`, outlineOffset: '-1px' }
+              : undefined}
+            onClick={() => {
+              setSelectedHash(selectedHash === commit.hash ? null : commit.hash);
+              setStatusMsg('');
+            }}
+          >
+            <div className={styles.cardRow1}>
+              <span className={styles.commitHash}>{commit.shortHash}</span>
+              <span className={styles.commitDate}>{formatDate(commit.date)}</span>
             </div>
-          )}
-        </div>
-      ))}
+            <span className={styles.commitMessage} title={commit.message}>{commit.message}</span>
+            <span className={styles.commitAuthor}>{commit.author}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

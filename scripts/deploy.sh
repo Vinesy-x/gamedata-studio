@@ -15,6 +15,13 @@ if [ -f "installer/setup.iss" ]; then
   fi
 fi
 
+# Sync version to file-server.ps1
+if [ "$(uname)" = "Darwin" ]; then
+  sed -i '' "s/\\\$ServerVersion = \".*\"/\$ServerVersion = \"$VERSION\"/" scripts/file-server.ps1
+else
+  sed -i "s/\\\$ServerVersion = \".*\"/\$ServerVersion = \"$VERSION\"/" scripts/file-server.ps1
+fi
+
 # Build
 npx webpack --mode production
 
@@ -22,7 +29,7 @@ npx webpack --mode production
 npx gh-pages -d dist --dest . -m "Release v$VERSION"
 
 # Commit version bump and push
-git add package.json package-lock.json installer/setup.iss
+git add package.json package-lock.json installer/setup.iss scripts/file-server.ps1
 git commit -m "release: v$VERSION"
 git push
 

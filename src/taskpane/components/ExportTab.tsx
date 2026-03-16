@@ -97,7 +97,8 @@ const useStyles = makeStyles({
   },
   configLabel: {
     color: tokens.colorNeutralForeground1,
-    minWidth: '60px',
+    width: '60px',
+    flexShrink: 0,
     fontSize: '12px',
   },
   configValue: {
@@ -490,8 +491,43 @@ export function ExportTab({
     [config.versionTemplates]
   );
 
-  // 检测 file-server 是否在线
+  // 检测 file-server 是否在线 & 版本是否匹配
+  const appVersion = __APP_VERSION__.split('+')[0]; // 去掉 git hash
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
+  const [serverNeedsUpdate, setServerNeedsUpdate] = useState(false);
+  const [serverUpdating, setServerUpdating] = useState(false);
+  const serverBaseRef = useRef<string>('');
+
+  const checkServerVersion = useCallback(async (base: string): Promise<boolean> => {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3000);
+      const resp = await fetch(`${base}/api/version`, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
+      if (!resp.ok) return false;
+      const data = await resp.json();
+      return data.version === appVersion;
+    } catch {
+      return false;
+    }
+  }, [appVersion]);
+
+  const handleServerUpdate = useCallback(async () => {
+    setServerUpdating(true);
+    const base = serverBaseRef.current;
+    try {
+      await fetch(`${base}/api/restart`);
+    } catch { /* server 关闭连接是正常的 */ }
+    // 轮询等待 server 重启完成（每 1s 检查一次，最多 10s）
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      if (await checkServerVersion(base)) {
+        setServerNeedsUpdate(false);
+        break;
+      }
+    }
+    setServerUpdating(false);
+  }, [checkServerVersion]);
+
   useEffect(() => {
     const check = async () => {
       for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
@@ -499,13 +535,19 @@ export function ExportTab({
           const ctrl = new AbortController();
           const timer = setTimeout(() => ctrl.abort(), 3000);
           const resp = await fetch(`${base}/api/read-file?directory=.&fileName=_probe`, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
-          if (resp.ok || resp.status === 404) { setServerOnline(true); return; }
+          if (resp.ok || resp.status === 404) {
+            setServerOnline(true);
+            serverBaseRef.current = base;
+            const versionMatch = await checkServerVersion(base);
+            if (!versionMatch) setServerNeedsUpdate(true);
+            return;
+          }
         } catch { /* try next */ }
       }
       setServerOnline(false);
     };
     check();
-  }, []);
+  }, [checkServerVersion]);
 
   const handleVersionChange = useCallback(async (newVersionName: string) => {
     if (newVersionName === config.outputSettings.versionName) return;
@@ -652,14 +694,25 @@ export function ExportTab({
           </div>
           <div className={styles.configRow}>
             <span className={styles.configLabel}>{t.export.config.versionNumber}</span>
-            <Input
-              size="small"
-              value={localVersionNumber}
-              onChange={(_, d) => setLocalVersionNumber(d.value)}
-              onBlur={(e) => handleVersionNumberChange(e.target.value)}
-              disabled={isExporting}
-              style={{ width: 80 }}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Input
+                size="small"
+                value={localVersionNumber}
+                onChange={(_, d) => setLocalVersionNumber(d.value)}
+                onBlur={(e) => handleVersionNumberChange(e.target.value)}
+                disabled={isExporting}
+                style={{ width: 80 }}
+              />
+              <Button
+                appearance="transparent"
+                size="small"
+                icon={<HistoryRegular fontSize={14} />}
+                onClick={() => setHistoryOpen(true)}
+                title={t.commitHistory.title}
+                disabled={!outputDir}
+                style={{ minWidth: 'auto', padding: '2px' }}
+              />
+            </div>
           </div>
           <div className={styles.configRow}>
             <span className={styles.configLabel}>{t.export.config.sequence}</span>
@@ -785,45 +838,30 @@ export function ExportTab({
         ) : (
           <>
             <div className={styles.actionRow}>
-              <Button
-                className={styles.exportBtn}
-                icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : isCyber ? <SendRegular /> : isPixel ? <FlagCheckeredRegular /> : <ArrowExportRegular />}
-                appearance="primary"
-                onClick={handleExport}
-                disabled={isExporting || !outputDir}
-                size="large"
-              >
-                {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
-              </Button>
-            </div>
-
-            {!isExporting && (
-              <div style={{ textAlign: 'center', marginTop: '2px' }}>
+              {serverNeedsUpdate && !isExporting ? (
                 <Button
-                  size="small"
-                  appearance="transparent"
-                  icon={<ArrowSyncRegular />}
-                  style={{ fontSize: '10px', color: tokens.colorNeutralForeground3, minWidth: 0 }}
-                  onClick={async () => {
-                    for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
-                      try {
-                        await fetch(`${base}/api/restart`);
-                        setServerOnline(null);
-                        // 等待 server 重启后重新检测
-                        setTimeout(() => {
-                          fetch(`${base}/api/read-file?directory=.&fileName=_probe`)
-                            .then(() => setServerOnline(true))
-                            .catch(() => setServerOnline(false));
-                        }, 3000);
-                        return;
-                      } catch { /* try next */ }
-                    }
-                  }}
+                  className={styles.exportBtn}
+                  icon={serverUpdating ? <Spinner size="tiny" /> : <ArrowSyncRegular />}
+                  appearance="primary"
+                  disabled={serverUpdating}
+                  size="large"
+                  onClick={handleServerUpdate}
                 >
-                  更新重启文件服务
+                  {serverUpdating ? '正在更新...' : '更新文件服务'}
                 </Button>
-              </div>
-            )}
+              ) : (
+                <Button
+                  className={styles.exportBtn}
+                  icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : isCyber ? <SendRegular /> : isPixel ? <FlagCheckeredRegular /> : <ArrowExportRegular />}
+                  appearance="primary"
+                  onClick={handleExport}
+                  disabled={isExporting || !outputDir}
+                  size="large"
+                >
+                  {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
+                </Button>
+              )}
+            </div>
 
             {isExporting && progress && (
               <div className={styles.progressArea}>
@@ -974,15 +1012,6 @@ export function ExportTab({
             icon={<QuestionCircleRegular fontSize={16} />}
             onClick={() => setHelpOpen(true)}
             title="帮助说明"
-          />
-          <Button
-            className={styles.helpBtn}
-            appearance="transparent"
-            size="small"
-            icon={<HistoryRegular fontSize={16} />}
-            onClick={() => setHistoryOpen(true)}
-            title={t.commitHistory.title}
-            disabled={!outputDir}
           />
           <Button
             className={styles.helpBtn}

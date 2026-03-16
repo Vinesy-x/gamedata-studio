@@ -2,6 +2,8 @@
 # Usage: Double-click start-file-server.bat
 param([switch]$Restarted)
 
+$ServerVersion = "1.6.1"
+
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 # Log to file for debugging (hidden window has no console output)
@@ -160,6 +162,15 @@ while ($listener.IsListening) {
     }
 
     $urlPath = $req.Url.AbsolutePath
+
+    # API: version
+    if ($req.HttpMethod -eq "GET" -and $urlPath -eq "/api/version") {
+        $res.ContentType = "application/json"
+        $msg = [System.Text.Encoding]::UTF8.GetBytes("{`"version`":`"$ServerVersion`"}")
+        $res.OutputStream.Write($msg, 0, $msg.Length)
+        $res.Close()
+        continue
+    }
 
     # API: read file
     if ($req.HttpMethod -eq "GET" -and $urlPath -eq "/api/read-file") {

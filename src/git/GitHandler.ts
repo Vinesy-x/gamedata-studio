@@ -51,6 +51,8 @@ export class GitHandler {
 
   /**
    * 生成提交信息
+   * 模板占位符：{0}=版本号.序列号  {1}=版本名  {2}=操作员
+   * 默认模板：-{1}{0}数据表提交
    */
   generateCommitMessage(
     template: string,
@@ -58,17 +60,12 @@ export class GitHandler {
     versionNumber: number,
     sequenceNumber: number
   ): string {
-    if (!template) {
-      return `${versionName} ${versionNumber}.${sequenceNumber}`;
-    }
-
-    return template
-      .replace('{VerName}', versionName)
-      .replace('{VerNum}', String(versionNumber))
-      .replace('{SeqNum}', String(sequenceNumber))
-      .replace('{User}', '')
-      .replace('{Date}', new Date().toLocaleDateString('zh-CN'))
-      + ` ${versionName} ${versionNumber}.${sequenceNumber}`;
+    const tpl = template || '-{1}{0}数据表提交';
+    const verNum = `${versionNumber}.${sequenceNumber}`;
+    return tpl
+      .replace(/\{0\}/g, verNum)
+      .replace(/\{1\}/g, versionName)
+      .replace(/\{2\}/g, '');
   }
 
   /**
@@ -92,7 +89,7 @@ export class GitHandler {
     if (!this.outputDirectory) return [];
     return [
       `cd "${this.outputDirectory}"`,
-      'git log --pretty=format:"%H||%ai||%s" -10',
+      'git log --pretty=format:"%H||%ai||%an||%s" -10',
     ];
   }
 
