@@ -748,6 +748,9 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
               {config.gitCommitTemplate || '(未配置)'}
             </Text>
           )}
+          <div style={{ fontSize: '10px', color: tokens.colorNeutralForeground3, lineHeight: '1.6', marginTop: '6px' }}>
+            {'{0}'} 版本号.序列号 &nbsp; {'{1}'} 版本名 &nbsp; {'{2}'} 操作员
+          </div>
         </div>
       </div>
 
