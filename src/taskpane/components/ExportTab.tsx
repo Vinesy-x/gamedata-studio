@@ -703,14 +703,14 @@ export function ExportTab({
           </div>
           <div className={styles.configRow}>
             <span className={styles.configLabel}>{t.export.config.versionNumber}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', minWidth: 100, justifyContent: 'flex-end' }}>
               <Input
                 size="small"
                 value={localVersionNumber}
                 onChange={(_, d) => setLocalVersionNumber(d.value)}
                 onBlur={(e) => handleVersionNumberChange(e.target.value)}
                 disabled={isExporting}
-                style={{ width: 80 }}
+                style={{ width: 68 }}
               />
               <Button
                 appearance="transparent"
