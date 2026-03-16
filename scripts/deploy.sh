@@ -15,11 +15,14 @@ if [ -f "installer/setup.iss" ]; then
   fi
 fi
 
-# Sync version to file-server.ps1
-if [ "$(uname)" = "Darwin" ]; then
-  sed -i '' "s/\\\$ServerVersion = \".*\"/\$ServerVersion = \"$VERSION\"/" scripts/file-server.ps1
-else
-  sed -i "s/\\\$ServerVersion = \".*\"/\$ServerVersion = \"$VERSION\"/" scripts/file-server.ps1
+# Sync version to file-server.ps1 only if it changed since last release
+LAST_RELEASE=$(git log --oneline --grep="^release:" -1 --format="%H" 2>/dev/null)
+if [ -n "$LAST_RELEASE" ] && ! git diff --quiet "$LAST_RELEASE" HEAD -- scripts/file-server.ps1; then
+  if [ "$(uname)" = "Darwin" ]; then
+    sed -i '' "s/\\\$ServerVersion = \".*\"/\$ServerVersion = \"$VERSION\"/" scripts/file-server.ps1
+  else
+    sed -i "s/\\\$ServerVersion = \".*\"/\$ServerVersion = \"$VERSION\"/" scripts/file-server.ps1
+  fi
 fi
 
 # Build
@@ -29,7 +32,8 @@ npx webpack --mode production
 npx gh-pages -d dist --dest . -m "Release v$VERSION"
 
 # Commit version bump and push
-git add package.json package-lock.json installer/setup.iss scripts/file-server.ps1
+git add package.json package-lock.json installer/setup.iss
+git diff --quiet scripts/file-server.ps1 || git add scripts/file-server.ps1
 git commit -m "release: v$VERSION"
 git push
 
