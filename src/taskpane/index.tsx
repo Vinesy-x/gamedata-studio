@@ -1,6 +1,6 @@
 /* global Office */
 
-import { createContext, useState, useCallback, useMemo } from 'react';
+import { createContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FluentProvider } from '@fluentui/react-components';
 import { App } from './App';
@@ -18,6 +18,16 @@ const themeMap = {
   cyber: gdsCyberTheme,
   pixel: gdsPixelTheme,
 } as const;
+
+// 各主题的滚动条配色（track / thumb）
+const scrollbarColors: Record<ThemeMode, { track: string; thumb: string; thumbHover: string }> = {
+  light: { track: '#f5f5f5', thumb: '#c0c0c0', thumbHover: '#a0a0a0' },
+  dark:  { track: '#1a1a1a', thumb: '#444444', thumbHover: '#555555' },
+  game:  { track: '#0D0B1A', thumb: '#3D2E6B', thumbHover: '#5A4A8A' },
+  cute:  { track: '#FFF5F9', thumb: '#F0C0D8', thumbHover: '#E8A0C8' },
+  cyber: { track: '#0A0A12', thumb: '#2A2A4C', thumbHover: '#3A3A5C' },
+  pixel: { track: '#050505', thumb: '#1E3A1E', thumbHover: '#2E4A2E' },
+};
 
 export const ThemeContext = createContext<{
   mode: ThemeMode;
@@ -131,6 +141,25 @@ function Root() {
   }, []);
 
   const ctx = useMemo(() => ({ mode: mode || 'light', toggle, setMode }), [mode, toggle, setMode]);
+
+  // 根据主题动态注入滚动条样式
+  useEffect(() => {
+    const m = mode || 'light';
+    const sc = scrollbarColors[m];
+    const id = 'gds-scrollbar-style';
+    let style = document.getElementById(id) as HTMLStyleElement | null;
+    if (!style) {
+      style = document.createElement('style');
+      style.id = id;
+      document.head.appendChild(style);
+    }
+    style.textContent = `
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: ${sc.track}; }
+      ::-webkit-scrollbar-thumb { background: ${sc.thumb}; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: ${sc.thumbHover}; }
+    `;
+  }, [mode]);
 
   // 首次访问 → 显示主题选择
   if (mode === null) {
