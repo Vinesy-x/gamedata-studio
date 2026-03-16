@@ -35,6 +35,10 @@ export class GitHandler {
 
     const commands: string[] = [`cd "${this.outputDirectory}"`];
 
+    // 确保 git 用户信息已配置（仓库级别）
+    commands.push('git config user.name "GameData Studio" 2>nul');
+    commands.push('git config user.email "gamedata-studio@local" 2>nul');
+
     for (const file of modifiedFiles) {
       commands.push(`git add "${file}"`);
     }
