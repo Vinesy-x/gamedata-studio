@@ -12,7 +12,6 @@ import {
   Option,
   Input,
   Switch,
-  Spinner,
   Dialog,
   DialogSurface,
   DialogBody,
@@ -490,53 +489,8 @@ export function ExportTab({
     [config.versionTemplates]
   );
 
-  // 检测 file-server 是否在线 & 版本是否匹配
-  const appVersion = __APP_VERSION__.split('+')[0]; // 去掉 git hash
+  // 检测 file-server 是否在线
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
-  const [serverNeedsUpdate, setServerNeedsUpdate] = useState(false);
-  const [serverUpdating, setServerUpdating] = useState(false);
-  const serverBaseRef = useRef<string>('');
-
-  const checkServerVersion = useCallback(async (base: string): Promise<boolean> => {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 3000);
-      const resp = await fetch(`${base}/api/version`, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
-      if (!resp.ok) return false;
-      const data = await resp.json();
-      return data.version === appVersion;
-    } catch {
-      return false;
-    }
-  }, [appVersion]);
-
-  const handleServerUpdate = useCallback(async () => {
-    setServerUpdating(true);
-    const base = serverBaseRef.current;
-    let restartRequested = false;
-    try {
-      const resp = await fetch(`${base}/api/restart`);
-      restartRequested = resp.ok;
-    } catch { /* server 关闭连接是正常的，也算成功 */
-      restartRequested = true;
-    }
-    if (!restartRequested) {
-      // 老版本 server 没有 /api/restart，需手动重启
-      logger.warn('文件服务版本过旧，无法远程重启，请手动重启');
-      setServerUpdating(false);
-      return;
-    }
-    // 轮询等待 server 重启完成（每 2s 检查一次，最多 30s）
-    for (let i = 0; i < 15; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      if (await checkServerVersion(base)) {
-        setServerNeedsUpdate(false);
-        break;
-      }
-    }
-    setServerUpdating(false);
-  }, [checkServerVersion]);
-
   useEffect(() => {
     const check = async () => {
       for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
@@ -544,19 +498,13 @@ export function ExportTab({
           const ctrl = new AbortController();
           const timer = setTimeout(() => ctrl.abort(), 3000);
           const resp = await fetch(`${base}/api/read-file?directory=.&fileName=_probe`, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
-          if (resp.ok || resp.status === 404) {
-            setServerOnline(true);
-            serverBaseRef.current = base;
-            const versionMatch = await checkServerVersion(base);
-            if (!versionMatch) setServerNeedsUpdate(true);
-            return;
-          }
+          if (resp.ok || resp.status === 404) { setServerOnline(true); return; }
         } catch { /* try next */ }
       }
       setServerOnline(false);
     };
     check();
-  }, [checkServerVersion]);
+  }, []);
 
   const handleVersionChange = useCallback(async (newVersionName: string) => {
     if (newVersionName === config.outputSettings.versionName) return;
@@ -847,29 +795,16 @@ export function ExportTab({
         ) : (
           <>
             <div className={styles.actionRow}>
-              {serverNeedsUpdate && !isExporting ? (
-                <Button
-                  className={styles.exportBtn}
-                  icon={serverUpdating ? <Spinner size="tiny" /> : <ArrowSyncRegular />}
-                  appearance="primary"
-                  disabled={serverUpdating}
-                  size="large"
-                  onClick={handleServerUpdate}
-                >
-                  {serverUpdating ? '正在更新...' : '更新文件服务'}
-                </Button>
-              ) : (
-                <Button
-                  className={styles.exportBtn}
-                  icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : isCyber ? <SendRegular /> : isPixel ? <FlagCheckeredRegular /> : <ArrowExportRegular />}
-                  appearance="primary"
-                  onClick={handleExport}
-                  disabled={isExporting || !outputDir}
-                  size="large"
-                >
-                  {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
-                </Button>
-              )}
+              <Button
+                className={styles.exportBtn}
+                icon={isGame ? <RocketRegular /> : isCute ? <HeartRegular /> : isCyber ? <SendRegular /> : isPixel ? <FlagCheckeredRegular /> : <ArrowExportRegular />}
+                appearance="primary"
+                onClick={handleExport}
+                disabled={isExporting || !outputDir}
+                size="large"
+              >
+                {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
+              </Button>
             </div>
 
             {isExporting && progress && (
