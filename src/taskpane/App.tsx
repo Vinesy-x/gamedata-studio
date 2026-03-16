@@ -181,6 +181,10 @@ export function App() {
     isExportingRef.current = isExporting;
   }, [isExporting]);
 
+  const handleExportStart = useCallback(() => setIsExporting(true), []);
+  const handleClearResult = useCallback(() => setExportResult(null), []);
+  const handleNavigateToManage = useCallback(() => setSelectedTab('manage'), []);
+
   const handleExportComplete = useCallback((result: ExportResult) => {
     setExportResult(result);
     setIsExporting(false);
@@ -355,15 +359,15 @@ export function App() {
             isExporting={isExporting}
             progress={progress}
             exportResult={exportResult}
-            onExportStart={() => setIsExporting(true)}
+            onExportStart={handleExportStart}
             onExportComplete={handleExportComplete}
             onProgress={setProgress}
             onReloadConfig={loadConfig}
-            onClearResult={() => setExportResult(null)}
+            onClearResult={handleClearResult}
             monitorEnabled={monitorEnabled}
             monitorStatus={monitorStatus}
             onToggleMonitor={handleToggleMonitor}
-            onNavigateToManage={() => setSelectedTab('manage')}
+            onNavigateToManage={handleNavigateToManage}
           />
         )}
 

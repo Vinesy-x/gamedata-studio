@@ -212,7 +212,8 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
 
   // 高亮状态
   const [highlightedSheet, setHighlightedSheet] = useState<string | null>(null);
-  const previewerRef = useRef(new VersionPreviewer());
+  const previewerRef = useRef<VersionPreviewer>(null!);
+  if (!previewerRef.current) previewerRef.current = new VersionPreviewer();
 
   // 切换选中表时，自动还原之前高亮的表
   useEffect(() => {
@@ -260,8 +261,7 @@ export function PreviewPanel({ config }: PreviewPanelProps) {
     setHighlightedSheet(null);
 
     try {
-      const previewer = new VersionPreviewer();
-      const previewResults = await previewer.preview(
+      const previewResults = await previewerRef.current.preview(
         selectedVersion,
         versionNumber,
         config,

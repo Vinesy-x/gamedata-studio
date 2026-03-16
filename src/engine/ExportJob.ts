@@ -148,7 +148,7 @@ export class ExportJob {
         logger.info('创建新的哈希清单');
       }
 
-      // ── 阶段A：筛选 + 哈希对比 + diff 计算（含读取旧文件 I/O）
+      // ── 阶段A：筛选 + 哈希对比（纯 CPU）
       const t4 = Date.now();
       const dataFilter = new DataFilter(versionFilter);
       let tableIndex = 0;
@@ -191,21 +191,7 @@ export class ExportJob {
           const previousRows = oldEntry ? getManifestRows(oldEntry) : 0;
           const isNew = !oldEntry;
 
-          // Compute row-level diff for non-new tables
-          let diffDetail: TableDiffDetail | undefined;
-          if (!isNew) {
-            try {
-              const oldBuffer = await this.readFileFromServer(outputDir, `${englishName}.xlsx`);
-              if (oldBuffer) {
-                const oldData = await this.parseXlsxBuffer(oldBuffer);
-                diffDetail = computeTableDiff(oldData, filtered.data);
-              }
-            } catch (err) {
-              logger.warn(`Diff 计算失败: ${englishName}`, err);
-            }
-          }
-
-          pendingWrites.push({ chineseName, englishName, filteredData: filtered.data, newHash, currentRows, previousRows, isNew, diffDetail });
+          pendingWrites.push({ chineseName, englishName, filteredData: filtered.data, newHash, currentRows, previousRows, isNew });
         } catch (err) {
           const errDetail = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
           logger.error(`处理表「${chineseName}」失败`, err);
@@ -219,7 +205,27 @@ export class ExportJob {
         }
       }
 
-      logger.info(`⏱ 阶段A筛选+哈希+diff: ${Date.now() - t4}ms (${pendingWrites.length} 张表需写入)`);
+      logger.info(`⏱ 阶段A筛选+哈希: ${Date.now() - t4}ms (${pendingWrites.length} 张表需写入)`);
+
+      // ── 阶段A2：并行读取旧文件计算 diff（不阻塞主流程）
+      const t4b = Date.now();
+      const diffTasks = pendingWrites.filter(pw => !pw.isNew);
+      if (diffTasks.length > 0) {
+        const diffResults = await Promise.allSettled(
+          diffTasks.map(async (pw) => {
+            const oldBuffer = await this.readFileFromServer(outputDir, `${pw.englishName}.xlsx`);
+            if (!oldBuffer) return;
+            const oldData = await this.parseXlsxBuffer(oldBuffer);
+            pw.diffDetail = computeTableDiff(oldData, pw.filteredData);
+          })
+        );
+        for (let i = 0; i < diffResults.length; i++) {
+          if (diffResults[i].status === 'rejected') {
+            logger.warn(`Diff 计算失败: ${diffTasks[i].englishName}`, (diffResults[i] as PromiseRejectedResult).reason);
+          }
+        }
+        logger.info(`⏱ 阶段A2 diff计算: ${Date.now() - t4b}ms (${diffTasks.length} 张表)`);
+      }
 
       // ── 阶段B：并行生成 xlsx + 写入文件（I/O 密集，8 路并发）
       const t5 = Date.now();

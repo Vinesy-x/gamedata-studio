@@ -528,8 +528,8 @@ export function ExportTab({
   const progressValue = progress ? progress.step / progress.totalSteps : 0;
   const outputDir = config.outputSettings.outputDirectory || '';
 
-  const warnings = exportResult?.errors.filter(e => e.severity === 'warning') || [];
-  const errors = exportResult?.errors.filter(e => e.severity === 'error') || [];
+  const warnings = useMemo(() => exportResult?.errors.filter(e => e.severity === 'warning') || [], [exportResult?.errors]);
+  const errors = useMemo(() => exportResult?.errors.filter(e => e.severity === 'error') || [], [exportResult?.errors]);
 
   const handleNavigate = async (error: ExportError) => {
     if (error.location) {

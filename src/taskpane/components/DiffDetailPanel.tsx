@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { makeStyles, tokens } from '@fluentui/react-components';
 import { TableDiffDetail } from '../../types/table';
 import { useThemeText } from '../locales';
@@ -91,7 +92,7 @@ interface DiffDetailPanelProps {
   diffDetail: TableDiffDetail;
 }
 
-export function DiffDetailPanel({ diffDetail }: DiffDetailPanelProps) {
+export const DiffDetailPanel = memo(function DiffDetailPanel({ diffDetail }: DiffDetailPanelProps) {
   const styles = useStyles();
   const t = useThemeText();
 
@@ -147,4 +148,4 @@ export function DiffDetailPanel({ diffDetail }: DiffDetailPanelProps) {
       )}
     </div>
   );
-}
+});
