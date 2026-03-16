@@ -42,6 +42,7 @@ import {
   ChevronDownRegular,
   DismissRegular,
   ArrowUploadRegular,
+  ArrowSyncRegular,
 } from '@fluentui/react-icons';
 import { DiffDetailPanel } from './DiffDetailPanel';
 import { ThemeContext } from '../index';
@@ -777,7 +778,7 @@ export function ExportTab({
             </div>
             <div>Windows：重启电脑或运行开始菜单中的 GameData Studio Server</div>
             <div>Mac：终端执行 <code style={{ fontSize: '10px', backgroundColor: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: '2px' }}>python3 ~/.gamedata-studio/file-server.py &</code></div>
-            <Button size="small" appearance="primary" style={{ marginTop: '6px' }} onClick={() => { setServerOnline(null); setTimeout(() => { fetch('https://localhost:9876/api/read-file?directory=.&fileName=_probe').then(() => setServerOnline(true)).catch(() => setServerOnline(false)); }, 500); }}>
+            <Button size="small" appearance="primary" icon={<ArrowSyncRegular />} style={{ marginTop: '6px' }} onClick={() => { setServerOnline(null); setTimeout(() => { fetch('https://localhost:9876/api/read-file?directory=.&fileName=_probe').then(() => setServerOnline(true)).catch(() => setServerOnline(false)); }, 500); }}>
               重新检测
             </Button>
           </div>
@@ -795,6 +796,34 @@ export function ExportTab({
                 {isExporting ? t.export.exportingBtn : !outputDir ? t.export.disabledBtn : t.export.exportBtn}
               </Button>
             </div>
+
+            {!isExporting && (
+              <div style={{ textAlign: 'center', marginTop: '2px' }}>
+                <Button
+                  size="small"
+                  appearance="transparent"
+                  icon={<ArrowSyncRegular />}
+                  style={{ fontSize: '10px', color: tokens.colorNeutralForeground3, minWidth: 0 }}
+                  onClick={async () => {
+                    for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
+                      try {
+                        await fetch(`${base}/api/restart`);
+                        setServerOnline(null);
+                        // 等待 server 重启后重新检测
+                        setTimeout(() => {
+                          fetch(`${base}/api/read-file?directory=.&fileName=_probe`)
+                            .then(() => setServerOnline(true))
+                            .catch(() => setServerOnline(false));
+                        }, 3000);
+                        return;
+                      } catch { /* try next */ }
+                    }
+                  }}
+                >
+                  更新重启文件服务
+                </Button>
+              </div>
+            )}
 
             {isExporting && progress && (
               <div className={styles.progressArea}>

@@ -205,6 +205,32 @@ while ($listener.IsListening) {
         continue
     }
 
+    # API: restart (self-update and restart)
+    if ($req.HttpMethod -eq "GET" -and $urlPath -eq "/api/restart") {
+        $res.ContentType = "application/json"
+        $msg = [System.Text.Encoding]::UTF8.GetBytes('{"ok":true,"message":"restarting..."}')
+        $res.OutputStream.Write($msg, 0, $msg.Length)
+        $res.Close()
+        Write-Log "[restart] Restart requested via API"
+        $listener.Stop()
+        # Update self then restart
+        $selfPath = $PSCommandPath
+        if ($selfPath) {
+            $url = "https://raw.githubusercontent.com/Vinesy-x/gamedata-studio/main/scripts/file-server.ps1"
+            try {
+                $newContent = (Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10).Content
+                if ($newContent) {
+                    Set-Content -Path $selfPath -Value $newContent -NoNewline -Encoding UTF8
+                    Write-Log "[restart] Updated file-server.ps1"
+                }
+            } catch {
+                Write-Log "[restart] Self-update failed: $($_.Exception.Message)"
+            }
+        }
+        Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$selfPath`" -Restarted" -WindowStyle Normal
+        exit
+    }
+
     # API: git push (execute whitelisted git commands)
     if ($req.HttpMethod -eq "GET" -and $urlPath -eq "/api/git-push") {
         $params = [System.Web.HttpUtility]::ParseQueryString($req.Url.Query)
