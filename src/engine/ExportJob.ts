@@ -188,6 +188,10 @@ export class ExportJob {
           // 所有表正常做哈希对比（GameConfig 此时不注入版本号，用原始数据对比）
           const newHash = this.exportWriter.computeDataHash(filtered.data);
           const hasChanged = this.exportWriter.hasHashChanged(newHash, manifest, englishName);
+          if (englishName === 'GameConfig') {
+            const oldEntry = manifest[englishName];
+            logger.info(`GameConfig 哈希对比: new=${newHash} old=${oldEntry ? getManifestHash(oldEntry) : '无'} changed=${hasChanged}`);
+          }
           if (!hasChanged) {
             continue;
           }
