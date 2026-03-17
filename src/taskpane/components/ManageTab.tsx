@@ -295,6 +295,10 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
   const [syncing, setSyncing] = useState(false);
   const [, forceUpdate] = useReducer(x => x + 1, 0);
 
+  // 版本名行内编辑
+  const [editingVersionName, setEditingVersionName] = useState<string | null>(null);
+  const [editVersionNameValue, setEditVersionNameValue] = useState('');
+
   // Git 目录行内编辑
   const [editingGitDir, setEditingGitDir] = useState<string | null>(null);
   const [editGitDirValue, setEditGitDirValue] = useState('');
@@ -306,6 +310,28 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
   const [addingStaff, setAddingStaff] = useState(false);
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffCode, setNewStaffCode] = useState('');
+
+  const handleSaveVersionName = useCallback(async (vt: VersionTemplate) => {
+    const newName = editVersionNameValue.trim();
+    setEditingVersionName(null);
+    if (!newName || newName === vt.name) return;
+    // 检查重名
+    if (config.versionTemplates.has(newName)) {
+      setStatusMsg({ text: `版本名「${newName}」已存在`, type: 'error' });
+      return;
+    }
+    try {
+      await configManager.updateVersion(vt.name, { ...vt, name: newName });
+      // 同步更新对应线路的 remark
+      const line = Array.from(config.lineTemplates.values()).find(l => l.field === vt.lineField);
+      if (line) {
+        await configManager.updateLine(line.id, { ...line, remark: newName });
+      }
+      onReload();
+    } catch (err) {
+      setStatusMsg({ text: `更新版本名失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
+    }
+  }, [editVersionNameValue, config.versionTemplates, config.lineTemplates, onReload]);
 
   const handleSaveGitDir = useCallback(async (vt: VersionTemplate) => {
     const newDir = editGitDirValue.trim();
@@ -526,7 +552,24 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
               {versions.map((vt) => (
                 <tr key={vt.name}>
                   <td className={styles.td}>
-                    <strong>{vt.name}</strong>
+                    {editingVersionName === vt.name ? (
+                      <Input
+                        size="small"
+                        value={editVersionNameValue}
+                        onChange={(_, d) => setEditVersionNameValue(d.value)}
+                        onBlur={() => handleSaveVersionName(vt)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveVersionName(vt); if (e.key === 'Escape') setEditingVersionName(null); }}
+                        style={{ width: '100%', fontSize: '11px' }}
+                        autoFocus
+                      />
+                    ) : (
+                      <strong
+                        onClick={() => { setEditingVersionName(vt.name); setEditVersionNameValue(vt.name); }}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        {vt.name}
+                      </strong>
+                    )}
                   </td>
                   <td className={styles.td}>{roadsDisplayName(vt.lineField)}</td>
                   <td className={styles.td} style={{ fontSize: '10px' }}>
@@ -948,12 +991,15 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
         if (vrRow < 0) throw new Error('找不到 version_r');
 
         // 从版本配置构建正确的 roads 列表（不依赖工作表中可能过时的 roads）
-        const configRoads: Array<{ field: string; name: string }> = [{ field: 'roads_0', name: '默认' }];
+        const configRoads: Array<{ field: string; name: string }> = [];
         for (const vt of config.versionTemplates.values()) {
           const field = vt.lineField || config.lineTemplates.get(vt.lineId)?.field || '';
-          if (field && field !== 'roads_0' && field.startsWith('roads_')) {
+          if (field && field.startsWith('roads_')) {
             configRoads.push({ field, name: vt.name });
           }
+        }
+        if (!configRoads.some(r => r.field === 'roads_0')) {
+          configRoads.push({ field: 'roads_0', name: '默认' });
         }
         configRoads.sort((a, b) =>
           parseInt(a.field.replace('roads_', '')) - parseInt(b.field.replace('roads_', ''))

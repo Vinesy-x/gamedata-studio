@@ -330,16 +330,18 @@ export function buildRoadsFromConfig(
     lineFieldMap.set(l.id, l.field);
   }
 
-  const roads: Array<{ field: string; name: string }> = [
-    { field: 'roads_0', name: '默认' },
-  ];
+  const roads: Array<{ field: string; name: string }> = [];
 
   for (const v of data.versions) {
-    // 优先用 lines 中的 field（可靠），其次用 version 自带的 lineField
     const field = lineFieldMap.get(v.lineId) || v.lineField || '';
-    if (field && field !== 'roads_0' && field.startsWith('roads_')) {
+    if (field && field.startsWith('roads_')) {
       roads.push({ field, name: v.name });
     }
+  }
+
+  // 确保 roads_0 始终存在
+  if (!roads.some(r => r.field === 'roads_0')) {
+    roads.push({ field: 'roads_0', name: '默认' });
   }
 
   roads.sort((a, b) =>

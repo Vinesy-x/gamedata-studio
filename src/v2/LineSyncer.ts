@@ -33,12 +33,13 @@ export class LineSyncer {
 
     // roads → 版本名 映射
     const roadsToName = new Map<string, string>();
-    roadsToName.set('roads_0', '默认');
     for (const vt of versionTemplates.values()) {
-      if (vt.lineField && vt.lineField.startsWith('roads_') && vt.lineField !== 'roads_0') {
+      if (vt.lineField && vt.lineField.startsWith('roads_')) {
         roadsToName.set(vt.lineField, vt.name);
       }
     }
+    // 确保 roads_0 有名字
+    if (!roadsToName.has('roads_0')) roadsToName.set('roads_0', '默认');
 
     let synced = 0;
     const errors: string[] = [];
