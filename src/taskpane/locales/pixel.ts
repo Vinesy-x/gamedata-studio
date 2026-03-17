@@ -42,8 +42,8 @@ export const pixelText: ThemeTextMap = {
       removedRow: 'DEL',
     },
     config: {
-      version: '副本',
-      versionNumber: '副本编号',
+      version: '频道',
+      versionNumber: '版本号',
       sequence: '回合',
       operator: '勇者',
       monitor: '巡逻哨兵',

@@ -42,8 +42,8 @@ export const cuteText: ThemeTextMap = {
       removedRow: '消失了',
     },
     config: {
-      version: '选择世界',
-      versionNumber: '章节',
+      version: '小伙伴',
+      versionNumber: '版本号',
       sequence: '冒险编号',
       operator: '冒险者',
       monitor: '守护精灵',
