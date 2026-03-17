@@ -1,6 +1,6 @@
 /* global Excel */
 
-import { useState, useCallback, useMemo, useContext } from 'react';
+import { useState, useCallback, useMemo, useContext, useEffect } from 'react';
 import {
   makeStyles,
   tokens,
@@ -321,6 +321,30 @@ const useStyles = makeStyles({
 
 type ScopeType = 'active' | 'registered';
 
+// ─── localStorage 持久化 ─────────────────────────────────
+
+const LS_KEY_SCOPE = 'gds-validate-scope';
+const LS_KEY_RULES = 'gds-validate-rules';
+
+function loadScope(): ScopeType {
+  try {
+    const v = localStorage.getItem(LS_KEY_SCOPE);
+    if (v === 'active' || v === 'registered') return v;
+  } catch { /* ignore */ }
+  return 'registered';
+}
+
+function loadEnabledRules(): Set<string> {
+  try {
+    const v = localStorage.getItem(LS_KEY_RULES);
+    if (v) {
+      const arr: string[] = JSON.parse(v);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch { /* ignore */ }
+  return new Set(VALIDATION_RULES.map((r) => r.key));
+}
+
 // ─── 组件 ────────────────────────────────────────────────
 
 interface ValidationPanelProps {
@@ -336,12 +360,10 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
   const styles = useStyles();
 
   // 校验范围
-  const [scope, setScope] = useState<ScopeType>('registered');
+  const [scope, setScope] = useState<ScopeType>(loadScope);
 
-  // 规则开关（默认全选）
-  const [enabledRules, setEnabledRules] = useState<Set<string>>(
-    () => new Set(VALIDATION_RULES.map((r) => r.key))
-  );
+  // 规则开关（从 localStorage 恢复，默认全选）
+  const [enabledRules, setEnabledRules] = useState<Set<string>>(loadEnabledRules);
 
   // 运行状态
   const [isRunning, setIsRunning] = useState(false);
@@ -361,6 +383,15 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
       }
     }).catch(() => { /* use default */ });
   });
+
+  // ─── 持久化到 localStorage ───────────────
+  useEffect(() => {
+    try { localStorage.setItem(LS_KEY_SCOPE, scope); } catch { /* ignore */ }
+  }, [scope]);
+
+  useEffect(() => {
+    try { localStorage.setItem(LS_KEY_RULES, JSON.stringify([...enabledRules])); } catch { /* ignore */ }
+  }, [enabledRules]);
 
   // Navigator 实例（单例复用）
   const navigator = useMemo(() => new ValidationNavigator(), []);

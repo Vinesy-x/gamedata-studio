@@ -7,7 +7,7 @@ import { ConfigLoader } from './ConfigLoader';
 import { VersionFilter } from './VersionFilter';
 import { DataLoader } from './DataLoader';
 import { DataFilter } from './DataFilter';
-import { ExportWriter, HashManifest, getManifestRows } from './ExportWriter';
+import { ExportWriter, HashManifest, getManifestRows, getManifestHash } from './ExportWriter';
 import { ErrorHandler } from '../utils/ErrorHandler';
 import { excelHelper, isExcelError } from '../utils/ExcelHelper';
 import { logger } from '../utils/Logger';
@@ -223,7 +223,7 @@ export class ExportJob {
       // 有数据变更 → 递增序列号 → 注入版本号到 GameConfig
       if (pendingWrites.length > 0) {
         await this.configLoader.incrementSequence(config);
-        const newSeq = config.outputSettings.versionSequence + 1;
+        const newSeq = config.outputSettings.versionSequence;
 
         if (gameConfigEntry) {
           // GameConfig 已在写入队列中（自身数据有变更），注入版本号
@@ -390,7 +390,7 @@ export class ExportJob {
       this.emitProgress(totalSteps, totalSteps, '正在更新状态...');
       await this.updateExportResults(modifiedFiles);
 
-      return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables, tableDiffs, gitPushed);
+      return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables, tableDiffs, gitPushed, config.outputSettings.versionSequence);
     } catch (err) {
       const errMsg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
       logger.error(`导出失败: ${errMsg}`);
@@ -777,7 +777,8 @@ export class ExportJob {
     totalTables: number,
     changedTables: number,
     tableDiffs: TableDiff[] = [],
-    gitPushed = false
+    gitPushed = false,
+    finalSequence?: number
   ): ExportResult {
     return {
       success,
@@ -788,6 +789,7 @@ export class ExportJob {
       changedTables,
       tableDiffs,
       gitPushed,
+      finalSequence,
     };
   }
 

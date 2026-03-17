@@ -490,7 +490,7 @@ export function ExportTab({
     const gitHandler = new GitHandler(config.outputSettings.outputDirectory || '');
     return gitHandler.generateCommitMessage(
       config.gitCommitTemplate, config.outputSettings.versionName,
-      config.outputSettings.versionNumber, config.outputSettings.versionSequence, config.operator
+      config.outputSettings.versionNumber, exportResult.finalSequence ?? config.outputSettings.versionSequence, config.operator
     );
   });
 
@@ -505,11 +505,12 @@ export function ExportTab({
       setSubPage('result');
       setGitPushDone(!!exportResult.gitPushed);
       const gitHandler = new GitHandler(outputDir);
+      const finalSeq = exportResult.finalSequence ?? config.outputSettings.versionSequence;
       setCommitMessage(gitHandler.generateCommitMessage(
         config.gitCommitTemplate,
         config.outputSettings.versionName,
         config.outputSettings.versionNumber,
-        config.outputSettings.versionSequence,
+        finalSeq,
         config.operator
       ));
       if (exportResult?.success) {
@@ -726,7 +727,7 @@ export function ExportTab({
                 <div className={styles.configRow}>
                   <span className={styles.configLabel}>{t.export.config.sequence}</span>
                   <span className={styles.configValue}>
-                    {config.outputSettings.versionSequence}
+                    {exportResult?.finalSequence ?? config.outputSettings.versionSequence}
                   </span>
                 </div>
                 <div className={styles.configRow} style={{ borderBottom: 'none' }}>

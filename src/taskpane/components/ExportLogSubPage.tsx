@@ -7,20 +7,20 @@ interface ExportLogSubPageProps {
   config: Config;
 }
 
-/** 从模板算出 {0} 版本号目录（git 仓库根目录） */
+/**
+ * 从输出目录模板和版本号解析 git 仓库根目录。
+ * 直接替换模板变量后截取到 {0} 段结尾，不依赖分支名。
+ */
 function resolveGitRoot(gitDirectory: string, versionNumber: number): string {
   if (!gitDirectory) return '';
   let versionStr = String(versionNumber);
   if (!versionStr.includes('.')) versionStr += '.0';
-  // 找到 {0} 在模板中的位置，取 {0} 替换后的完整路径段
   const idx = gitDirectory.indexOf('{0}');
   if (idx < 0) return '';
-  // 取 {0} 之后的第一个路径分隔符位置
-  const afterTag = idx + 3; // '{0}'.length
+  const afterTag = idx + 3;
   const nextSep = gitDirectory.indexOf('/', afterTag) !== -1
     ? gitDirectory.indexOf('/', afterTag)
     : gitDirectory.indexOf('\\', afterTag);
-  // 截取到 {0} 段的结尾（含 {0} 替换后的值）
   const template = nextSep > 0 ? gitDirectory.substring(0, nextSep) : gitDirectory;
   return template.replace('{0}', versionStr).replace(/\{1\}/g, '');
 }

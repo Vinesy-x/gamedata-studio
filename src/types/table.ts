@@ -69,6 +69,8 @@ export interface ExportResult {
   changedTables: number;
   tableDiffs: TableDiff[];
   gitPushed: boolean;
+  /** Final sequence number after export (includes increment if tables changed) */
+  finalSequence?: number;
 }
 
 export interface ExportProgress {
