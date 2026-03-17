@@ -44,7 +44,7 @@ export class ExcelHelper {
   }
 
   /**
-   * 批量读取多张工作表的 UsedRange（仅 2 次 context.sync）
+   * 批量读取多张工作表的 UsedRange（分批加载，避免大工作簿内存溢出）
    */
   async loadSheetSnapshotsBatch(
     context: Excel.RequestContext,
@@ -62,29 +62,35 @@ export class ExcelHelper {
     }
     await context.sync();
 
-    // 第2次 sync：批量加载存在的工作表的 usedRange
-    const rangeObjects: { name: string; range: Excel.Range }[] = [];
-    for (const { name, sheet } of sheetObjects) {
-      if (sheet.isNullObject) continue;
-      const range = sheet.getUsedRangeOrNullObject(true);
-      range.load('values,rowCount,columnCount,rowIndex,columnIndex');
-      rangeObjects.push({ name, range });
-    }
-    await context.sync();
+    // 过滤出存在的工作表
+    const existingSheets = sheetObjects.filter(s => !s.sheet.isNullObject);
 
-    // 组装结果
-    for (const { name, range } of rangeObjects) {
-      if (range.isNullObject) {
-        result.set(name, { name, values: [], rowCount: 0, colCount: 0, startRow: 0, startCol: 0 });
-      } else {
-        result.set(name, {
-          name,
-          values: range.values,
-          rowCount: range.rowCount,
-          colCount: range.columnCount,
-          startRow: range.rowIndex,
-          startCol: range.columnIndex,
-        });
+    // 分批加载 values（每批 20 张表，减少单次 sync 的内存峰值）
+    const BATCH_SIZE = 20;
+    for (let i = 0; i < existingSheets.length; i += BATCH_SIZE) {
+      const batch = existingSheets.slice(i, i + BATCH_SIZE);
+      const rangeObjects: { name: string; range: Excel.Range }[] = [];
+
+      for (const { name, sheet } of batch) {
+        const range = sheet.getUsedRangeOrNullObject(true);
+        range.load('values,rowCount,columnCount,rowIndex,columnIndex');
+        rangeObjects.push({ name, range });
+      }
+      await context.sync();
+
+      for (const { name, range } of rangeObjects) {
+        if (range.isNullObject) {
+          result.set(name, { name, values: [], rowCount: 0, colCount: 0, startRow: 0, startCol: 0 });
+        } else {
+          result.set(name, {
+            name,
+            values: range.values,
+            rowCount: range.rowCount,
+            colCount: range.columnCount,
+            startRow: range.rowIndex,
+            startCol: range.columnIndex,
+          });
+        }
       }
     }
 
