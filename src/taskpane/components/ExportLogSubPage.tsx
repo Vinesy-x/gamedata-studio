@@ -58,6 +58,7 @@ export function ExportLogSubPage({ config }: ExportLogSubPageProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, borderBottom: `1px solid ${tokens.colorNeutralStroke2}` }}>
+        <span style={{ fontSize: '12px', color: tokens.colorNeutralForeground3, whiteSpace: 'nowrap' }}>本地文件夹分支</span>
         <Input
           size="small"
           value={localVersion}
