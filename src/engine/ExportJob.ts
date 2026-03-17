@@ -88,25 +88,8 @@ export class ExportJob {
       const gitHandler = this.fileServerBase ? new GitHandler(outputDir) : null;
       const gitExecutor = this.fileServerBase ? new GitExecutor(this.fileServerBase) : null;
 
-      // 步骤2: 同步表格仓库（reset + clean + pull rebase）
-      this.emitProgress(2, totalSteps, '正在同步仓库...');
-      if (gitExecutor && gitHandler) {
-        const pullResult = await this.executeGit(gitExecutor, outputDir, gitHandler.generatePullCommands(), 'Git pull');
-        if (!pullResult.ok) {
-          this.errorHandler.logError({
-            code: ErrorCode.FILE_WRITE_FAILED,
-            severity: 'warning',
-            tableName: '',
-            message: `Git 同步失败 (继续导出): ${pullResult.error}`,
-            procedure: 'ExportJob.gitPull',
-          });
-        }
-      } else {
-        logger.warn('文件服务不可用，跳过 Git 同步');
-      }
-
-      // 步骤3: 创建版本筛选器
-      this.emitProgress(3, totalSteps, '正在初始化筛选器...');
+      // 步骤2+4 并行: Git pull（网络 I/O）与数据加载（Excel 读取）无依赖，同时执行
+      this.emitProgress(2, totalSteps, '正在同步仓库 & 加载数据...');
       const lineField = this.configLoader.determineOutputLineField(config);
       const versionFilter = new VersionFilter(
         config.outputSettings.versionNumber,
@@ -115,11 +98,27 @@ export class ExportJob {
       logger.info(`筛选参数: 版本=${config.outputSettings.versionNumber}, 线路=${lineField}`);
       logger.info(`输出目录: ${outputDir}`);
 
-      // 步骤4: 加载所有源数据到内存
-      this.emitProgress(4, totalSteps, '正在加载数据表...');
       const t2 = Date.now();
-      const inMemoryData = await this.dataLoader.loadAll(config, versionFilter);
-      logger.info(`⏱ 加载数据表: ${Date.now() - t2}ms (${inMemoryData.size} 张表)`);
+      const gitPullPromise = (gitExecutor && gitHandler)
+        ? this.executeGit(gitExecutor, outputDir, gitHandler.generatePullCommands(), 'Git pull')
+        : Promise.resolve({ ok: false, error: '文件服务不可用' } as { ok: boolean; error?: string });
+
+      const dataLoadPromise = this.dataLoader.loadAll(config, versionFilter);
+
+      const [pullResult, inMemoryData] = await Promise.all([gitPullPromise, dataLoadPromise]);
+      logger.info(`⏱ 并行加载(pull+数据): ${Date.now() - t2}ms (${inMemoryData.size} 张表)`);
+
+      if (gitExecutor && !pullResult.ok) {
+        this.errorHandler.logError({
+          code: ErrorCode.FILE_WRITE_FAILED,
+          severity: 'warning',
+          tableName: '',
+          message: `Git 同步失败 (继续导出): ${pullResult.error}`,
+          procedure: 'ExportJob.gitPull',
+        });
+      } else if (!gitExecutor) {
+        logger.warn('文件服务不可用，跳过 Git 同步');
+      }
 
       if (inMemoryData.size === 0) {
         logger.warn('没有表需要处理');
