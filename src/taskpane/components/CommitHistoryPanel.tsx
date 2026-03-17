@@ -167,19 +167,6 @@ export function CommitHistoryPanel({ outputDirectory }: CommitHistoryPanelProps)
       }
       const handler = new GitHandler(outputDirectory);
       const executor = new GitExecutor(base);
-
-      // 检查目录下是否有 .git（防止父级仓库干扰）
-      try {
-        const probe = await fetch(`${base}/api/read-file?directory=${encodeURIComponent(outputDirectory)}&fileName=.git/HEAD`);
-        if (!probe.ok) {
-          setCommits([]);
-          return;
-        }
-      } catch {
-        setCommits([]);
-        return;
-      }
-
       const cmds = handler.generateLogCommands();
       const result = await executor.execute(outputDirectory, cmds);
       if (result.ok) {
