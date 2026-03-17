@@ -172,8 +172,11 @@ export function CommitHistoryPanel({ outputDirectory, gitRootDir }: CommitHistor
 
       // 检查 {0} 版本号目录下是否有 .git
       if (gitRootDir) {
-        const checkResult = await executor.execute(outputDirectory, handler.generateCheckGitRepoCommands());
+        // 用 gitRootDir 执行检查（outputDirectory 可能是子目录，不一定存在）
+        const checkHandler = new GitHandler(gitRootDir);
+        const checkResult = await executor.execute(gitRootDir, checkHandler.generateCheckGitRepoCommands());
         if (!checkResult.ok) {
+          logger.info(`[CommitHistory] "${gitRootDir}" 不是 git 仓库`);
           setCommits([]);
           return;
         }
