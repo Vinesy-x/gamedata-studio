@@ -177,9 +177,10 @@ export function CommitHistoryPanel({ outputDirectory, gitRootDir }: CommitHistor
           setCommits([]);
           return;
         }
-        const repoRoot = checkResult.output.trim().replace(/\\/g, '/').replace(/\/$/, '');
-        const expectedRoot = gitRootDir.replace(/\\/g, '/').replace(/\/$/, '');
+        const repoRoot = checkResult.output.trim().replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
+        const expectedRoot = gitRootDir.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
         if (repoRoot !== expectedRoot) {
+          logger.warn(`[CommitHistory] git root 不匹配: got="${repoRoot}" expected="${expectedRoot}"`);
           setCommits([]);
           return;
         }
