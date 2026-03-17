@@ -89,8 +89,12 @@ export class ExportWriter {
 
     // GameConfig 版本注入已在 ExportJob Phase A 中完成（哈希计算前）
 
-    // 批量添加行（比逐行 getRow/getCell 快很多）
-    sheet.addRows(filteredData as unknown[]);
+    // 所有值转为字符串，确保 ExcelJS 写入的单元格内部类型为 text
+    // （numFmt='@' 只影响显示格式，不影响内部存储类型）
+    const textData = filteredData.map(row =>
+      row.map(v => (v === null || v === undefined) ? '' : String(v))
+    );
+    sheet.addRows(textData);
 
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as ArrayBuffer;
