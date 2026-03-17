@@ -484,13 +484,14 @@ export function ExportTab({
   const [earnedXp, setEarnedXp] = useState(0);
   const t = useThemeText();
   const prevExportingRef = useRef(isExporting);
+  const displaySequence = exportResult?.finalSequence ?? config.outputSettings.versionSequence;
   const [subPage, setSubPage] = useState<'export' | 'result' | 'log'>(() => exportResult ? 'result' : 'export');
   const [commitMessage, setCommitMessage] = useState(() => {
     if (!exportResult) return '';
     const gitHandler = new GitHandler(config.outputSettings.outputDirectory || '');
     return gitHandler.generateCommitMessage(
       config.gitCommitTemplate, config.outputSettings.versionName,
-      config.outputSettings.versionNumber, exportResult.finalSequence ?? config.outputSettings.versionSequence, config.operator
+      config.outputSettings.versionNumber, displaySequence, config.operator
     );
   });
 
@@ -505,12 +506,11 @@ export function ExportTab({
       setSubPage('result');
       setGitPushDone(!!exportResult.gitPushed);
       const gitHandler = new GitHandler(outputDir);
-      const finalSeq = exportResult.finalSequence ?? config.outputSettings.versionSequence;
       setCommitMessage(gitHandler.generateCommitMessage(
         config.gitCommitTemplate,
         config.outputSettings.versionName,
         config.outputSettings.versionNumber,
-        finalSeq,
+        displaySequence,
         config.operator
       ));
       if (exportResult?.success) {
@@ -727,7 +727,7 @@ export function ExportTab({
                 <div className={styles.configRow}>
                   <span className={styles.configLabel}>{t.export.config.sequence}</span>
                   <span className={styles.configValue}>
-                    {exportResult?.finalSequence ?? config.outputSettings.versionSequence}
+                    {displaySequence}
                   </span>
                 </div>
                 <div className={styles.configRow} style={{ borderBottom: 'none' }}>
