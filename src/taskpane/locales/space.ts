@@ -42,7 +42,7 @@ export const spaceText: ThemeTextMap = {
       removedRow: '已卸载',
     },
     config: {
-      version: '航道',
+      version: '航道名',
       versionNumber: '航线编号',
       sequence: '航班号',
       operator: '舰长',

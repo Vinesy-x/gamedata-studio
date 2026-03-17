@@ -42,7 +42,7 @@ export const cyberText: ThemeTextMap = {
       removedRow: 'DELETE',
     },
     config: {
-      version: '频道',
+      version: '频道名',
       versionNumber: '协议版本',
       sequence: '序列号',
       operator: '黑客',
