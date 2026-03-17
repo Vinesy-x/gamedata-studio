@@ -496,6 +496,7 @@ export function ExportTab({
       // 导出刚完成 → 切到结果页 + 生成提交信息
       setShowCompletionAnim(true);
       setSubPage('result');
+      setGitPushDone(!!exportResult.gitPushed);
       const gitHandler = new GitHandler(outputDir);
       setCommitMessage(gitHandler.generateCommitMessage(
         config.gitCommitTemplate,
