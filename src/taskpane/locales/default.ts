@@ -168,9 +168,9 @@ export const defaultText: ThemeTextMap = {
     },
     terms: {
       table: '表',
-      version: '版本',
+      version: '渠道',
       versionNumber: '版本号',
-      route: '线路',
+      route: '渠道',
       operator: '操作员',
       export: '导出',
       validate: '校验',

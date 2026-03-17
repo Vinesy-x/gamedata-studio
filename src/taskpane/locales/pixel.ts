@@ -90,7 +90,7 @@ export const pixelText: ThemeTextMap = {
     statusChannelDeleted: (name) => `频道「${name}」已关闭`,
     statusSyncResult: (n) => `路线同步完成: ${n} 个精灵已更新`,
     statusTableCreated: (name) => `精灵「${name}」锻造成功!`,
-    variableHint: '{0}=副本编号 {1}=副本名',
+    variableHint: '{0}=副本编号 {1}=频道名',
   },
 
   validate: {
@@ -177,9 +177,9 @@ export const pixelText: ThemeTextMap = {
     },
     terms: {
       table: '精灵',
-      version: '副本',
+      version: '频道',
       versionNumber: '副本编号',
-      route: '路线',
+      route: '频道',
       operator: '勇者',
       export: '过关',
       validate: '鉴定',

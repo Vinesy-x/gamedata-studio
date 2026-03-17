@@ -90,7 +90,7 @@ export const spaceText: ThemeTextMap = {
     statusChannelDeleted: (name) => `已删除航道「${name}」及关联数据`,
     statusSyncResult: (n) => `航段同步完成: ${n} 台设备已同步`,
     statusTableCreated: (name) => `设备「${name}」组装成功！`,
-    variableHint: '{0}=航线编号 {1}=航线名',
+    variableHint: '{0}=航线编号 {1}=航道名',
   },
 
   validate: {
@@ -177,9 +177,9 @@ export const spaceText: ThemeTextMap = {
     },
     terms: {
       table: '设备',
-      version: '航线',
+      version: '航道',
       versionNumber: '航线编号',
-      route: '航段',
+      route: '航道',
       operator: '舰长',
       export: '发射',
       validate: '检修',

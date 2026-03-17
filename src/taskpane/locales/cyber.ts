@@ -90,7 +90,7 @@ export const cyberText: ThemeTextMap = {
     statusChannelDeleted: (name) => `频道「${name}」已注销`,
     statusSyncResult: (n) => `链路同步完成: ${n} 个数据体已更新`,
     statusTableCreated: (name) => `数据体「${name}」编译成功`,
-    variableHint: '{0}=协议版本 {1}=协议名',
+    variableHint: '{0}=协议版本 {1}=频道名',
   },
 
   validate: {
@@ -177,9 +177,9 @@ export const cyberText: ThemeTextMap = {
     },
     terms: {
       table: '数据体',
-      version: '协议',
+      version: '频道',
       versionNumber: '协议版本',
-      route: '链路',
+      route: '频道',
       operator: '黑客',
       export: '上传',
       validate: '扫描',

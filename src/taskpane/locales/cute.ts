@@ -90,7 +90,7 @@ export const cuteText: ThemeTextMap = {
     statusChannelDeleted: (name) => `小伙伴「${name}」已离开~`,
     statusSyncResult: (n) => `路线同步完成: ${n} 本宝典已更新~`,
     statusTableCreated: (name) => `宝典「${name}」制作成功！`,
-    variableHint: '{0}=章节号 {1}=世界名',
+    variableHint: '{0}=章节 {1}=小伙伴名',
   },
 
   validate: {
@@ -177,9 +177,9 @@ export const cuteText: ThemeTextMap = {
     },
     terms: {
       table: '宝典',
-      version: '世界',
+      version: '小伙伴',
       versionNumber: '章节',
-      route: '路线',
+      route: '小伙伴',
       operator: '冒险者',
       export: '出发',
       validate: '守护检查',
