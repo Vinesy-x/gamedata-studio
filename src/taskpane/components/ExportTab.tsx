@@ -887,6 +887,55 @@ export function ExportTab({
                   logger.warn('文件服务不可用，无法重启');
                 }}>重启文件服务</Button>
                 <Button size="small" appearance="outline" onClick={() => { localStorage.removeItem('gds-theme'); localStorage.removeItem('gds-player-stats'); window.location.reload(); }}>重置主题</Button>
+                <Button size="small" appearance="outline" onClick={async () => {
+                  try {
+                    await Excel.run(async (context) => {
+                      const sheets = context.workbook.worksheets;
+                      sheets.load('items/name');
+                      await context.sync();
+                      let trimmed = 0;
+                      for (const sheet of sheets.items) {
+                        const used = sheet.getUsedRangeOrNullObject(true);
+                        used.load('rowCount,columnCount,address');
+                        await context.sync();
+                        if (used.isNullObject) continue;
+                        // 找到实际数据边界：从右下角往回扫描
+                        const values = used.values;
+                        let lastRow = 0;
+                        let lastCol = 0;
+                        for (let r = values.length - 1; r >= 0; r--) {
+                          for (let c = values[r].length - 1; c >= 0; c--) {
+                            if (values[r][c] != null && String(values[r][c]).trim() !== '') {
+                              lastRow = Math.max(lastRow, r);
+                              lastCol = Math.max(lastCol, c);
+                            }
+                          }
+                        }
+                        const actualRows = lastRow + 1;
+                        const actualCols = lastCol + 1;
+                        if (used.rowCount > actualRows + 10 || used.columnCount > actualCols + 10) {
+                          // 删除多余的行和列
+                          if (used.rowCount > actualRows + 1) {
+                            const excessRows = sheet.getRangeByIndexes(actualRows + 1, 0, used.rowCount - actualRows - 1, 1);
+                            excessRows.getEntireRow().delete(Excel.DeleteShiftDirection.up);
+                          }
+                          if (used.columnCount > actualCols + 1) {
+                            const excessCols = sheet.getRangeByIndexes(0, actualCols + 1, 1, used.columnCount - actualCols - 1);
+                            excessCols.getEntireColumn().delete(Excel.DeleteShiftDirection.left);
+                          }
+                          trimmed++;
+                          logger.info(`裁剪「${sheet.name}」: ${used.rowCount}×${used.columnCount} → ${actualRows}×${actualCols}`);
+                        }
+                      }
+                      await context.sync();
+                      logger.info(trimmed > 0 ? `⏱ 裁剪完成: ${trimmed} 张表已修复，请保存文件` : '所有工作表范围正常，无需裁剪');
+                    });
+                  } catch (err) {
+                    logger.error(`裁剪失败: ${err instanceof Error ? err.message : err}`);
+                  }
+                  setDevLogOpen(false);
+                  setTimeout(() => setDevLogOpen(true), 0);
+                }}>裁剪空范围</Button>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${tokens.colorNeutralStroke2}`, paddingTop: '8px' }}>
                 <div style={{ display: 'flex', gap: '4px' }}>
