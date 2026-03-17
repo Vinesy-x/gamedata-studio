@@ -26,13 +26,12 @@ function resolveGitRoot(gitDirectory: string, versionNumber: number): string {
 }
 
 export function ExportLogSubPage({ config }: ExportLogSubPageProps) {
-  const currentVT = config.versionTemplates.get(config.outputSettings.versionName);
   const [localVersion, setLocalVersion] = useState(String(config.outputSettings.versionNumber));
   const [activeVersion, setActiveVersion] = useState(config.outputSettings.versionNumber);
 
   const gitRoot = useMemo(
-    () => resolveGitRoot(currentVT?.gitDirectory || '', activeVersion),
-    [currentVT, activeVersion]
+    () => resolveGitRoot(config.gitDirectory || '', activeVersion),
+    [config.gitDirectory, activeVersion]
   );
 
   const handleVersionBlur = useCallback(() => {

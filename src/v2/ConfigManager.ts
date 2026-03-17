@@ -51,7 +51,7 @@ export class ConfigManager {
       const absRow = pos.row + 1 + rows.length + r.snap.startRow;
       const absCol = pos.col + r.snap.startCol;
       const sheet = context.workbook.worksheets.getItem(r.sheetName);
-      sheet.getRangeByIndexes(absRow, absCol, 1, 4).values = [[version.name, version.lineId, version.gitDirectory, version.lineField]];
+      sheet.getRangeByIndexes(absRow, absCol, 1, 4).values = [[version.name, version.lineId, '', version.lineField]];
       await context.sync();
       logger.info(`addVersion: 已追加版本「${version.name}」(旧格式)`);
     });
@@ -230,6 +230,17 @@ export class ConfigManager {
       sheet.getRangeByIndexes(pos.row + 1 + r.snap.startRow, pos.col + r.snap.startCol, 1, 1).values = [[template]];
       await context.sync();
     });
+  }
+
+  // ─── Git 目录模板 ──────────────────────────────────
+
+  async setGitDirectory(directory: string): Promise<void> {
+    await Excel.run(async (context) => {
+      await StudioConfigStore.update(context, (data) => {
+        data.gitDirectory = directory;
+      });
+    });
+    logger.info(`setGitDirectory: ${directory}`);
   }
 
   // ─── 功能开关 ───────────────────────────────────────

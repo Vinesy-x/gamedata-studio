@@ -291,7 +291,6 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
   // 添加版本表单
   const [addingVersion, setAddingVersion] = useState(false);
   const [newVersionName, setNewVersionName] = useState('');
-  const [newVersionGitDir, setNewVersionGitDir] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [, forceUpdate] = useReducer(x => x + 1, 0);
 
@@ -299,9 +298,9 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
   const [editingVersionName, setEditingVersionName] = useState<string | null>(null);
   const [editVersionNameValue, setEditVersionNameValue] = useState('');
 
-  // Git 目录行内编辑
-  const [editingGitDir, setEditingGitDir] = useState<string | null>(null);
-  const [editGitDirValue, setEditGitDirValue] = useState('');
+  // Git 设置区：Git 目录编辑
+  const [editingGitDir, setEditingGitDir] = useState(false);
+  const [gitDirValue, setGitDirValue] = useState(config.gitDirectory || '');
 
   // 人员代码编辑
   const [editingStaff, setEditingStaff] = useState<string | null>(null); // 正在编辑的人员名
@@ -333,17 +332,16 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
     }
   }, [editVersionNameValue, config.versionTemplates, config.lineTemplates, onReload]);
 
-  const handleSaveGitDir = useCallback(async (vt: VersionTemplate) => {
-    const newDir = editGitDirValue.trim();
-    setEditingGitDir(null);
-    if (newDir === (vt.gitDirectory || '')) return;
+  const handleSaveGitDir = useCallback(async () => {
+    const newDir = gitDirValue.trim();
+    setEditingGitDir(false);
     try {
-      await configManager.updateVersion(vt.name, { ...vt, gitDirectory: newDir });
+      await configManager.setGitDirectory(newDir);
       onReload();
     } catch (err) {
       setStatusMsg({ text: `更新Git目录失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
     }
-  }, [editGitDirValue, onReload]);
+  }, [gitDirValue, onReload]);
 
   // 保存人员修改
   const handleSaveStaff = useCallback(async (originalName: string) => {
@@ -414,10 +412,6 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
   // 添加版本
   const handleAddVersion = useCallback(async () => {
     if (!newVersionName.trim()) return;
-    if (!newVersionGitDir.trim()) {
-      setStatusMsg({ text: t.manage.statusGitDirRequired, type: 'error' });
-      return;
-    }
     setSaving(true);
     setStatusMsg(null);
     try {
@@ -432,30 +426,29 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
         name: newVersionName.trim(),
         lineId: nextId,
         lineField,
-        gitDirectory: newVersionGitDir.trim(),
+        gitDirectory: '',
       });
 
       // 同时添加线路到配置设置表
       await configManager.addLine({ id: nextId, field: lineField, remark: newVersionName.trim() });
 
       setNewVersionName('');
-      setNewVersionGitDir('');
       setAddingVersion(false);
-      setStatusMsg({ text: t.manage.statusVersionAdded(newVersionName, lineField), type: 'success' });
+      setStatusMsg({ text: t.manage.statusChannelAdded(newVersionName, lineField), type: 'success' });
       onReload();
     } catch (err) {
       setStatusMsg({ text: `添加失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
     } finally {
       setSaving(false);
     }
-  }, [newVersionName, newVersionGitDir, config.versionTemplates, onReload]);
+  }, [newVersionName, config.versionTemplates, onReload]);
 
   // 删除版本
   const handleDeleteVersion = useCallback(async (vt: VersionTemplate) => {
     setStatusMsg(null);
     try {
       await configManager.deleteVersion(vt.name);
-      setStatusMsg({ text: t.manage.statusVersionDeleted(vt.name), type: 'success' });
+      setStatusMsg({ text: t.manage.statusChannelDeleted(vt.name), type: 'success' });
       onReload();
     } catch (err) {
       setStatusMsg({ text: `删除失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
@@ -514,7 +507,7 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <Text style={{ fontSize: '12px', fontWeight: 600 }}>
-            {t.manage.versionListTitle(versions.length)}
+            {t.manage.channelListTitle(versions.length)}
           </Text>
           <div className={styles.actionRow}>
             <Button
@@ -524,7 +517,7 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
               onClick={handleSyncLines}
               disabled={syncing}
             >
-              {syncing ? t.manage.syncingRoutes : t.manage.syncRoutes}
+              {syncing ? t.manage.syncingChannels : t.manage.syncChannels}
             </Button>
             <Button
               icon={<AddRegular />}
@@ -533,7 +526,7 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
               onClick={() => setAddingVersion(true)}
               disabled={addingVersion}
             >
-              {t.manage.addVersion}
+              {t.manage.addChannel}
             </Button>
           </div>
         </div>
@@ -542,10 +535,9 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
           <table className={styles.table}>
             <thead>
               <tr>
-                <th className={styles.th} style={{ width: '28%' }}>{t.manage.colVersion}</th>
-                <th className={styles.th} style={{ width: '24%' }}>{t.manage.colRoute}</th>
-                <th className={styles.th} style={{ width: '38%' }}>{t.manage.colGitDir}</th>
-                <th className={styles.th} style={{ width: '10%' }}></th>
+                <th className={styles.th} style={{ width: '40%' }}>{t.manage.colChannel}</th>
+                <th className={styles.th} style={{ width: '40%' }}>{t.manage.colChannelId}</th>
+                <th className={styles.th} style={{ width: '20%' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -572,31 +564,6 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
                     )}
                   </td>
                   <td className={styles.td}>{roadsDisplayName(vt.lineField)}</td>
-                  <td className={styles.td} style={{ fontSize: '10px' }}>
-                    {editingGitDir === vt.name ? (
-                      <div>
-                        <Input
-                          size="small"
-                          value={editGitDirValue}
-                          onChange={(_, d) => setEditGitDirValue(d.value)}
-                          onBlur={() => handleSaveGitDir(vt)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveGitDir(vt); if (e.key === 'Escape') setEditingGitDir(null); }}
-                          style={{ width: '100%', fontSize: '10px' }}
-                          autoFocus
-                        />
-                        <span style={{ fontSize: '9px', color: '#999', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
-                          {t.manage.variableHint}
-                        </span>
-                      </div>
-                    ) : (
-                      <span
-                        onClick={() => { setEditingGitDir(vt.name); setEditGitDirValue(vt.gitDirectory || ''); }}
-                        style={{ cursor: 'pointer', minWidth: 30, display: 'inline-block' }}
-                      >
-                        {vt.gitDirectory || '-'}
-                      </span>
-                    )}
-                  </td>
                   <td className={styles.td}>
                     {vt.lineField !== 'roads_0' && (
                       <Button
@@ -621,24 +588,12 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
                   size="small"
                   value={newVersionName}
                   onChange={(_, d) => setNewVersionName(d.value)}
-                  placeholder={t.manage.versionNamePlaceholder}
+                  placeholder={t.manage.channelNamePlaceholder}
                   style={{ flex: 1 }}
                 />
               </div>
-              <div style={{ marginBottom: '6px' }}>
-                <Input
-                  size="small"
-                  value={newVersionGitDir}
-                  onChange={(_, d) => setNewVersionGitDir(d.value)}
-                  placeholder={t.manage.gitDirPlaceholder}
-                  style={{ width: '100%' }}
-                />
-                <span style={{ fontSize: '9px', color: '#999', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
-                  支持变量: {t.manage.variableHint}，如 /data/{'{1}'}/{'{0}'} → /data/默认/2.1
-                </span>
-              </div>
               <div style={{ display: 'flex', gap: '6px' }}>
-                <Button appearance="primary" size="small" onClick={handleAddVersion} disabled={saving || !newVersionName.trim() || !newVersionGitDir.trim()}>
+                <Button appearance="primary" size="small" onClick={handleAddVersion} disabled={saving || !newVersionName.trim()}>
                   {saving ? '添加中...' : '确定'}
                 </Button>
                 <Button appearance="subtle" size="small" onClick={() => setAddingVersion(false)}>
@@ -650,7 +605,7 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
         </div>
 
         <Text style={{ fontSize: '10px', color: tokens.colorNeutralForeground3 }}>
-          {t.manage.addVersionHint}
+          {t.manage.addChannelHint}
         </Text>
       </div>
 
@@ -757,24 +712,64 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
         </div>
       </div>
 
-      {/* Git 提交模板 */}
+      {/* Git 设置 */}
       <div className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <Text style={{ fontSize: '12px', fontWeight: 600 }}>{t.manage.gitTemplate}</Text>
-          {!editingGit && (
-            <Button appearance="subtle" size="small" onClick={() => { setGitTemplate(config.gitCommitTemplate || ''); setEditingGit(true); }}>
-              编辑
-            </Button>
+        <Text style={{ fontSize: '12px', fontWeight: 600 }}>{t.manage.gitSettings}</Text>
+
+        {/* Git 目录 */}
+        <div className={styles.card}>
+          <Label style={{ fontSize: '11px', fontWeight: 600 }}>{t.manage.gitDirLabel}</Label>
+          {editingGitDir ? (
+            <>
+              <Input
+                size="small"
+                value={gitDirValue}
+                onChange={(_, d) => setGitDirValue(d.value)}
+                placeholder={t.manage.gitDirPlaceholder}
+                style={{ width: '100%', fontSize: '11px', fontFamily: 'Consolas, monospace', marginTop: '4px' }}
+                autoFocus
+              />
+              <span style={{ fontSize: '9px', color: '#999', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
+                支持变量: {t.manage.variableHint}
+              </span>
+              <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                <Button appearance="primary" size="small" onClick={handleSaveGitDir} disabled={saving}>
+                  {saving ? '保存中...' : '保存'}
+                </Button>
+                <Button appearance="subtle" size="small" onClick={() => { setEditingGitDir(false); setGitDirValue(config.gitDirectory || ''); }}>
+                  取消
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+              <Text style={{ fontSize: '11px', fontFamily: 'Consolas, monospace', flex: 1 }}>
+                {config.gitDirectory || '(未配置)'}
+              </Text>
+              <Button appearance="subtle" size="small" onClick={() => { setGitDirValue(config.gitDirectory || ''); setEditingGitDir(true); }}>
+                编辑
+              </Button>
+            </div>
           )}
         </div>
-        <div className={styles.card}>
+
+        {/* Git 提交模板 */}
+        <div className={styles.card} style={{ marginTop: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Label style={{ fontSize: '11px', fontWeight: 600 }}>Git 提交模板</Label>
+            {!editingGit && (
+              <Button appearance="subtle" size="small" onClick={() => { setGitTemplate(config.gitCommitTemplate || ''); setEditingGit(true); }}>
+                编辑
+              </Button>
+            )}
+          </div>
           {editingGit ? (
             <>
               <Textarea
                 size="small"
                 value={gitTemplate}
                 onChange={(_, d) => setGitTemplate(d.value)}
-                style={{ width: '100%', fontSize: '11px', fontFamily: 'Consolas, monospace' }}
+                style={{ width: '100%', fontSize: '11px', fontFamily: 'Consolas, monospace', marginTop: '4px' }}
                 rows={3}
               />
               <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
@@ -787,7 +782,7 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
               </div>
             </>
           ) : (
-            <Text style={{ fontSize: '11px', fontFamily: 'Consolas, monospace' }}>
+            <Text style={{ fontSize: '11px', fontFamily: 'Consolas, monospace', marginTop: '4px', display: 'block' }}>
               {config.gitCommitTemplate || '(未配置)'}
             </Text>
           )}

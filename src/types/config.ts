@@ -2,7 +2,7 @@ export interface VersionTemplate {
   name: string;
   lineId: number;
   lineField: string;
-  gitDirectory: string;
+  gitDirectory?: string;
 }
 
 export interface LineTemplate {
@@ -36,6 +36,7 @@ export interface Config {
   lineTemplates: Map<number, LineTemplate>;
   tablesToProcess: Map<string, TableInfo>;
   outputSettings: OutputSettings;
+  gitDirectory: string;
   gitCommitTemplate: string;
   operator: string;
   staffCodes: Map<string, StaffInfo>;

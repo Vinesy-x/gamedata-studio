@@ -86,12 +86,14 @@ export class ConfigLoader {
       outputDirectory: '',
     };
 
+    // 迁移：旧数据可能没有全局 gitDirectory，从版本模板中取第一个
+    const globalGitDir = data.gitDirectory || data.versions.find(v => v.gitDirectory)?.gitDirectory || '';
+
     // 计算输出目录
-    const currentVT = versionTemplates.get(outputSettings.versionName);
-    if (currentVT && currentVT.gitDirectory) {
+    if (globalGitDir) {
       let versionStr = String(outputSettings.versionNumber);
       if (!versionStr.includes('.')) versionStr += '.0';
-      outputSettings.outputDirectory = currentVT.gitDirectory
+      outputSettings.outputDirectory = globalGitDir
         .replace('{0}', versionStr).replace('{1}', outputSettings.versionName);
     }
 
@@ -118,6 +120,7 @@ export class ConfigLoader {
       lineTemplates,
       tablesToProcess,
       outputSettings,
+      gitDirectory: globalGitDir,
       gitCommitTemplate: data.gitCommitTemplate || '',
       operator: operatorIdentity.get() || '',
       staffCodes,
@@ -156,17 +159,20 @@ export class ConfigLoader {
       if (lt) vt.lineField = lt.field;
     }
 
-    const currentVT = versionTemplates.get(outputSettings.versionName);
-    if (currentVT && currentVT.gitDirectory) {
+    // 从版本模板中取第一个 gitDirectory 作为全局值
+    const legacyGitDir = Array.from(versionTemplates.values()).find(v => v.gitDirectory)?.gitDirectory || '';
+
+    if (legacyGitDir) {
       let versionStr = String(outputSettings.versionNumber);
       if (!versionStr.includes('.')) versionStr += '.0';
-      outputSettings.outputDirectory = currentVT.gitDirectory
+      outputSettings.outputDirectory = legacyGitDir
         .replace('{0}', versionStr).replace('{1}', outputSettings.versionName);
     }
 
     logger.info('配置加载完成（旧格式兼容模式）');
     return {
       versionTemplates, lineTemplates, tablesToProcess, outputSettings,
+      gitDirectory: legacyGitDir,
       gitCommitTemplate: gitCommitTemplate || '', operator: operatorIdentity.get() || '', staffCodes: staffCodes || new Map(),
     };
   }

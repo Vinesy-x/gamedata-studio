@@ -27,6 +27,8 @@ export interface StudioConfigData {
   /** 人员代码 */
   staff: StaffInfo[];
 
+  /** Git 目录模板 */
+  gitDirectory: string;
   /** Git 提交模板 */
   gitCommitTemplate: string;
   /** 功能开关 */
@@ -140,6 +142,7 @@ export function createDefaultConfig(): StudioConfigData {
     versions: [{ name: '默认', lineId: 0, lineField: 'roads_0', gitDirectory: '' }],
     lines: [{ id: 0, field: 'roads_0', remark: '默认线路' }],
     staff: [{ id: 1, name: '默认用户', code: 'default' }],
+    gitDirectory: '',
     gitCommitTemplate: '-{1}{0}数据表提交',
     switches: { '自动弹出路径': false },
     validationConfig: createDefaultValidationConfig(),

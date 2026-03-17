@@ -56,15 +56,14 @@ export interface ThemeTextMap {
     subNav: readonly [string, string, string];
     sectionTitle: string;
     operator: string;
-    gitTemplate: string;
+    gitSettings: string;
     staff: string;
-    versionListTitle: (n: number) => string;
-    colVersion: string;
-    colRoute: string;
-    colGitDir: string;
-    syncRoutes: string;
-    syncingRoutes: string;
-    addVersion: string;
+    channelListTitle: (n: number) => string;
+    colChannel: string;
+    colChannelId: string;
+    syncChannels: string;
+    syncingChannels: string;
+    addChannel: string;
     // TablesSubPage
     tablesSectionTitle: string;
     searchPlaceholder: string;
@@ -83,13 +82,13 @@ export interface ThemeTextMap {
     wizardCreateBtn: string;
     wizardCreatingBtn: string;
     // Hints
-    addVersionHint: string;
+    addChannelHint: string;
+    gitDirLabel: string;
     gitDirPlaceholder: string;
-    versionNamePlaceholder: string;
+    channelNamePlaceholder: string;
     // Status messages
-    statusGitDirRequired: string;
-    statusVersionAdded: (name: string, field: string) => string;
-    statusVersionDeleted: (name: string) => string;
+    statusChannelAdded: (name: string, field: string) => string;
+    statusChannelDeleted: (name: string) => string;
     statusSyncResult: (synced: number) => string;
     statusTableCreated: (name: string) => string;
     variableHint: string;
