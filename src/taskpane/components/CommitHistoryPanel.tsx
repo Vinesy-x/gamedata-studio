@@ -174,10 +174,12 @@ export function CommitHistoryPanel({ outputDirectory }: CommitHistoryPanelProps)
         setCommits([]);
         return; // 非 git 仓库，静默返回空
       }
-      // 验证 git 仓库根目录就是输出目录本身（.git 必须在输出目录正下方）
+      // 验证 .git 在输出目录或其上 1-2 级父目录内（不接受更远的祖先）
+      // 例如输出目录 /data/1.06/主干版本，.git 可以在 /data/1.06/ 下
       const repoRoot = checkResult.output.trim().replace(/\\/g, '/').replace(/\/$/, '');
       const normalizedDir = outputDirectory.replace(/\\/g, '/').replace(/\/$/, '');
-      if (repoRoot !== normalizedDir) {
+      const depth = normalizedDir.replace(repoRoot, '').split('/').filter(Boolean).length;
+      if (!normalizedDir.startsWith(repoRoot) || depth > 2) {
         setCommits([]);
         return;
       }
