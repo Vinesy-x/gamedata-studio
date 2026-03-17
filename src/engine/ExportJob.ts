@@ -387,7 +387,8 @@ export class ExportJob {
 
       return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables, tableDiffs, gitPushed);
     } catch (err) {
-      logger.error('导出失败', err);
+      const errMsg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+      logger.error(`导出失败: ${errMsg}`);
       this.errorHandler.logError({
         code: ErrorCode.FILE_WRITE_FAILED,
         severity: 'error',
