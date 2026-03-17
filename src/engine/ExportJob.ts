@@ -165,8 +165,8 @@ export class ExportJob {
       }
       const pendingWrites: PendingWrite[] = [];
 
-      // 暂存 GameConfig 筛选数据，等确认有变更后再递增序列号并注入
-      let gameConfigPending: { chineseName: string; filtered: CellValue[][] } | null = null;
+      // GameConfig 的筛选数据暂存，用于后续注入版本号
+      let gameConfigEntry: { chineseName: string; data: CellValue[][]; idx: number } | null = null;
 
       for (const [chineseName, tableData] of inMemoryData) {
         tableIndex++;
@@ -183,12 +183,7 @@ export class ExportJob {
             continue;
           }
 
-          // GameConfig 暂存，不参与本轮哈希对比
-          if (englishName === 'GameConfig') {
-            gameConfigPending = { chineseName, filtered: filtered.data };
-            continue;
-          }
-
+          // 所有表正常做哈希对比（GameConfig 此时不注入版本号，用原始数据对比）
           const newHash = this.exportWriter.computeDataHash(filtered.data);
           const hasChanged = this.exportWriter.hasHashChanged(newHash, manifest, englishName);
           if (!hasChanged) {
@@ -201,6 +196,11 @@ export class ExportJob {
           const isNew = !oldEntry;
 
           pendingWrites.push({ chineseName, englishName, filteredData: filtered.data, newHash, currentRows, previousRows, isNew });
+
+          // 记录 GameConfig 在写入队列中的位置
+          if (englishName === 'GameConfig') {
+            gameConfigEntry = { chineseName, data: filtered.data, idx: pendingWrites.length - 1 };
+          }
         } catch (err) {
           const errDetail = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
           logger.error(`处理表「${chineseName}」失败`, err);
@@ -214,24 +214,40 @@ export class ExportJob {
         }
       }
 
-      // 有数据变更 → 递增序列号 → 注入 GameConfig → 加入写入队列
+      // 有数据变更 → 递增序列号 → 注入版本号到 GameConfig
       if (pendingWrites.length > 0) {
         await this.configLoader.incrementSequence(config);
         const newSeq = config.outputSettings.versionSequence + 1;
 
-        if (gameConfigPending && gameConfigPending.filtered.length > 2 && gameConfigPending.filtered[2].length > 2) {
-          gameConfigPending.filtered[2][2] = `${config.outputSettings.versionNumber}.${newSeq}`;
-          const newHash = this.exportWriter.computeDataHash(gameConfigPending.filtered);
-          const oldEntry = manifest['GameConfig'];
-          pendingWrites.push({
-            chineseName: gameConfigPending.chineseName,
-            englishName: 'GameConfig',
-            filteredData: gameConfigPending.filtered,
-            newHash,
-            currentRows: Math.max(0, gameConfigPending.filtered.length - 1),
-            previousRows: oldEntry ? getManifestRows(oldEntry) : 0,
-            isNew: !oldEntry,
-          });
+        if (gameConfigEntry) {
+          // GameConfig 已在写入队列中（自身数据有变更），注入版本号并重算哈希
+          const data = gameConfigEntry.data;
+          if (data.length > 2 && data[2].length > 2) {
+            data[2][2] = `${config.outputSettings.versionNumber}.${newSeq}`;
+            pendingWrites[gameConfigEntry.idx].newHash = this.exportWriter.computeDataHash(data);
+          }
+        } else {
+          // GameConfig 自身数据没变，但其他表有变更，需要注入新版本号并导出
+          const gcTableData = inMemoryData.get(
+            Array.from(config.tablesToProcess.entries()).find(([, v]) => v.englishName === 'GameConfig')?.[0] || ''
+          );
+          if (gcTableData) {
+            const filtered = dataFilter.applyFilters(gcTableData);
+            if (filtered.shouldOutput && filtered.data.length > 2 && filtered.data[2].length > 2) {
+              filtered.data[2][2] = `${config.outputSettings.versionNumber}.${newSeq}`;
+              const newHash = this.exportWriter.computeDataHash(filtered.data);
+              const oldEntry = manifest['GameConfig'];
+              pendingWrites.push({
+                chineseName: Array.from(config.tablesToProcess.entries()).find(([, v]) => v.englishName === 'GameConfig')?.[0] || 'GameConfig',
+                englishName: 'GameConfig',
+                filteredData: filtered.data,
+                newHash,
+                currentRows: Math.max(0, filtered.data.length - 1),
+                previousRows: oldEntry ? getManifestRows(oldEntry) : 0,
+                isNew: !oldEntry,
+              });
+            }
+          }
         }
       }
 
