@@ -170,20 +170,12 @@ export function CommitHistoryPanel({ outputDirectory, gitRootDir }: CommitHistor
       const handler = new GitHandler(outputDirectory);
       const executor = new GitExecutor(base);
 
-      // 检查 {0} 版本号目录下是否有 .git
+      // 检查输出目录是否在 git 仓库内
       if (gitRootDir) {
-        // 用 gitRootDir 执行检查（outputDirectory 可能是子目录，不一定存在）
         const checkHandler = new GitHandler(gitRootDir);
         const checkResult = await executor.execute(gitRootDir, checkHandler.generateCheckGitRepoCommands());
         if (!checkResult.ok) {
-          logger.info(`[CommitHistory] "${gitRootDir}" 不是 git 仓库`);
-          setCommits([]);
-          return;
-        }
-        const repoRoot = checkResult.output.trim().replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
-        const expectedRoot = gitRootDir.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
-        if (repoRoot !== expectedRoot) {
-          logger.warn(`[CommitHistory] git root 不匹配: got="${repoRoot}" expected="${expectedRoot}"`);
+          // 不在 git 仓库内，静默返回空
           setCommits([]);
           return;
         }
