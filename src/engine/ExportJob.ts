@@ -50,9 +50,6 @@ export class ExportJob {
     let totalTables = 0;
     let changedTables = 0;
 
-    // 关闭 Excel 自动计算，避免读取数据时触发公式重算拖慢导出
-    await this.setCalculationMode(false);
-
     try {
       // 初始阶段 totalSteps 未知，先用估计值；加载数据后重新计算
       let totalSteps = 10;
@@ -128,6 +125,9 @@ export class ExportJob {
       totalTables = inMemoryData.size;
       // 重新计算总步数: 6 setup + N tables + 3 finalize (含 git push)
       totalSteps = 6 + totalTables + 3;
+
+      // 数据已全部加载到内存，关闭 Excel 自动计算避免后台重算抢占 CPU
+      await this.setCalculationMode(false);
 
       // 步骤5: 导出前校验
       this.emitProgress(5, totalSteps, '正在执行校验...');
