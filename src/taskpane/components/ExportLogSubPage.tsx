@@ -1,40 +1,37 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Input, tokens } from '@fluentui/react-components';
 import { CommitHistoryPanel } from './CommitHistoryPanel';
-import { Config, VersionTemplate } from '../../types/config';
+import { Config } from '../../types/config';
 
 interface ExportLogSubPageProps {
   config: Config;
 }
 
-function resolveOutputDir(vt: VersionTemplate | undefined, versionNumber: number, versionName: string): string {
-  if (!vt?.gitDirectory) return '';
+/** 从模板算出 {0} 版本号目录（git 仓库根目录） */
+function resolveGitRoot(gitDirectory: string, versionNumber: number): string {
+  if (!gitDirectory) return '';
   let versionStr = String(versionNumber);
   if (!versionStr.includes('.')) versionStr += '.0';
-  return vt.gitDirectory.replace('{0}', versionStr).replace('{1}', versionName);
-}
-
-/** 从模板算出 {0} 版本号目录（.git 所在层级） */
-function resolveGitRoot(vt: VersionTemplate | undefined, versionNumber: number): string {
-  if (!vt?.gitDirectory) return '';
-  let versionStr = String(versionNumber);
-  if (!versionStr.includes('.')) versionStr += '.0';
-  return vt.gitDirectory.replace(/[/\\]?\{1\}/, '').replace('{0}', versionStr);
+  // 找到 {0} 在模板中的位置，取 {0} 替换后的完整路径段
+  const idx = gitDirectory.indexOf('{0}');
+  if (idx < 0) return '';
+  // 取 {0} 之后的第一个路径分隔符位置
+  const afterTag = idx + 3; // '{0}'.length
+  const nextSep = gitDirectory.indexOf('/', afterTag) !== -1
+    ? gitDirectory.indexOf('/', afterTag)
+    : gitDirectory.indexOf('\\', afterTag);
+  // 截取到 {0} 段的结尾（含 {0} 替换后的值）
+  const template = nextSep > 0 ? gitDirectory.substring(0, nextSep) : gitDirectory;
+  return template.replace('{0}', versionStr).replace(/\{1\}/g, '');
 }
 
 export function ExportLogSubPage({ config }: ExportLogSubPageProps) {
-  const currentVN = config.outputSettings.versionName;
-  const currentVT = config.versionTemplates.get(currentVN);
+  const currentVT = config.versionTemplates.get(config.outputSettings.versionName);
   const [localVersion, setLocalVersion] = useState(String(config.outputSettings.versionNumber));
   const [activeVersion, setActiveVersion] = useState(config.outputSettings.versionNumber);
 
-  const outputDir = useMemo(
-    () => resolveOutputDir(currentVT, activeVersion, currentVN),
-    [currentVT, activeVersion, currentVN]
-  );
-
-  const gitRootDir = useMemo(
-    () => resolveGitRoot(currentVT, activeVersion),
+  const gitRoot = useMemo(
+    () => resolveGitRoot(currentVT?.gitDirectory || '', activeVersion),
     [currentVT, activeVersion]
   );
 
@@ -51,7 +48,7 @@ export function ExportLogSubPage({ config }: ExportLogSubPageProps) {
     }
   }, []);
 
-  if (!currentVT?.gitDirectory) {
+  if (!gitRoot) {
     return (
       <div style={{ padding: '24px 14px', fontSize: '12px', color: '#999', textAlign: 'center' }}>
         请先配置输出目录
@@ -62,7 +59,6 @@ export function ExportLogSubPage({ config }: ExportLogSubPageProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, borderBottom: `1px solid ${tokens.colorNeutralStroke2}` }}>
-        <span style={{ fontSize: '12px', color: tokens.colorNeutralForeground3 }}>{currentVN}</span>
         <Input
           size="small"
           value={localVersion}
@@ -73,7 +69,7 @@ export function ExportLogSubPage({ config }: ExportLogSubPageProps) {
         />
       </div>
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        <CommitHistoryPanel key={outputDir} outputDirectory={outputDir} gitRootDir={gitRootDir} />
+        <CommitHistoryPanel key={gitRoot} outputDirectory={gitRoot} />
       </div>
     </div>
   );

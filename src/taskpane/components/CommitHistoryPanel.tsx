@@ -144,11 +144,9 @@ function parseCommitLog(output: string): CommitEntry[] {
 
 interface CommitHistoryPanelProps {
   outputDirectory: string;
-  /** {0} 版本号目录，.git 应在此目录下。未传则跳过检查。 */
-  gitRootDir?: string;
 }
 
-export function CommitHistoryPanel({ outputDirectory, gitRootDir }: CommitHistoryPanelProps) {
+export function CommitHistoryPanel({ outputDirectory }: CommitHistoryPanelProps) {
   const styles = useStyles();
   const t = useThemeText();
   const [commits, setCommits] = useState<CommitEntry[]>([]);
@@ -169,17 +167,6 @@ export function CommitHistoryPanel({ outputDirectory, gitRootDir }: CommitHistor
       }
       const handler = new GitHandler(outputDirectory);
       const executor = new GitExecutor(base);
-
-      // 检查输出目录是否在 git 仓库内
-      if (gitRootDir) {
-        const checkHandler = new GitHandler(gitRootDir);
-        const checkResult = await executor.execute(gitRootDir, checkHandler.generateCheckGitRepoCommands());
-        if (!checkResult.ok) {
-          // 不在 git 仓库内，静默返回空
-          setCommits([]);
-          return;
-        }
-      }
 
       const cmds = handler.generateLogCommands();
       const result = await executor.execute(outputDirectory, cmds);
