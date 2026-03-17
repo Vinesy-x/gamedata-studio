@@ -179,7 +179,7 @@ export function CommitHistoryPanel({ outputDirectory }: CommitHistoryPanelProps)
       const repoRoot = checkResult.output.trim().replace(/\\/g, '/').replace(/\/$/, '');
       const normalizedDir = outputDirectory.replace(/\\/g, '/').replace(/\/$/, '');
       const depth = normalizedDir.replace(repoRoot, '').split('/').filter(Boolean).length;
-      if (!normalizedDir.startsWith(repoRoot) || depth > 2) {
+      if (!normalizedDir.startsWith(repoRoot) || depth > 1) {
         setCommits([]);
         return;
       }
