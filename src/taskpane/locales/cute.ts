@@ -43,7 +43,7 @@ export const cuteText: ThemeTextMap = {
     },
     config: {
       version: '小伙伴',
-      versionNumber: '版本号',
+      versionNumber: '章节',
       sequence: '冒险编号',
       operator: '冒险者',
       monitor: '守护精灵',

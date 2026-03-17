@@ -43,7 +43,7 @@ export const cyberText: ThemeTextMap = {
     },
     config: {
       version: '频道',
-      versionNumber: '版本号',
+      versionNumber: '协议版本',
       sequence: '序列号',
       operator: '黑客',
       monitor: '入侵检测',

@@ -43,7 +43,7 @@ export const spaceText: ThemeTextMap = {
     },
     config: {
       version: '航道',
-      versionNumber: '版本号',
+      versionNumber: '航线编号',
       sequence: '航班号',
       operator: '舰长',
       monitor: '雷达监听',

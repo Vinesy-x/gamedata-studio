@@ -43,7 +43,7 @@ export const pixelText: ThemeTextMap = {
     },
     config: {
       version: '频道',
-      versionNumber: '版本号',
+      versionNumber: '副本编号',
       sequence: '回合',
       operator: '勇者',
       monitor: '巡逻哨兵',
