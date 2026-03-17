@@ -42,7 +42,7 @@ export const cuteText: ThemeTextMap = {
       removedRow: '消失了',
     },
     config: {
-      version: '世界',
+      version: '世界名',
       versionNumber: '章节',
       sequence: '冒险编号',
       operator: '冒险者',
