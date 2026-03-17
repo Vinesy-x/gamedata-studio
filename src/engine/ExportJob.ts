@@ -222,11 +222,11 @@ export class ExportJob {
         const newSeq = config.outputSettings.versionSequence + 1;
 
         if (gameConfigEntry) {
-          // GameConfig 已在写入队列中（自身数据有变更），注入版本号并重算哈希
+          // GameConfig 已在写入队列中（自身数据有变更），注入版本号
+          // 注意：不重算哈希，manifest 存原始数据哈希，下次对比才不会误判
           const data = gameConfigEntry.data;
           if (data.length > 2 && data[2].length > 2) {
             data[2][2] = `${config.outputSettings.versionNumber}.${newSeq}`;
-            pendingWrites[gameConfigEntry.idx].newHash = this.exportWriter.computeDataHash(data);
           }
         } else {
           // GameConfig 自身数据没变，但其他表有变更，需要注入新版本号并导出
@@ -236,14 +236,15 @@ export class ExportJob {
           if (gcTableData) {
             const filtered = dataFilter.applyFilters(gcTableData);
             if (filtered.shouldOutput && filtered.data.length > 2 && filtered.data[2].length > 2) {
+              // 先记录原始哈希（注入前），用于 manifest 存储
+              const originalHash = this.exportWriter.computeDataHash(filtered.data);
               filtered.data[2][2] = `${config.outputSettings.versionNumber}.${newSeq}`;
-              const newHash = this.exportWriter.computeDataHash(filtered.data);
               const oldEntry = manifest['GameConfig'];
               pendingWrites.push({
                 chineseName: Array.from(config.tablesToProcess.entries()).find(([, v]) => v.englishName === 'GameConfig')?.[0] || 'GameConfig',
                 englishName: 'GameConfig',
                 filteredData: filtered.data,
-                newHash,
+                newHash: originalHash,
                 currentRows: Math.max(0, filtered.data.length - 1),
                 previousRows: oldEntry ? getManifestRows(oldEntry) : 0,
                 isNew: !oldEntry,
