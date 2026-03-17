@@ -165,6 +165,9 @@ export class ExportJob {
       }
       const pendingWrites: PendingWrite[] = [];
 
+      // 暂存 GameConfig 筛选数据，等确认有变更后再递增序列号并注入
+      let gameConfigPending: { chineseName: string; filtered: CellValue[][] } | null = null;
+
       for (const [chineseName, tableData] of inMemoryData) {
         tableIndex++;
         const tableInfo = config.tablesToProcess.get(chineseName);
@@ -180,10 +183,10 @@ export class ExportJob {
             continue;
           }
 
-          // GameConfig 特殊处理：哈希对比前注入版本号.序列号
-          // 这样序列号变化本身会触发哈希变更，确保每次导出都更新版本号
-          if (englishName === 'GameConfig' && filtered.data.length > 2 && filtered.data[2].length > 2) {
-            filtered.data[2][2] = `${config.outputSettings.versionNumber}.${config.outputSettings.versionSequence}`;
+          // GameConfig 暂存，不参与本轮哈希对比
+          if (englishName === 'GameConfig') {
+            gameConfigPending = { chineseName, filtered: filtered.data };
+            continue;
           }
 
           const newHash = this.exportWriter.computeDataHash(filtered.data);
@@ -207,6 +210,27 @@ export class ExportJob {
             tableName: chineseName,
             message: `处理表「${chineseName}」失败: ${errDetail}`,
             procedure: 'ExportJob.processTable',
+          });
+        }
+      }
+
+      // 有数据变更 → 递增序列号 → 注入 GameConfig → 加入写入队列
+      if (pendingWrites.length > 0) {
+        await this.configLoader.incrementSequence(config);
+        const newSeq = config.outputSettings.versionSequence + 1;
+
+        if (gameConfigPending && gameConfigPending.filtered.length > 2 && gameConfigPending.filtered[2].length > 2) {
+          gameConfigPending.filtered[2][2] = `${config.outputSettings.versionNumber}.${newSeq}`;
+          const newHash = this.exportWriter.computeDataHash(gameConfigPending.filtered);
+          const oldEntry = manifest['GameConfig'];
+          pendingWrites.push({
+            chineseName: gameConfigPending.chineseName,
+            englishName: 'GameConfig',
+            filteredData: gameConfigPending.filtered,
+            newHash,
+            currentRows: Math.max(0, gameConfigPending.filtered.length - 1),
+            previousRows: oldEntry ? getManifestRows(oldEntry) : 0,
+            isNew: !oldEntry,
           });
         }
       }
@@ -341,9 +365,6 @@ export class ExportJob {
 
       // 收尾
       this.emitProgress(totalSteps, totalSteps, '正在更新状态...');
-      if (changedTables > 0) {
-        await this.configLoader.incrementSequence(config);
-      }
       await this.updateExportResults(modifiedFiles);
 
       return this.buildResult(true, modifiedFiles, startTime, totalTables, changedTables, tableDiffs, gitPushed);
