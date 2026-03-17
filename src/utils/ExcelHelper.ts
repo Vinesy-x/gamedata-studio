@@ -53,6 +53,9 @@ export class ExcelHelper {
     const result = new Map<string, SheetSnapshot>();
     if (sheetNames.length === 0) return result;
 
+    // 暂停自动计算，避免读取时触发公式重算（仅影响当前 sync 批次）
+    context.application.suspendApiCalculationUntilNextSync();
+
     // 第1次 sync：批量检查工作表是否存在
     const sheetObjects: { name: string; sheet: Excel.Worksheet }[] = [];
     for (const name of sheetNames) {
@@ -63,6 +66,7 @@ export class ExcelHelper {
     await context.sync();
 
     // 第2次 sync：批量加载存在的工作表的 usedRange
+    context.application.suspendApiCalculationUntilNextSync();
     const rangeObjects: { name: string; range: Excel.Range }[] = [];
     for (const { name, sheet } of sheetObjects) {
       if (sheet.isNullObject) continue;

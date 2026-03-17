@@ -126,8 +126,8 @@ export class ExportJob {
       // 重新计算总步数: 6 setup + N tables + 3 finalize (含 git push)
       totalSteps = 6 + totalTables + 3;
 
-      // 数据已全部加载到内存，关闭 Excel 自动计算避免后台重算抢占 CPU
-      await this.setCalculationMode(false);
+      // 注：Excel 自动计算已在 loadSheetSnapshotsBatch 中通过
+      // suspendApiCalculationUntilNextSync 按批次暂停，无需全局切换
 
       // 步骤5: 导出前校验
       this.emitProgress(5, totalSteps, '正在执行校验...');
@@ -402,9 +402,6 @@ export class ExportJob {
         procedure: 'ExportJob.runExport',
       });
       return this.buildResult(false, modifiedFiles, startTime, totalTables, changedTables, tableDiffs);
-    } finally {
-      // 无论成功失败，恢复 Excel 自动计算
-      await this.setCalculationMode(true);
     }
   }
 
@@ -425,24 +422,6 @@ export class ExportJob {
       }
     }
     throw new Error('unreachable');
-  }
-
-  /**
-   * 切换 Excel 计算模式（导出期间关闭自动计算，避免公式重算拖慢读取）
-   */
-  private async setCalculationMode(automatic: boolean): Promise<void> {
-    try {
-      await Excel.run(async (context) => {
-        const app = context.application;
-        app.calculationMode = automatic
-          ? Excel.CalculationMode.automatic
-          : Excel.CalculationMode.manual;
-        await context.sync();
-      });
-      logger.info(automatic ? '已恢复 Excel 自动计算' : '已关闭 Excel 自动计算');
-    } catch (err) {
-      logger.warn(`切换计算模式失败: ${err instanceof Error ? err.message : err}`);
-    }
   }
 
   /**
