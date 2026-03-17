@@ -33,7 +33,7 @@ export const defaultText: ThemeTextMap = {
       removedRow: '删除',
     },
     config: {
-      version: '输出版本',
+      version: '渠道',
       versionNumber: '版本号',
       sequence: '序列号',
       operator: '操作员',
@@ -81,7 +81,7 @@ export const defaultText: ThemeTextMap = {
     statusChannelDeleted: (name) => `已删除渠道「${name}」及关联数据`,
     statusSyncResult: (n) => `线路同步完成: ${n} 张表已同步`,
     statusTableCreated: (name) => `工作表「${name}」创建成功！`,
-    variableHint: '{0}=版本号 {1}=版本名',
+    variableHint: '{0}=版本号 {1}=渠道名',
   },
 
   validate: {

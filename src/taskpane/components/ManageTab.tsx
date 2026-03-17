@@ -14,7 +14,6 @@ import {
   Spinner,
   Dropdown,
   Option,
-  Textarea,
 } from '@fluentui/react-components';
 import {
   SettingsRegular,
@@ -755,23 +754,19 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
 
         {/* Git 提交模板 */}
         <div className={styles.card} style={{ marginTop: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Label style={{ fontSize: '11px', fontWeight: 600 }}>Git 提交模板</Label>
-            {!editingGit && (
-              <Button appearance="subtle" size="small" onClick={() => { setGitTemplate(config.gitCommitTemplate || ''); setEditingGit(true); }}>
-                编辑
-              </Button>
-            )}
-          </div>
+          <Label style={{ fontSize: '11px', fontWeight: 600 }}>Git 提交模板</Label>
           {editingGit ? (
             <>
-              <Textarea
+              <Input
                 size="small"
                 value={gitTemplate}
                 onChange={(_, d) => setGitTemplate(d.value)}
                 style={{ width: '100%', fontSize: '11px', fontFamily: 'Consolas, monospace', marginTop: '4px' }}
-                rows={3}
+                autoFocus
               />
+              <span style={{ fontSize: '9px', color: '#999', lineHeight: '1.4', display: 'block', marginTop: '2px' }}>
+                {'{0}'} 版本号.序列号 &nbsp; {'{1}'} 渠道名 &nbsp; {'{2}'} 操作员
+              </span>
               <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
                 <Button appearance="primary" size="small" onClick={handleSaveGitTemplate} disabled={saving}>
                   {saving ? '保存中...' : '保存'}
@@ -782,13 +777,15 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
               </div>
             </>
           ) : (
-            <Text style={{ fontSize: '11px', fontFamily: 'Consolas, monospace', marginTop: '4px', display: 'block' }}>
-              {config.gitCommitTemplate || '(未配置)'}
-            </Text>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+              <Text style={{ fontSize: '11px', fontFamily: 'Consolas, monospace', flex: 1 }}>
+                {config.gitCommitTemplate || '(未配置)'}
+              </Text>
+              <Button appearance="subtle" size="small" onClick={() => { setGitTemplate(config.gitCommitTemplate || ''); setEditingGit(true); }}>
+                编辑
+              </Button>
+            </div>
           )}
-          <div style={{ fontSize: '10px', color: tokens.colorNeutralForeground3, lineHeight: '1.6', marginTop: '6px' }}>
-            {'{0}'} 版本号.序列号 &nbsp; {'{1}'} 版本名 &nbsp; {'{2}'} 操作员
-          </div>
         </div>
       </div>
 
