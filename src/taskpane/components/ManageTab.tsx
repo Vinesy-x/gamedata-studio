@@ -628,8 +628,9 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
           <table className={styles.table}>
             <thead>
               <tr>
-                <th className={styles.th}>姓名</th>
-                <th className={styles.th}>代码</th>
+                <th className={styles.th} style={{ width: '35%' }}>姓名</th>
+                <th className={styles.th} style={{ width: '35%' }}>代码</th>
+                <th className={styles.th} style={{ width: '30%' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -673,6 +674,23 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
                         {s.code}
                       </span>
                     )}
+                  </td>
+                  <td className={styles.td}>
+                    <Button
+                      icon={<DeleteRegular />}
+                      appearance="subtle"
+                      size="small"
+                      onClick={async () => {
+                        try {
+                          await configManager.deleteStaff(s.name);
+                          setStatusMsg({ text: `已删除人员「${s.name}」`, type: 'success' });
+                          onReload();
+                        } catch (err) {
+                          setStatusMsg({ text: `删除失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
+                        }
+                      }}
+                      style={{ minWidth: 'auto', padding: '0 2px' }}
+                    />
                   </td>
                 </tr>
               ))}

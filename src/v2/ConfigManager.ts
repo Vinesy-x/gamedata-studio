@@ -211,6 +211,17 @@ export class ConfigManager {
     });
   }
 
+  async deleteStaff(name: string): Promise<void> {
+    await Excel.run(async (context) => {
+      const ok = await StudioConfigStore.update(context, (data) => {
+        data.staff = data.staff.filter(s => s.name !== name);
+      });
+      if (ok) {
+        logger.info(`deleteStaff: 已删除人员「${name}」`);
+      }
+    });
+  }
+
   // ─── Git 提交模板 ───────────────────────────────────
 
   async setGitCommitTemplate(template: string): Promise<void> {
