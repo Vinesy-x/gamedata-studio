@@ -33,7 +33,7 @@ export const defaultText: ThemeTextMap = {
       removedRow: '删除',
     },
     config: {
-      version: '渠道',
+      version: '渠道名',
       versionNumber: '版本号',
       sequence: '序列号',
       operator: '操作员',
