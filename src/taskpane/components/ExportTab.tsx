@@ -484,8 +484,15 @@ export function ExportTab({
   const [earnedXp, setEarnedXp] = useState(0);
   const t = useThemeText();
   const prevExportingRef = useRef(isExporting);
-  const [subPage, setSubPage] = useState<'export' | 'result' | 'log'>('export');
-  const [commitMessage, setCommitMessage] = useState('');
+  const [subPage, setSubPage] = useState<'export' | 'result' | 'log'>(() => exportResult ? 'result' : 'export');
+  const [commitMessage, setCommitMessage] = useState(() => {
+    if (!exportResult) return '';
+    const gitHandler = new GitHandler(config.outputSettings.outputDirectory || '');
+    return gitHandler.generateCommitMessage(
+      config.gitCommitTemplate, config.outputSettings.versionName,
+      config.outputSettings.versionNumber, config.outputSettings.versionSequence, config.operator
+    );
+  });
 
   // 当新的导出开始时，重置隐藏状态；当导出完成时，触发动画
   useEffect(() => {
@@ -582,7 +589,7 @@ export function ExportTab({
   const outputDir = config.outputSettings.outputDirectory || '';
 
   const [gitPushing, setGitPushing] = useState(false);
-  const [gitPushDone, setGitPushDone] = useState(false);
+  const [gitPushDone, setGitPushDone] = useState(() => !!exportResult?.gitPushed);
 
   const handleManualGitPush = useCallback(async () => {
     if (!exportResult || gitPushing) return;
