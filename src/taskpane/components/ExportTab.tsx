@@ -896,7 +896,7 @@ export function ExportTab({
                       let trimmed = 0;
                       for (const sheet of sheets.items) {
                         const used = sheet.getUsedRangeOrNullObject(true);
-                        used.load('rowCount,columnCount,address');
+                        used.load('values,rowCount,columnCount');
                         await context.sync();
                         if (used.isNullObject) continue;
                         // 找到实际数据边界：从右下角往回扫描
