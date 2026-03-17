@@ -167,6 +167,21 @@ export function CommitHistoryPanel({ outputDirectory }: CommitHistoryPanelProps)
       }
       const handler = new GitHandler(outputDirectory);
       const executor = new GitExecutor(base);
+
+      // 先检查目录是否在有效的 git 仓库内
+      const checkResult = await executor.execute(outputDirectory, handler.generateCheckGitRepoCommands());
+      if (!checkResult.ok) {
+        setCommits([]);
+        return; // 非 git 仓库，静默返回空
+      }
+      // 验证 git 仓库根目录是否包含输出目录（防止父级 git 仓库干扰）
+      const repoRoot = checkResult.output.trim().replace(/\\/g, '/');
+      const normalizedDir = outputDirectory.replace(/\\/g, '/');
+      if (!normalizedDir.startsWith(repoRoot)) {
+        setCommits([]);
+        return;
+      }
+
       const cmds = handler.generateLogCommands();
       const result = await executor.execute(outputDirectory, cmds);
       if (result.ok) {

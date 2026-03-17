@@ -97,6 +97,18 @@ export class GitHandler {
   }
 
   /**
+   * 生成检查目录是否为 git 仓库的命令
+   * 返回 git 仓库根目录路径，用于验证是否与输出目录匹配
+   */
+  generateCheckGitRepoCommands(): string[] {
+    if (!this.outputDirectory) return [];
+    return [
+      `cd "${this.outputDirectory}"`,
+      'git rev-parse --show-toplevel',
+    ];
+  }
+
+  /**
    * 生成回退到指定提交的命令
    * hash 做正则校验防注入
    */
