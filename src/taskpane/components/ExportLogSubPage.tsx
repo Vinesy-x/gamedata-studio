@@ -14,6 +14,14 @@ function resolveOutputDir(vt: VersionTemplate | undefined, versionNumber: number
   return vt.gitDirectory.replace('{0}', versionStr).replace('{1}', versionName);
 }
 
+/** 从模板算出 {0} 版本号目录（.git 所在层级） */
+function resolveGitRoot(vt: VersionTemplate | undefined, versionNumber: number): string {
+  if (!vt?.gitDirectory) return '';
+  let versionStr = String(versionNumber);
+  if (!versionStr.includes('.')) versionStr += '.0';
+  return vt.gitDirectory.replace(/[/\\]?\{1\}/, '').replace('{0}', versionStr);
+}
+
 export function ExportLogSubPage({ config }: ExportLogSubPageProps) {
   const currentVN = config.outputSettings.versionName;
   const currentVT = config.versionTemplates.get(currentVN);
@@ -23,6 +31,11 @@ export function ExportLogSubPage({ config }: ExportLogSubPageProps) {
   const outputDir = useMemo(
     () => resolveOutputDir(currentVT, activeVersion, currentVN),
     [currentVT, activeVersion, currentVN]
+  );
+
+  const gitRootDir = useMemo(
+    () => resolveGitRoot(currentVT, activeVersion),
+    [currentVT, activeVersion]
   );
 
   const handleVersionBlur = useCallback(() => {
@@ -60,7 +73,7 @@ export function ExportLogSubPage({ config }: ExportLogSubPageProps) {
         />
       </div>
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        <CommitHistoryPanel key={outputDir} outputDirectory={outputDir} />
+        <CommitHistoryPanel key={outputDir} outputDirectory={outputDir} gitRootDir={gitRootDir} />
       </div>
     </div>
   );

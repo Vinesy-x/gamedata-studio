@@ -144,9 +144,11 @@ function parseCommitLog(output: string): CommitEntry[] {
 
 interface CommitHistoryPanelProps {
   outputDirectory: string;
+  /** {0} 版本号目录，.git 应在此目录下。未传则跳过检查。 */
+  gitRootDir?: string;
 }
 
-export function CommitHistoryPanel({ outputDirectory }: CommitHistoryPanelProps) {
+export function CommitHistoryPanel({ outputDirectory, gitRootDir }: CommitHistoryPanelProps) {
   const styles = useStyles();
   const t = useThemeText();
   const [commits, setCommits] = useState<CommitEntry[]>([]);
@@ -168,20 +170,19 @@ export function CommitHistoryPanel({ outputDirectory }: CommitHistoryPanelProps)
       const handler = new GitHandler(outputDirectory);
       const executor = new GitExecutor(base);
 
-      // 先检查目录是否在有效的 git 仓库内
-      const checkResult = await executor.execute(outputDirectory, handler.generateCheckGitRepoCommands());
-      if (!checkResult.ok) {
-        setCommits([]);
-        return; // 非 git 仓库，静默返回空
-      }
-      // 验证 .git 在输出目录或其上 1-2 级父目录内（不接受更远的祖先）
-      // 例如输出目录 /data/1.06/主干版本，.git 可以在 /data/1.06/ 下
-      const repoRoot = checkResult.output.trim().replace(/\\/g, '/').replace(/\/$/, '');
-      const normalizedDir = outputDirectory.replace(/\\/g, '/').replace(/\/$/, '');
-      const depth = normalizedDir.replace(repoRoot, '').split('/').filter(Boolean).length;
-      if (!normalizedDir.startsWith(repoRoot) || depth > 1) {
-        setCommits([]);
-        return;
+      // 检查 {0} 版本号目录下是否有 .git
+      if (gitRootDir) {
+        const checkResult = await executor.execute(outputDirectory, handler.generateCheckGitRepoCommands());
+        if (!checkResult.ok) {
+          setCommits([]);
+          return;
+        }
+        const repoRoot = checkResult.output.trim().replace(/\\/g, '/').replace(/\/$/, '');
+        const expectedRoot = gitRootDir.replace(/\\/g, '/').replace(/\/$/, '');
+        if (repoRoot !== expectedRoot) {
+          setCommits([]);
+          return;
+        }
       }
 
       const cmds = handler.generateLogCommands();
