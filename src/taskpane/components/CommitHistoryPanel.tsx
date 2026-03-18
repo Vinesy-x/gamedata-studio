@@ -126,11 +126,14 @@ function parseCommitLog(output: string): CommitEntry[] {
     .filter(Boolean)
     .map((line) => {
       const parts = line.split('||');
-      if (parts.length < 4) return null;
+      if (parts.length < 3) return null;
       const hash = parts[0];
+      // hash 至少7位十六进制
+      if (!/^[0-9a-f]{7,}/i.test(hash)) return null;
       const date = parts[1];
-      const author = parts[2];
-      const message = parts.slice(3).join('||');
+      // 3段：author 和 message 可能因编码问题合并了
+      const author = parts.length >= 4 ? parts[2] : '';
+      const message = parts.length >= 4 ? parts.slice(3).join('||') : parts[2];
       return {
         hash,
         shortHash: hash.substring(0, 7),
