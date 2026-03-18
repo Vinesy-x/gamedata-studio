@@ -978,33 +978,37 @@ export function ExportTab({
                 lineHeight: '1.8',
                 color: tokens.colorNeutralForeground1,
               }}>
-                <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.4.0 — 导出 Diff 详情 & 体验优化</div>
+                <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.7 — 性能优化 & 渠道管理 & 协同增强</div>
                 <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px' }}>
-                  <li>导出 Diff 详情：点击文件行展开查看逐行变更，新增/删除/修改的 key 一目了然</li>
+                  <li>导出性能大幅提升：暂停 Excel 自动计算、Git pull 与数据加载并行、16路并发写入</li>
+                  <li>Git pull 优化：快速 ff-only 拉取 + 自动恢复本地删除的文件</li>
+                  <li>导出界面拆分为 导出 | 结果 | 日志 三个子页面</li>
+                  <li>Git 提交模板支持参数：{'{0}'}=版本号.序列号 {'{1}'}=渠道名 {'{2}'}=操作员</li>
+                  <li>Git 提交作者自动使用当前操作人名字</li>
+                  <li>版本管理重命名为渠道管理，Git 目录提升为全局配置</li>
+                  <li>各主题术语全面统一（导出/管理/校验）</li>
+                  <li>GameConfig 版本注入逻辑重构，修复序列号不递增等问题</li>
+                  <li>开发者工具：裁剪空范围按钮，修复 usedRange 膨胀导致文件暴增</li>
+                  <li>校验面板选择项保存到本地，切换页面不丢失</li>
+                  <li>所有单元格值导出为文本类型，修复 Unity 读取报错</li>
+                  <li>文件服务自动更新重启机制</li>
+                </ul>
+                <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.4 — 导出 Diff 详情 & 体验优化</div>
+                <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px' }}>
+                  <li>导出 Diff 详情：点击文件行展开查看逐行变更</li>
                   <li>单元格级对比：修改行显示具体字段变化（旧值 → 新值）</li>
-                  <li>导出结果覆盖按钮区域，关闭按钮一键回到待导出状态</li>
-                  <li>提交历史查看与回退功能，自动 push 的安全网</li>
-                  <li>结果列表隐藏 _manifest.json，只显示数据表</li>
+                  <li>提交历史查看与回退功能</li>
                   <li>新增赛博朋克、像素复古两套主题</li>
                 </ul>
-                <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.3.0 — 多主题系统 & 设计升级</div>
+                <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.3 — 多主题系统 & 设计升级</div>
                 <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px' }}>
-                  <li>全新主题系统：支持 4 种主题循环切换（浅色 → 深色 → 飞船航行 → 二次元冒险）</li>
-                  <li>飞船航行主题：版本→航线、表→设备、校验→维修、预览→试飞，完整 RPG 风格</li>
-                  <li>二次元冒险主题：版本→世界、表→宝典、操作员→冒险者，粉色可爱风格</li>
-                  <li>GDS 设计系统：集中式 design tokens，青色品牌色替换默认蓝</li>
-                  <li>主题文本字典化：locales 架构，新增主题只需一个文件</li>
-                  <li>等级/经验值系统：游戏主题显示 LV 等级条、规则经验值、成就解锁</li>
-                  <li>帮助说明全面适配主题文案</li>
-                  <li>Tab 图标按主题切换（Rocket/Heart/Star 等）</li>
+                  <li>6 种主题循环切换：浅色/深色/飞船航行/二次元冒险/赛博朋克/像素复古</li>
+                  <li>等级/经验值系统，游戏主题显示 LV 等级条</li>
                 </ul>
-                <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.2.0 — 性能大幅优化 & 多项修复</div>
+                <div style={{ fontWeight: 600, marginBottom: '4px' }}>v1.2 — 性能优化 & 多项修复</div>
                 <ul style={{ margin: '0 0 12px 0', paddingLeft: '18px' }}>
-                  <li>导出速度提升：POST 单次写入替代 GET 分片，批量 Excel 加载，并行写入</li>
-                  <li>校验速度提升：4条规则合并为单次遍历，大表不再卡死</li>
-                  <li>空值等价配置：null/NULL 等值可自定义</li>
-                  <li>线路修正：roads_0 不再是总线路开关，各线路独立控制</li>
-                  <li>隐藏行兼容：动态检测数据起始行</li>
+                  <li>批量 Excel 加载、POST 单次写入、并行文件写入</li>
+                  <li>校验速度提升、空值等价配置、隐藏行兼容</li>
                 </ul>
               </div>
             </DialogContent>
