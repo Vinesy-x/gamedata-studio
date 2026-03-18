@@ -1124,9 +1124,21 @@ function TablesSubPage({ config, onReload, searchTerm, onSearchChange, styles }:
     <>
       <div className={styles.sectionHeader}>
         <Text className={styles.sectionTitle}>{t.manage.tablesSectionTitle}</Text>
-        <Button icon={<ArrowSyncRegular />} appearance="subtle" size="small" onClick={onReload}>
-          刷新
-        </Button>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          <Button appearance="subtle" size="small" onClick={async () => {
+            try {
+              const count = await tableRegistry.syncHyperlinks();
+              setStatusMsg({ text: `已同步 ${count} 个超链接`, type: 'success' });
+            } catch (err) {
+              setStatusMsg({ text: `同步超链接失败: ${err instanceof Error ? err.message : err}`, type: 'error' });
+            }
+          }}>
+            同步超链接
+          </Button>
+          <Button icon={<ArrowSyncRegular />} appearance="subtle" size="small" onClick={onReload}>
+            刷新
+          </Button>
+        </div>
       </div>
 
       {statusMsg && (

@@ -93,6 +93,45 @@ export class TableRegistry {
   }
 
   /**
+   * 批量同步超链接：为表名对照中所有功能表名补充跳转超链接
+   */
+  async syncHyperlinks(): Promise<number> {
+    let count = 0;
+    await Excel.run(async (context) => {
+      const snap = await excelHelper.loadSheetSnapshot(context, LEGACY_MAPPING);
+      if (!snap) throw new Error('找不到表名对照工作表');
+      const pos = excelHelper.findMarkerInData(snap.values, '#输出控制#');
+      if (!pos) throw new Error('未找到 #输出控制# 标记');
+
+      // 收集所有工作表名
+      const sheets = context.workbook.worksheets;
+      sheets.load('items/name');
+      await context.sync();
+      const sheetNames = new Set(sheets.items.map(s => s.name));
+
+      const mappingSheet = context.workbook.worksheets.getItem(LEGACY_MAPPING);
+
+      for (let r = pos.row + 1; r < snap.values.length; r++) {
+        const firstCell = snap.values[r]?.[pos.col];
+        if (firstCell == null || String(firstCell).trim() === '') break;
+        const chineseName = String(snap.values[r]?.[pos.col + 1] ?? '').trim();
+        if (!chineseName || !sheetNames.has(chineseName)) continue;
+
+        const cell = mappingSheet.getRangeByIndexes(r + snap.startRow, pos.col + snap.startCol + 1, 1, 1);
+        cell.hyperlink = {
+          documentReference: `'${chineseName}'!A1`,
+          textToDisplay: chineseName,
+          screenTip: `跳转到「${chineseName}」`,
+        };
+        count++;
+      }
+      await context.sync();
+      logger.info(`已同步 ${count} 个超链接`);
+    });
+    return count;
+  }
+
+  /**
    * 修改已注册表的信息（写入表名对照，同步到 StudioConfig）
    */
   async updateTable(chineseName: string, updates: Partial<TableInfo>): Promise<void> {
