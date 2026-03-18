@@ -12,15 +12,13 @@ export class GitHandler {
   }
 
   /**
-   * 生成 Git 拉取命令
+   * 生成 Git 拉取命令（快速模式：ff-only，失败则降级为 reset + pull）
    */
   generatePullCommands(): string[] {
     if (!this.outputDirectory) return [];
     return [
       `cd "${this.outputDirectory}"`,
-      'git reset --hard',
-      'git clean -dfq',
-      'git pull',
+      'git pull --ff-only || (git reset --hard && git clean -dfq && git pull)',
     ];
   }
 
