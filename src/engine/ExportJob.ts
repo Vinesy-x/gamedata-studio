@@ -260,6 +260,11 @@ export class ExportJob {
 
       logger.info(`⏱ 阶段A筛选+哈希: ${Date.now() - t4}ms (${pendingWrites.length} 张表需写入)`);
 
+      // 预加载 ExcelJS 模块（阶段B写入时直接使用，避免每张表重复 await import）
+      if (pendingWrites.length > 0) {
+        await this.exportWriter.preloadExcelJs();
+      }
+
       // ── 阶段A2：并行读取旧文件计算 diff（仅在开启详细差异对比时执行）
       const t4b = Date.now();
       const diffTasks = clientSettings.get('detailedDiff') ? pendingWrites.filter(pw => !pw.isNew) : [];

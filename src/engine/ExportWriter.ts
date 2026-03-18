@@ -21,6 +21,15 @@ export function getManifestRows(entry: HashManifestEntry): number {
 }
 
 export class ExportWriter {
+  private excelJsModule: typeof import('exceljs') | null = null;
+
+  /** 预加载 ExcelJS 模块，避免阶段B每张表重复 await import */
+  async preloadExcelJs(): Promise<void> {
+    if (!this.excelJsModule) {
+      this.excelJsModule = await import('exceljs');
+    }
+  }
+
   /**
    * 计算表数据的哈希值（简单高效的 djb2 字符串哈希）
    * 将二维数组序列化后计算哈希，用于快速判断数据是否变更
@@ -76,8 +85,8 @@ export class ExportWriter {
     englishName: string,
     config: Config
   ): Promise<ArrayBuffer> {
-    // 动态导入 exceljs（~925KB），避免阻塞首屏加载
-    const ExcelJS = await import('exceljs');
+    // 使用预加载的模块（如未预加载则动态导入）
+    const ExcelJS = this.excelJsModule || await import('exceljs');
     const workbook = new ExcelJS.default.Workbook();
     const sheet = workbook.addWorksheet(englishName);
 
