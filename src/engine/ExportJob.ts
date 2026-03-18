@@ -280,9 +280,9 @@ export class ExportJob {
         logger.info(`⏱ 阶段A2 diff计算: ${Date.now() - t4b}ms (${diffTasks.length} 张表)`);
       }
 
-      // ── 阶段B：并行生成 xlsx + 写入文件（I/O 密集，8 路并发）
+      // ── 阶段B：并行生成 xlsx + 写入文件（I/O 密集，16 路并发）
       const t5 = Date.now();
-      const WRITE_CONCURRENCY = 8;
+      const WRITE_CONCURRENCY = 16;
       const writeTable = async (pw: PendingWrite) => {
         const tw = Date.now();
         const fileBuffer = await this.exportWriter.writeIndividualFile(

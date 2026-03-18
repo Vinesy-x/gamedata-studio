@@ -18,7 +18,7 @@ export class GitHandler {
     if (!this.outputDirectory) return [];
     return [
       `cd "${this.outputDirectory}"`,
-      'git pull --ff-only || (git reset --hard && git clean -dfq && git pull)',
+      'git checkout -- . && git pull --ff-only || (git reset --hard && git clean -dfq && git pull)',
     ];
   }
 
