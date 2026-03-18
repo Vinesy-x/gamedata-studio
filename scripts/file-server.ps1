@@ -302,15 +302,16 @@ while ($listener.IsListening) {
             $exitCode = $proc.ExitCode
             Write-Log "[git-push] exitCode=$exitCode"
 
-            $result = @{
-                ok = ($exitCode -eq 0)
-                output = if ($stdout) { $stdout.Trim() } else { "" }
-                exitCode = $exitCode
-            }
-            if ($exitCode -ne 0 -and $stderr) {
-                $result.error = $stderr.Trim()
-            }
-            $body = $result | ConvertTo-Json -Compress
+            # 手动构建 JSON（避免 ConvertTo-Json 转义中文为 \uXXXX）
+            $outText = if ($stdout) { $stdout.Trim() } else { "" }
+            $errText = if ($exitCode -ne 0 -and $stderr) { $stderr.Trim() } else { "" }
+            $okStr = if ($exitCode -eq 0) { "true" } else { "false" }
+            # 转义 JSON 特殊字符
+            $outJson = $outText -replace '\\', '\\\\' -replace '"', '\"' -replace "`r`n", '\n' -replace "`n", '\n' -replace "`r", '\n' -replace "`t", '\t'
+            $errJson = $errText -replace '\\', '\\\\' -replace '"', '\"' -replace "`r`n", '\n' -replace "`n", '\n' -replace "`r", '\n' -replace "`t", '\t'
+            $body = "{`"ok`":$okStr,`"output`":`"$outJson`",`"exitCode`":$exitCode"
+            if ($errText) { $body += ",`"error`":`"$errJson`"" }
+            $body += "}"
             $msg = [System.Text.Encoding]::UTF8.GetBytes($body)
             $res.OutputStream.Write($msg, 0, $msg.Length)
         } catch {
