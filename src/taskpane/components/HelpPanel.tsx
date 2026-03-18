@@ -188,7 +188,7 @@ export function HelpPanel() {
       </div>
 
       <div className={styles.footer}>
-        GameData Studio v3.0
+        GameData Studio v1.8
       </div>
     </div>
   );
