@@ -11,6 +11,7 @@ import { GitHandler } from '../../git/GitHandler';
 import { GitExecutor } from '../../git/GitExecutor';
 import { useThemeText } from '../locales';
 import { logger } from '../../utils/Logger';
+import { detectFileServer } from '../../utils/fileServerDetect';
 import { gdsTokens } from '../theme';
 
 interface CommitEntry {
@@ -108,17 +109,6 @@ const useStyles = makeStyles({
     padding: '4px 0',
   },
 });
-
-async function detectFileServer(): Promise<string | null> {
-  const bases = ['https://localhost:9876', 'http://localhost:9876'];
-  for (const base of bases) {
-    try {
-      const resp = await fetch(`${base}/api/read-file?directory=.&fileName=_probe`);
-      if (resp.ok || resp.status === 404) return base;
-    } catch { /* try next */ }
-  }
-  return null;
-}
 
 function parseCommitLog(output: string): CommitEntry[] {
   return output

@@ -48,6 +48,7 @@ import { logger } from '../../utils/Logger';
 import { gdsTokens } from '../theme';
 import { useThemeText, themeExtraData } from '../locales';
 import { getLevelInfo, grantExportXp } from '../services/PlayerStats';
+import { detectFileServer } from '../../utils/fileServerDetect';
 
 const useStyles = makeStyles({
   container: {
@@ -535,18 +536,7 @@ export function ExportTab({
   // 检测 file-server 是否在线
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   useEffect(() => {
-    const check = async () => {
-      for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
-        try {
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), 3000);
-          const resp = await fetch(`${base}/api/read-file?directory=.&fileName=_probe`, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
-          if (resp.ok || resp.status === 404) { setServerOnline(true); return; }
-        } catch { /* try next */ }
-      }
-      setServerOnline(false);
-    };
-    check();
+    detectFileServer().then(base => setServerOnline(!!base));
   }, []);
 
   const handleVersionChange = useCallback(async (newVersionName: string) => {
@@ -596,20 +586,13 @@ export function ExportTab({
     if (!exportResult || gitPushing) return;
     setGitPushing(true);
     try {
-      const gitHandler = new GitHandler(outputDir);
-      // 检测可用的 file-server 地址
-      let serverBase = '';
-      for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
-        try {
-          const resp = await fetch(`${base}/api/read-file?directory=.&fileName=_probe`);
-          if (resp.ok || resp.status === 404) { serverBase = base; break; }
-        } catch { /* try next */ }
-      }
+      const serverBase = await detectFileServer();
       if (!serverBase) {
         logger.error('手动 Git 推送失败: 文件服务不可用');
         setGitPushing(false);
         return;
       }
+      const gitHandler = new GitHandler(outputDir);
       const gitExecutor = new GitExecutor(serverBase);
       const result = await gitExecutor.execute(outputDir, gitHandler.generatePushCommands(exportResult.modifiedFiles, commitMessage, config.operator));
       if (result.ok) {
@@ -631,13 +614,7 @@ export function ExportTab({
     if (gitDiscarding || gitPushing) return;
     setGitDiscarding(true);
     try {
-      let serverBase = '';
-      for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
-        try {
-          const resp = await fetch(`${base}/api/read-file?directory=.&fileName=_probe`);
-          if (resp.ok || resp.status === 404) { serverBase = base; break; }
-        } catch { /* try next */ }
-      }
+      const serverBase = await detectFileServer();
       if (!serverBase) {
         logger.error('撤销失败: 文件服务不可用');
         return;
@@ -802,15 +779,8 @@ export function ExportTab({
                   <Button size="small" appearance="primary" icon={<ArrowSyncRegular />} style={{ marginTop: '6px' }} onClick={async () => {
                     setServerOnline(null);
                     await new Promise(r => setTimeout(r, 500));
-                    for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
-                      try {
-                        const ctrl = new AbortController();
-                        const timer = setTimeout(() => ctrl.abort(), 3000);
-                        const resp = await fetch(`${base}/api/read-file?directory=.&fileName=_probe`, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
-                        if (resp.ok || resp.status === 404) { setServerOnline(true); return; }
-                      } catch { /* try next */ }
-                    }
-                    setServerOnline(false);
+                    const base = await detectFileServer();
+                    setServerOnline(!!base);
                   }}>
                     重新检测
                   </Button>
@@ -931,10 +901,9 @@ export function ExportTab({
               <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>开发者工具</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
                 <Button size="small" appearance="outline" onClick={async () => {
-                  for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
-                    try { await fetch(`${base}/api/restart`); logger.info('文件服务重启请求已发送'); return; } catch { /* try next */ }
-                  }
-                  logger.warn('文件服务不可用，无法重启');
+                  const base = await detectFileServer();
+                  if (base) { await fetch(`${base}/api/restart`); logger.info('文件服务重启请求已发送'); }
+                  else { logger.warn('文件服务不可用，无法重启'); }
                 }}>重启文件服务</Button>
                 <Button size="small" appearance="outline" onClick={() => { localStorage.removeItem('gds-theme'); localStorage.removeItem('gds-player-stats'); window.location.reload(); }}>重置主题</Button>
                 <Button size="small" appearance="outline" onClick={async () => {
