@@ -203,8 +203,8 @@ export function App() {
       await configManager.setOutputVersion(params.version);
       await configManager.setOutputVersionNumber(params.versionNumber);
 
-      // 执行导出
-      const job = new ExportJob((p) => setProgress(p));
+      // 执行导出（协同触发强制 git push，无视本地开关）
+      const job = new ExportJob((p) => setProgress(p), { forceGitPush: true });
       const result = await job.runExport();
       setExportResult(result);
       setIsExporting(false);

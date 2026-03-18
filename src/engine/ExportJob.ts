@@ -29,13 +29,15 @@ export class ExportJob {
   private onProgress: ProgressCallback;
   private fileServerBase = '';  // '' = same origin
   private usePost = false;      // POST 可用时单次上传，比 GET 分片快很多
+  private forceGitPush = false; // 协同触发时强制 push，无视本地开关
 
-  constructor(onProgress: ProgressCallback) {
+  constructor(onProgress: ProgressCallback, options?: { forceGitPush?: boolean }) {
     this.errorHandler = new ErrorHandler();
     this.configLoader = new ConfigLoader(this.errorHandler);
     this.dataLoader = new DataLoader(this.errorHandler);
     this.exportWriter = new ExportWriter();
     this.onProgress = onProgress;
+    this.forceGitPush = options?.forceGitPush ?? false;
   }
 
   /**
@@ -369,7 +371,7 @@ export class ExportJob {
       // 自动 Git Push（仅在开关打开时执行）
       let gitPushed = false;
       this.emitProgress(totalSteps - 1, totalSteps, '正在上传到仓库...');
-      if (changedTables > 0 && clientSettings.get('autoGitPush') && gitExecutor && gitHandler) {
+      if (changedTables > 0 && (this.forceGitPush || clientSettings.get('autoGitPush')) && gitExecutor && gitHandler) {
         const commitMessage = gitHandler.generateCommitMessage(
           config.gitCommitTemplate,
           config.outputSettings.versionName,
