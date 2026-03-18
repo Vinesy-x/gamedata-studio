@@ -168,7 +168,9 @@ export function CommitHistoryPanel({ outputDirectory }: CommitHistoryPanelProps)
       const handler = new GitHandler(outputDirectory);
       const executor = new GitExecutor(base);
       const cmds = handler.generateLogCommands();
+      logger.info(`[CommitHistory] dir=${outputDirectory} cmds=${JSON.stringify(cmds)}`);
       const result = await executor.execute(outputDirectory, cmds);
+      logger.info(`[CommitHistory] ok=${result.ok} output=${result.output?.slice(0, 100)} error=${result.error}`);
       if (result.ok) {
         setCommits(parseCommitLog(result.output));
       } else {
