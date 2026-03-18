@@ -23,8 +23,10 @@ interface ExportResultSubPageProps {
   commitMessage: string;
   onCommitMessageChange: (msg: string) => void;
   onGitPush: () => void;
+  onGitDiscard: () => void;
   gitPushing: boolean;
   gitPushDone: boolean;
+  gitDiscarding: boolean;
   // Theme
   mode: string;
 }
@@ -326,8 +328,10 @@ export const ExportResultSubPage: React.FC<ExportResultSubPageProps> = ({
   commitMessage,
   onCommitMessageChange,
   onGitPush,
+  onGitDiscard,
   gitPushing,
   gitPushDone,
+  gitDiscarding,
   mode,
 }) => {
   const styles = useStyles();
@@ -401,15 +405,25 @@ export const ExportResultSubPage: React.FC<ExportResultSubPageProps> = ({
             {gitPushDone ? (
               <span className={styles.pushDoneText}>{t.export.pushDone}</span>
             ) : (
-              <Button
-                appearance="primary"
-                size="small"
-                icon={<ArrowUploadRegular fontSize={14} />}
-                onClick={onGitPush}
-                disabled={gitPushing || !commitMessage.trim()}
-              >
-                {gitPushing ? t.export.pushingBtn : t.export.pushBtn}
-              </Button>
+              <>
+                <Button
+                  appearance="subtle"
+                  size="small"
+                  onClick={onGitDiscard}
+                  disabled={gitPushing || gitDiscarding}
+                >
+                  {gitDiscarding ? '撤销中...' : '撤销'}
+                </Button>
+                <Button
+                  appearance="primary"
+                  size="small"
+                  icon={<ArrowUploadRegular fontSize={14} />}
+                  onClick={onGitPush}
+                  disabled={gitPushing || gitDiscarding || !commitMessage.trim()}
+                >
+                  {gitPushing ? t.export.pushingBtn : t.export.pushBtn}
+                </Button>
+              </>
             )}
           </div>
         </div>

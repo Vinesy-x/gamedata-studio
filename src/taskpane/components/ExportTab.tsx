@@ -625,6 +625,41 @@ export function ExportTab({
     }
   }, [exportResult, gitPushing, outputDir, commitMessage, config.operator]);
 
+  const [gitDiscarding, setGitDiscarding] = useState(false);
+
+  const handleGitDiscard = useCallback(async () => {
+    if (gitDiscarding || gitPushing) return;
+    setGitDiscarding(true);
+    try {
+      let serverBase = '';
+      for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
+        try {
+          const resp = await fetch(`${base}/api/read-file?directory=.&fileName=_probe`);
+          if (resp.ok || resp.status === 404) { serverBase = base; break; }
+        } catch { /* try next */ }
+      }
+      if (!serverBase) {
+        logger.error('撤销失败: 文件服务不可用');
+        return;
+      }
+      const gitExecutor = new GitExecutor(serverBase);
+      const result = await gitExecutor.execute(outputDir, [
+        `cd "${outputDir}"`,
+        'git checkout -- .',
+      ]);
+      if (result.ok) {
+        logger.info('已撤销导出结果，文件已恢复');
+        onClearResult();
+      } else {
+        logger.error(`撤销失败: ${result.error}`);
+      }
+    } catch (err) {
+      logger.error('撤销异常', err);
+    } finally {
+      setGitDiscarding(false);
+    }
+  }, [gitDiscarding, gitPushing, outputDir, onClearResult]);
+
   const [helpOpen, setHelpOpen] = useState(false);
   const [devLogOpen, setDevLogOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
@@ -812,8 +847,10 @@ export function ExportTab({
             commitMessage={commitMessage}
             onCommitMessageChange={setCommitMessage}
             onGitPush={handleManualGitPush}
+            onGitDiscard={handleGitDiscard}
             gitPushing={gitPushing}
             gitPushDone={gitPushDone}
+            gitDiscarding={gitDiscarding}
             mode={mode}
           />
         )}
