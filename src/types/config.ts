@@ -3,6 +3,8 @@ export interface VersionTemplate {
   lineId: number;
   lineField: string;
   gitDirectory?: string;
+  /** 渠道目录名，默认与渠道名相同，用于 git 目录模板的 {1} 替换 */
+  channelDirectory?: string;
 }
 
 export interface LineTemplate {

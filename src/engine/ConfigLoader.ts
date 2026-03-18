@@ -89,12 +89,14 @@ export class ConfigLoader {
     // 迁移：旧数据可能没有全局 gitDirectory，从版本模板中取第一个
     const globalGitDir = data.gitDirectory || data.versions.find(v => v.gitDirectory)?.gitDirectory || '';
 
-    // 计算输出目录
+    // 计算输出目录：{0}=版本号, {1}=渠道目录（默认=渠道名）
     if (globalGitDir) {
       let versionStr = String(outputSettings.versionNumber);
       if (!versionStr.includes('.')) versionStr += '.0';
+      const currentVersion = data.versions.find(v => v.name === outputSettings.versionName);
+      const channelDir = currentVersion?.channelDirectory || outputSettings.versionName;
       outputSettings.outputDirectory = globalGitDir
-        .replace('{0}', versionStr).replace('{1}', outputSettings.versionName);
+        .replace('{0}', versionStr).replace('{1}', channelDir);
     }
 
     // 表列表（从表名对照读取，单一数据源）

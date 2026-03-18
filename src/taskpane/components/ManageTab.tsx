@@ -297,6 +297,10 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
   const [editingVersionName, setEditingVersionName] = useState<string | null>(null);
   const [editVersionNameValue, setEditVersionNameValue] = useState('');
 
+  // 渠道目录行内编辑
+  const [editingChannelDir, setEditingChannelDir] = useState<string | null>(null);
+  const [editChannelDirValue, setEditChannelDirValue] = useState('');
+
   // Git 设置区：Git 目录编辑
   const [editingGitDir, setEditingGitDir] = useState(false);
   const [gitDirValue, setGitDirValue] = useState(config.gitDirectory || '');
@@ -330,6 +334,18 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
       setStatusMsg({ text: `更新版本名失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
     }
   }, [editVersionNameValue, config.versionTemplates, config.lineTemplates, onReload]);
+
+  const handleSaveChannelDir = useCallback(async (vt: VersionTemplate) => {
+    const newDir = editChannelDirValue.trim();
+    setEditingChannelDir(null);
+    if (newDir === (vt.channelDirectory || vt.name)) return; // 没变
+    try {
+      await configManager.updateVersion(vt.name, { ...vt, channelDirectory: newDir || '' });
+      onReload();
+    } catch (err) {
+      setStatusMsg({ text: `更新渠道目录失败: ${err instanceof Error ? err.message : String(err)}`, type: 'error' });
+    }
+  }, [editChannelDirValue, onReload]);
 
   const handleSaveGitDir = useCallback(async () => {
     const newDir = gitDirValue.trim();
@@ -534,9 +550,10 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
           <table className={styles.table}>
             <thead>
               <tr>
-                <th className={styles.th} style={{ width: '40%' }}>{t.manage.colChannel}</th>
-                <th className={styles.th} style={{ width: '40%' }}>{t.manage.colChannelId}</th>
-                <th className={styles.th} style={{ width: '20%' }}></th>
+                <th className={styles.th} style={{ width: '30%' }}>{t.manage.colChannel}</th>
+                <th className={styles.th} style={{ width: '30%' }}>渠道目录</th>
+                <th className={styles.th} style={{ width: '25%' }}>{t.manage.colChannelId}</th>
+                <th className={styles.th} style={{ width: '15%' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -560,6 +577,26 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
                       >
                         {vt.name}
                       </strong>
+                    )}
+                  </td>
+                  <td className={styles.td}>
+                    {editingChannelDir === vt.name ? (
+                      <Input
+                        size="small"
+                        value={editChannelDirValue}
+                        onChange={(_, d) => setEditChannelDirValue(d.value)}
+                        onBlur={() => handleSaveChannelDir(vt)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSaveChannelDir(vt); if (e.key === 'Escape') setEditingChannelDir(null); }}
+                        style={{ width: '100%', fontSize: '11px' }}
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        onClick={() => { setEditingChannelDir(vt.name); setEditChannelDirValue(vt.channelDirectory || vt.name); }}
+                        style={{ cursor: 'pointer', color: vt.channelDirectory ? undefined : tokens.colorNeutralForeground3 }}
+                      >
+                        {vt.channelDirectory || vt.name}
+                      </span>
                     )}
                   </td>
                   <td className={styles.td}>{roadsDisplayName(vt.lineField)}</td>
