@@ -90,7 +90,7 @@ export class GitHandler {
     if (!this.outputDirectory) return [];
     return [
       `cd "${this.outputDirectory}"`,
-      'git log --pretty=format:"%H||%ai||%an||%s" -10',
+      'git -c core.quotepath=false -c i18n.logOutputEncoding=utf-8 log --pretty=format:"%H||%ai||%an||%s" -10',
     ];
   }
 
