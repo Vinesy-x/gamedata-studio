@@ -21,7 +21,8 @@ export function getManifestRows(entry: HashManifestEntry): number {
 }
 
 export class ExportWriter {
-  private excelJsModule: typeof import('exceljs') | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private excelJsModule: any = null;
 
   /** 预加载 ExcelJS 模块，避免阶段B每张表重复 await import */
   async preloadExcelJs(): Promise<void> {
