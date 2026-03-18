@@ -799,7 +799,19 @@ export function ExportTab({
                   </div>
                   <div>Windows：重启电脑或运行开始菜单中的 GameData Studio Server</div>
                   <div>Mac：终端执行 <code style={{ fontSize: '10px', backgroundColor: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: '2px' }}>python3 ~/.gamedata-studio/file-server.py &</code></div>
-                  <Button size="small" appearance="primary" icon={<ArrowSyncRegular />} style={{ marginTop: '6px' }} onClick={() => { setServerOnline(null); setTimeout(() => { fetch('https://localhost:9876/api/read-file?directory=.&fileName=_probe').then(() => setServerOnline(true)).catch(() => setServerOnline(false)); }, 500); }}>
+                  <Button size="small" appearance="primary" icon={<ArrowSyncRegular />} style={{ marginTop: '6px' }} onClick={async () => {
+                    setServerOnline(null);
+                    await new Promise(r => setTimeout(r, 500));
+                    for (const base of ['https://localhost:9876', 'http://localhost:9876']) {
+                      try {
+                        const ctrl = new AbortController();
+                        const timer = setTimeout(() => ctrl.abort(), 3000);
+                        const resp = await fetch(`${base}/api/read-file?directory=.&fileName=_probe`, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
+                        if (resp.ok || resp.status === 404) { setServerOnline(true); return; }
+                      } catch { /* try next */ }
+                    }
+                    setServerOnline(false);
+                  }}>
                     重新检测
                   </Button>
                 </div>
