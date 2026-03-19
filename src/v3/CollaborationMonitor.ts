@@ -1,6 +1,7 @@
 /* global Excel */
 
 import { StudioConfigStore, CollabConfig } from '../v2/StudioConfigStore';
+import { operatorIdentity } from '../v2/OperatorIdentity';
 import { logger } from '../utils/Logger';
 
 export interface CollabTriggerParams {
@@ -69,7 +70,12 @@ export class CollaborationMonitor {
       const operator = config.operator;
       if (!operator || operator === '正在导出...') return;
 
-      logger.info(`CollaborationMonitor: 检测到操作人「${operator}」，触发导出`);
+      // 匹配本地操作员：只有操作人与本地一致时才触发
+      const localOperator = operatorIdentity.get();
+      if (!localOperator) return;
+      if (operator !== localOperator) return;
+
+      logger.info(`CollaborationMonitor: 检测到操作人「${operator}」匹配本地，触发导出`);
 
       // 立即回写状态：清空操作人 + 标记正在导出
       await this.writeStatus('正在导出...', '');
