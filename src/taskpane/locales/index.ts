@@ -31,7 +31,7 @@ export function useThemeText(): ThemeTextMap {
  * 仅在 isGame 时使用，不属于通用文本字典。
  */
 /** 特殊主题专属数据（非文本，如经验值、等级等）。按主题模式返回不同数据。 */
-const DEFAULT_RULE_XP = [50, 75, 30, 40, 60, 25, 35] as const;
+const DEFAULT_RULE_XP = [50, 75, 30, 40, 60, 25, 35, 45] as const;
 
 export const themeExtraData = {
   game: {

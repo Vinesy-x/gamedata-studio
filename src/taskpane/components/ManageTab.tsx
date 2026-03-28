@@ -877,6 +877,13 @@ function ConfigSubPage({ config, onReload, styles, monitorEnabled, monitorStatus
               onChange={(_, d) => { clientSettings.set('detailedDiff', d.checked); forceUpdate(); }}
             />
           </div>
+          <div className={styles.switchRow}>
+            <Text style={{ fontSize: '11px' }}>允许空格</Text>
+            <Switch
+              checked={config.switches?.['允许空格'] ?? false}
+              onChange={(_, d) => handleToggleSwitch('允许空格', d.checked)}
+            />
+          </div>
         </div>
       </div>
 

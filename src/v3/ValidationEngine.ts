@@ -18,11 +18,13 @@ export class ValidationEngine {
   private versionFilter: VersionFilter;
   private validationConfig?: ValidationConfig;
   private nullEquivalentSet: Set<string>;
+  private allowEmpty: boolean;
 
-  constructor(versionFilter: VersionFilter, validationConfig?: ValidationConfig) {
+  constructor(versionFilter: VersionFilter, validationConfig?: ValidationConfig, options?: { allowEmpty?: boolean }) {
     this.versionFilter = versionFilter;
     this.validationConfig = validationConfig;
     this.nullEquivalentSet = new Set((validationConfig?.nullEquivalents ?? []).map(s => s.toLowerCase()));
+    this.allowEmpty = options?.allowEmpty ?? false;
   }
 
   // ──────────── 公开接口 ────────────
@@ -58,6 +60,7 @@ export class ValidationEngine {
       tableResults.push(...this.validateVersionFormat(tableName, data));
       tableResults.push(...this.validateVersionCoverageAndOrder(tableName, data));
       tableResults.push(...this.validateRoadsConsistency(tableName, data));
+      tableResults.push(...this.validateEmptyRows(tableName, data));
       if (data.markerWarnings) tableResults.push(...data.markerWarnings);
       for (let i = 0; i < tableResults.length; i++) results.push(tableResults[i]);
     }
@@ -96,13 +99,15 @@ export class ValidationEngine {
 
         // 规则6: 必填字段
         if (value === '' || value === null || value === undefined) {
-          results.push({
-            severity: 'warning',
-            ruleName: '必填字段',
-            tableName,
-            location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
-            message: `第 ${data.dataRowStart + row} 行 "${data.fieldNames[col] ?? ''}" 字段为空`,
-          });
+          if (!this.allowEmpty) {
+            results.push({
+              severity: 'warning',
+              ruleName: '必填字段',
+              tableName,
+              location: { sheetName: tableName, row: data.dataRowStart + row, column: data.dataColStart + col },
+              message: `第 ${data.dataRowStart + row} 行 "${data.fieldNames[col] ?? ''}" 字段为空`,
+            });
+          }
           continue;
         }
 
@@ -479,6 +484,7 @@ export class ValidationEngine {
    * 数据区域空单元格（severity 为 warning）
    */
   validateRequiredFields(tableName: string, data: TableValidationData): ValidationResult[] {
+    if (this.allowEmpty) return [];
     const results: ValidationResult[] = [];
     for (let row = 0; row < data.dataValues.length; row++) {
       for (let col = 0; col < data.dataValues[row].length; col++) {
@@ -499,6 +505,23 @@ export class ValidationEngine {
       }
     }
     return results;
+  }
+
+  /**
+   * 规则8：空行检测
+   * 检测数据区域中间的空行（key 断裂），支持删除修复
+   */
+  validateEmptyRows(tableName: string, data: TableValidationData): ValidationResult[] {
+    if (!data.emptyRows || data.emptyRows.length === 0) return [];
+    const rowList = data.emptyRows.join(', ');
+    return [{
+      severity: 'warning',
+      ruleName: '空行检测',
+      tableName,
+      location: { sheetName: tableName, row: data.emptyRows[0], column: data.dataColStart },
+      message: `数据区域存在 ${data.emptyRows.length} 个空行（第 ${rowList} 行），Key 不连续`,
+      fixData: { sheetName: tableName, rows: data.emptyRows },
+    }];
   }
 
   /**
@@ -661,12 +684,29 @@ export class ValidationEngine {
       break;
     }
     const dataRowStart = dataRowOffset + 1 + startRow; // 1-indexed
+    // 扫描数据区：记录连续数据行终止位置，同时检测中间空行（key 断裂）
     let dataEndRow = dataRowOffset;
+    const emptyRowPositions: number[] = []; // 1-indexed
+    let lastDataRow = dataRowOffset;
+    // 先找到整个区域的真实末尾（连续空行超过 3 行视为终止）
+    let consecutiveEmpty = 0;
     for (let r = dataRowOffset; r < allValues.length; r++) {
       const firstCell = allValues[r]?.[dataStartCol];
-      if (firstCell == null || String(firstCell).trim() === '') break;
-      dataEndRow = r + 1;
+      if (firstCell == null || String(firstCell).trim() === '') {
+        consecutiveEmpty++;
+        if (consecutiveEmpty > 3) break;
+      } else {
+        // 在有数据行之前的空行都是中间空行
+        if (consecutiveEmpty > 0) {
+          for (let e = r - consecutiveEmpty; e < r; e++) {
+            emptyRowPositions.push(e + 1 + startRow); // 1-indexed
+          }
+        }
+        consecutiveEmpty = 0;
+        lastDataRow = r + 1;
+      }
     }
+    dataEndRow = lastDataRow;
     // 表头行（version_r、字段定义、描述）始终包含
     const endRow = Math.max(dataEndRow, dataRowOffset);
 
@@ -744,6 +784,7 @@ export class ValidationEngine {
       versionCValues,
       versionCRowStart,
       markerWarnings: markerWarnings.length > 0 ? markerWarnings : undefined,
+      emptyRows: emptyRowPositions.length > 0 ? emptyRowPositions : undefined,
     };
   }
 

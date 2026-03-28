@@ -13,7 +13,8 @@ export type ValidationRuleName =
   | 'Roads一致性'
   | '版本区间分隔符'
   | '重复标记'
-  | '结果截断';
+  | '结果截断'
+  | '空行检测';
 
 /** 校验规则配置 */
 export interface ValidationRuleConfig {
@@ -40,6 +41,8 @@ export interface ValidationResult {
   tableName: string;
   location: CellLocation | null;
   message: string;
+  /** 可修复的数据（如空行的行号列表），用于一键修复 */
+  fixData?: { sheetName: string; rows: number[] };
 }
 
 /** 单表的校验数据（从 Excel 工作表解析得到） */
@@ -68,4 +71,6 @@ export interface TableValidationData {
   versionCRowStart?: number;
   /** 解析阶段发现的重复标记警告 */
   markerWarnings?: ValidationResult[];
+  /** 数据区中间的空行位置（1-indexed 行号），用于空行检测和修复 */
+  emptyRows?: number[];
 }

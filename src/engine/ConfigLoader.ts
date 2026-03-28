@@ -126,6 +126,7 @@ export class ConfigLoader {
       gitCommitTemplate: data.gitCommitTemplate || '',
       operator: operatorIdentity.get() || '',
       staffCodes,
+      switches: data.switches ?? {},
     };
   }
 
@@ -176,6 +177,7 @@ export class ConfigLoader {
       versionTemplates, lineTemplates, tablesToProcess, outputSettings,
       gitDirectory: legacyGitDir,
       gitCommitTemplate: gitCommitTemplate || '', operator: operatorIdentity.get() || '', staffCodes: staffCodes || new Map(),
+      switches: {},
     };
   }
 

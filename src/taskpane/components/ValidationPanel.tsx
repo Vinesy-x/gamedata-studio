@@ -46,6 +46,7 @@ const VALIDATION_RULES: RuleDef[] = [
   { key: 'keyVersionOrder', label: '同Key版本顺序' },
   { key: 'requiredFields', label: '必填字段' },
   { key: 'roadsConsistency', label: 'Roads一致性' },
+  { key: 'emptyRows', label: '空行检测' },
 ];
 
 // ─── 样式 ────────────────────────────────────────────────
@@ -481,7 +482,8 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
         config.outputSettings.versionNumber,
         'roads_0'
       );
-      const engine = new ValidationEngine(versionFilter, valConfig);
+      const allowEmpty = config.switches?.['允许空格'] ?? false;
+      const engine = new ValidationEngine(versionFilter, valConfig, { allowEmpty });
 
       const allResults = await engine.runValidation(tables, (tableName, index, total) => {
         setProgressText(`${tableName} (${index}/${total})`);
@@ -496,6 +498,7 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
         keyVersionOrder: '同Key版本顺序',
         requiredFields: '必填字段',
         roadsConsistency: 'Roads一致性',
+        emptyRows: '空行检测',
       };
 
       // 同时匹配「版本区间格式」规则的两个 ruleName
@@ -534,6 +537,26 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
     },
     [navigator]
   );
+
+  // ─── 修复空行 ─────────────────────────────
+
+  const handleFixEmptyRows = useCallback(async (fixData: { sheetName: string; rows: number[] }) => {
+    try {
+      await Excel.run(async (context) => {
+        const sheet = context.workbook.worksheets.getItem(fixData.sheetName);
+        // 从后往前删除，避免行号偏移
+        const sortedRows = [...fixData.rows].sort((a, b) => b - a);
+        for (const row of sortedRows) {
+          sheet.getRangeByIndexes(row - 1, 0, 1, 1).getEntireRow().delete(Excel.DeleteShiftDirection.up);
+        }
+        await context.sync();
+      });
+      // 删除后重新校验
+      handleRunValidation();
+    } catch (err) {
+      console.error('修复空行失败', err);
+    }
+  }, [handleRunValidation]);
 
   // ─── 统计数据 ─────────────────────────────
 
@@ -812,6 +835,16 @@ export function ValidationPanel({ config }: ValidationPanelProps) {
                           </div>
                           <span className={styles.resultMessage}>{item.message}</span>
                         </div>
+                        {item.fixData && (
+                          <Button
+                            appearance="subtle"
+                            size="small"
+                            style={{ minWidth: 'auto', padding: '0 6px', fontSize: '11px', flexShrink: 0 }}
+                            onClick={(e) => { e.stopPropagation(); handleFixEmptyRows(item.fixData!); }}
+                          >
+                            修复
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>

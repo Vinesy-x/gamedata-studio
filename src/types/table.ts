@@ -11,6 +11,10 @@ export interface InMemoryTableData {
   versionColLabels: CellValue[] | null;
   hasVersionRowFlag: boolean;
   hasVersionColFlag: boolean;
+  /** mainData 在原始工作表中的起始行（0-indexed） */
+  dataStartRow: number;
+  /** mainData 在原始工作表中的起始列（0-indexed） */
+  dataStartCol: number;
 }
 
 export interface FilteredResult {

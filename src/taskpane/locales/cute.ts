@@ -101,7 +101,7 @@ export const cuteText: ThemeTextMap = {
     runBtn: '开始守护检查~',
     runningBtn: '检查中...',
     emptyHint: '选择宝典和检查项后，点击「开始守护检查」',
-    ruleLabels: ['冒险范围确认', '世界覆盖完整性', '数据类型匹配', '数组分隔符', '同Key世界顺序', '必填字段', '路线一致性'],
+    ruleLabels: ['冒险范围确认', '世界覆盖完整性', '数据类型匹配', '数组分隔符', '同Key世界顺序', '必填字段', '路线一致性', '空地检测'],
     validatingProgress: '守护检查中',
     passedMessage: '检查完成，一切安好~',
   },

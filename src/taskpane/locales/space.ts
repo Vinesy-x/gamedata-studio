@@ -101,7 +101,7 @@ export const spaceText: ThemeTextMap = {
     runBtn: '开始检修',
     runningBtn: '检修中...',
     emptyHint: '选择设备和检修项后，点击「开始检修」',
-    ruleLabels: ['航线区间格式', '航线覆盖完整性', '数据类型匹配', '数组分隔符', '同Key航线顺序', '必填字段', '航段一致性'],
+    ruleLabels: ['航线区间格式', '航线覆盖完整性', '数据类型匹配', '数组分隔符', '同Key航线顺序', '必填字段', '航段一致性', '空舱检测'],
     validatingProgress: '正在检修',
     passedMessage: '检修完成，一切正常',
   },

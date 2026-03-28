@@ -42,4 +42,5 @@ export interface Config {
   gitCommitTemplate: string;
   operator: string;
   staffCodes: Map<string, StaffInfo>;
+  switches: Record<string, boolean>;
 }

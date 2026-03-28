@@ -101,7 +101,7 @@ export const pixelText: ThemeTextMap = {
     runBtn: '开始鉴定',
     runningBtn: '鉴定中...',
     emptyHint: '选择精灵和鉴定项后，点击「开始鉴定」',
-    ruleLabels: ['副本区间格式', '副本覆盖完整性', '数据类型匹配', '数组分隔符', '同Key副本顺序', '必填字段', '路线一致性'],
+    ruleLabels: ['副本区间格式', '副本覆盖完整性', '数据类型匹配', '数组分隔符', '同Key副本顺序', '必填字段', '路线一致性', '空位检测'],
     validatingProgress: '正在鉴定',
     passedMessage: 'PERFECT! 全部通过',
   },

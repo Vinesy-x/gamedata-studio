@@ -92,7 +92,7 @@ export const defaultText: ThemeTextMap = {
     runBtn: '运行校验',
     runningBtn: '校验中...',
     emptyHint: '选择校验范围和规则后，点击「运行校验」',
-    ruleLabels: ['版本区间格式', '版本覆盖完整性', '数据类型匹配', '数组分隔符', '同Key版本顺序', '必填字段', 'Roads一致性'],
+    ruleLabels: ['版本区间格式', '版本覆盖完整性', '数据类型匹配', '数组分隔符', '同Key版本顺序', '必填字段', 'Roads一致性', '空行检测'],
     validatingProgress: '正在校验',
     passedMessage: '校验通过，未发现问题',
   },

@@ -101,7 +101,7 @@ export const cyberText: ThemeTextMap = {
     runBtn: '启动扫描',
     runningBtn: '扫描中...',
     emptyHint: '选择数据体和扫描项后，点击「启动扫描」',
-    ruleLabels: ['协议区间格式', '协议覆盖完整性', '数据类型匹配', '数组分隔符', '同Key协议顺序', '必填字段', '链路一致性'],
+    ruleLabels: ['协议区间格式', '协议覆盖完整性', '数据类型匹配', '数组分隔符', '同Key协议顺序', '必填字段', '链路一致性', '空包检测'],
     validatingProgress: '正在扫描',
     passedMessage: '扫描完成，未发现异常',
   },

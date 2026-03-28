@@ -237,6 +237,8 @@ export class DataLoader {
       versionColLabels,
       hasVersionRowFlag: hasVersionRow,
       hasVersionColFlag: hasVersionCol,
+      dataStartRow,
+      dataStartCol,
     };
   }
 }

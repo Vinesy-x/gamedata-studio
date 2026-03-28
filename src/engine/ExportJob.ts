@@ -134,7 +134,7 @@ export class ExportJob {
       // 步骤5: 导出前校验
       this.emitProgress(5, totalSteps, '正在执行校验...');
       const t3 = Date.now();
-      this.runValidation(inMemoryData, versionFilter);
+      this.runValidation(inMemoryData, versionFilter, config);
       logger.info(`⏱ 导出前校验: ${Date.now() - t3}ms`);
 
       // 步骤6: 加载哈希清单（用于差异对比）
@@ -603,7 +603,9 @@ export class ExportJob {
   private runValidation(
     inMemoryData: Map<string, InMemoryTableData>,
     versionFilter: VersionFilter,
+    config?: Config,
   ): void {
+    const allowEmpty = config?.switches?.['允许空格'] ?? false;
     for (const [chineseName, tableData] of inMemoryData) {
       // ── 1. 校验行版本区间（versionRowData 列0）
       if (tableData.versionRowData) {
@@ -634,6 +636,10 @@ export class ExportJob {
           validColCount = c + 1;
         }
 
+        // mainData 内部索引 → 工作表实际行列（1-indexed）
+        const rowOffset = tableData.dataStartRow; // mainData[r] 对应工作表第 rowOffset + r 行（0-indexed）
+        const colOffset = tableData.dataStartCol; // mainData[c] 对应工作表第 colOffset + c 列（0-indexed）
+
         let cellErrors = 0;
         const MAX_CELL_ERRORS = 100;
         for (let r = 2; r < tableData.mainData.length && cellErrors < MAX_CELL_ERRORS; r++) {
@@ -642,6 +648,8 @@ export class ExportJob {
 
           for (let c = 0; c < validColCount && cellErrors < MAX_CELL_ERRORS; c++) {
             const raw = tableData.mainData[r][c];
+            const absRow = rowOffset + r + 1; // 1-indexed
+            const absCol = colOffset + c + 1; // 1-indexed
 
             if (isExcelError(raw)) {
               cellErrors++;
@@ -651,12 +659,26 @@ export class ExportJob {
                 tableName: chineseName,
                 message: `数据区域单元格包含错误值「${raw}」`,
                 procedure: 'ExportJob.runValidation',
-                location: { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') },
+                location: { sheetName: chineseName, row: absRow, column: absCol, cellValue: String(raw ?? '') },
               });
               continue;
             }
 
-            if (raw != null && typeof raw === 'string' && raw.length > 0 && raw.trim() === '') {
+            if (!allowEmpty && (raw === null || raw === undefined || raw === '')) {
+              cellErrors++;
+              const fieldName = String(tableData.mainData[0]?.[c] ?? '').split('=')[0];
+              this.errorHandler.logError({
+                code: ErrorCode.CELL_WHITESPACE_ONLY,
+                severity: 'warning',
+                tableName: chineseName,
+                message: `"${fieldName}" 字段为空`,
+                procedure: 'ExportJob.runValidation',
+                location: { sheetName: chineseName, row: absRow, column: absCol, cellValue: '' },
+              });
+              continue;
+            }
+
+            if (!allowEmpty && typeof raw === 'string' && raw.length > 0 && raw.trim() === '') {
               cellErrors++;
               this.errorHandler.logError({
                 code: ErrorCode.CELL_WHITESPACE_ONLY,
@@ -664,7 +686,7 @@ export class ExportJob {
                 tableName: chineseName,
                 message: '数据区域单元格仅包含空格',
                 procedure: 'ExportJob.runValidation',
-                location: { sheetName: chineseName, row: r + 1, column: c + 1, cellValue: String(raw ?? '') },
+                location: { sheetName: chineseName, row: absRow, column: absCol, cellValue: String(raw ?? '') },
               });
             }
           }

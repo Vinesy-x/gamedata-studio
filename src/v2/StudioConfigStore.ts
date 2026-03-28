@@ -144,7 +144,7 @@ export function createDefaultConfig(): StudioConfigData {
     staff: [{ id: 1, name: '默认用户', code: 'default' }],
     gitDirectory: '',
     gitCommitTemplate: '-{1}{0}数据表提交',
-    switches: { '自动弹出路径': false },
+    switches: { '自动弹出路径': false, '允许空格': false },
     validationConfig: createDefaultValidationConfig(),
   };
 }
